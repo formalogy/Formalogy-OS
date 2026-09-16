@@ -75,6 +75,8 @@ export default async function PageTableauDeBord() {
     activites,
     sansConvention,
     inscriptionsTerminees,
+    taches,
+    nombreTaches,
   ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
@@ -151,6 +153,12 @@ export default async function PageTableauDeBord() {
           },
         },
       }),
+      prisma.task.findMany({
+        where: { statut: "A_FAIRE" },
+        orderBy: [{ echeance: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+        take: 6,
+      }),
+      prisma.task.count({ where: { statut: "A_FAIRE" } }),
     ]);
 
   const sansAttestation = inscriptionsTerminees.filter(
@@ -324,14 +332,34 @@ export default async function PageTableauDeBord() {
             </p>
           </section>
 
-          <section className="rounded-xl border border-bordure bg-surface p-4 shadow-sm">
-            <h2 className="text-[14.5px] font-bold">Tâches</h2>
-            <p className="mt-2 text-[12.5px] text-texte-doux">
-              Relances commerciales, dossiers à compléter, factures impayées, actions Qualiopi.
-            </p>
-            <p className="mt-3 border-t border-bordure-douce pt-3 text-[11.5px] text-texte-tenu">
-              Alimenté à partir de la Phase 9.
-            </p>
+          <section className="overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-bordure-douce px-4 py-3">
+              <h2 className="text-[14.5px] font-bold">Tâches</h2>
+              <Link href="/taches" className="text-[12px] font-semibold text-accent-fort hover:underline">
+                Toutes ({nombreTaches})
+              </Link>
+            </div>
+            {taches.length === 0 ? (
+              <p className="px-4 py-4 text-[12.8px] text-texte-doux">Rien à faire pour le moment.</p>
+            ) : (
+              <ul>
+                {taches.map((t) => {
+                  const enRetard = t.echeance !== null && t.echeance < aujourdhui;
+                  return (
+                    <li key={t.id} className="border-t border-bordure-douce first:border-t-0">
+                      <Link href="/taches" className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-surface-creuse">
+                        <span className="min-w-0 text-[12.8px] font-semibold">{t.titre}</span>
+                        {t.echeance && (
+                          <span className={`shrink-0 font-mono text-[11px] tabular-nums ${enRetard ? "font-semibold text-danger" : "text-texte-tenu"}`}>
+                            {formaterPeriode(t.echeance, t.echeance)}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
       </div>

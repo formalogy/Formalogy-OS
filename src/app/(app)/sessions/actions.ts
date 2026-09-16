@@ -2,9 +2,11 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { declencher } from "@/lib/automatisations/moteur";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -247,20 +249,34 @@ async function appliquerStatut(
   }
 
   if ((statut === "TERMINEE" || statut === "CLOTUREE") && ids.length) {
-    const encoreEnFormation = await prisma.sessionLearner.findMany({
+    // Un apprenant qui suit encore une autre session non achevée n'a pas
+    // terminé son parcours : on ne le passe pas « terminé ».
+    const autresSessionsEnCours = await prisma.sessionLearner.findMany({
       where: {
         learnerId: { in: ids },
         sessionId: { not: sessionId },
-        session: { statut: "EN_COURS", deletedAt: null },
+        session: { deletedAt: null, statut: { notIn: ["TERMINEE", "CLOTUREE", "ANNULEE"] } },
       },
       select: { learnerId: true },
     });
-    const exclus = new Set(encoreEnFormation.map((i) => i.learnerId));
+    const exclus = new Set(autresSessionsEnCours.map((i) => i.learnerId));
+    // Une session peut passer directement de « Prête » à « Terminée » sans que
+    // son statut ait été mis « En cours » : ses inscrits sont alors encore
+    // « Inscrit », et doivent aussi passer « Terminé ».
     const r = await prisma.learner.updateMany({
-      where: { id: { in: ids.filter((id) => !exclus.has(id)) }, statut: "EN_FORMATION" },
+      where: {
+        id: { in: ids.filter((id) => !exclus.has(id)) },
+        statut: { in: ["PROSPECT", "INSCRIT", "EN_FORMATION"] },
+      },
       data: { statut: "TERMINE" },
     });
     apprenantsMisAJour = r.count;
+  }
+
+  if (statut === "TERMINEE" || statut === "CLOTUREE") {
+    // Une session clôturée sans être passée par « terminée » déclenche aussi
+    // ses suites ; une session passée par les deux ne les déclenche qu'une fois.
+    after(() => declencher({ type: "SESSION_TERMINEE", sessionId }));
   }
 
   await journaliser({
@@ -349,6 +365,8 @@ export async function inscrireApprenant(
     userId: utilisateur.id,
     metadata: { learnerId: apprenant.id },
   });
+
+  after(() => declencher({ type: "INSCRIPTION_SESSION", sessionId: session.id, learnerId: apprenant.id }));
 
   revalidatePath(`/sessions/${session.id}`);
   revalidatePath(`/apprenants/${apprenant.id}`);

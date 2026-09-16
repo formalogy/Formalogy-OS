@@ -89,11 +89,11 @@ export const MENU: GroupeMenu[] = [
     entrees: [
       { libelle: "Utilisateurs", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Rôles et permissions", phase: 17, roles: ADMIN_SEUL },
-      { libelle: "Modèles d'emails", phase: 9 },
+      { libelle: "Modèles d'emails", chemin: "/parametres/modeles-emails" },
       // La génération de documents à partir de modèles arrive avec les
       // attestations et certificats.
       { libelle: "Modèles de documents", phase: 12 },
-      { libelle: "Automatisations", phase: 9 },
+      { libelle: "Automatisations", chemin: "/parametres/automatisations" },
       { libelle: "Intégrations", phase: 17, roles: ADMIN_SEUL },
       { libelle: "API", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Paramètres généraux", phase: 17, roles: ADMIN_SEUL },

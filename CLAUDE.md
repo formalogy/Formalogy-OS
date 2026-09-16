@@ -31,7 +31,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 | Emails | Resend |
 | Signature électronique | Yousign (API + webhook + réconciliation) |
 | Facturation externe | Henrri, derrière une interface (mock tant que l'API n'est pas fournie) |
-| Automatisations | Inngest |
+| Automatisations | Moteur interne (`lib/automatisations`) + réveil quotidien `POST /api/automatisations/executer` |
 | Hébergement | À trancher (Phase 18) |
 
 ## Règle impérative : Supabase est de l'infrastructure brute
@@ -47,6 +47,20 @@ Le client a explicitement rejeté l'ancien modèle où Supabase gérait tout cô
 client. Respecter cette règle garantit que la base reste du PostgreSQL standard
 et que le projet peut migrer ailleurs en quelques heures.
 
+## Emails et automatisations
+
+- **Verrou d'envoi** : aucun email ne part réellement tant que `EMAILS_ENVOI_REEL`
+  ne vaut pas exactement `true` (et que `RESEND_API_KEY` et `EMAIL_FROM` sont
+  renseignés). Sinon, les envois sont enregistrés avec le statut `SIMULE`.
+  Ne jamais contourner ce verrou pendant des tests : les apprenants sont réels.
+- Inngest a été écarté au profit d'un moteur interne, jugé suffisant pour le
+  volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
+  une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
+- Les automatisations livrées sont **désactivées** : leur activation est une
+  décision du client.
+- Le réveil quotidien exige `Authorization: Bearer <CRON_SECRET>` ; le
+  planificateur sera configuré à la mise en ligne (Phase 18).
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend
@@ -54,7 +68,8 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Les secrets (clé `service_role` Supabase, clés API) restent côté serveur.
 - Trois catégories de routes, protégées différemment :
   1. l'application — session authentifiée + rôle
-  2. le webhook Yousign — vérification de signature cryptographique
+  2. les webhooks (Resend, puis Yousign) — vérification de signature
+     cryptographique, horodatage de moins de 5 minutes
   3. les éventuels liens à usage unique — jeton signé, expirant
 - Données personnelles d'apprenants en base : obligations RGPD entières, même
   sans compte apprenant. Prévoir export et suppression côté administrateur.

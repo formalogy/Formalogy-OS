@@ -71,6 +71,8 @@ model User {
   sessionsCreees    TrainingSession[] @relation("SessionCreatedBy")
   documentsCrees    Document[] @relation("DocumentCreatedBy")
   versionsDeposees  DocumentVersion[] @relation("DocumentVersionCreatedBy")
+  emailsEnvoyes     Email[] @relation("EmailCreatedBy")
+  tachesCreees      Task[] @relation("TaskCreatedBy")
 
   @@index([deletedAt])
   @@map("user")
@@ -239,6 +241,8 @@ model Company {
   learners  Learner[]
   sessions  TrainingSession[]
   documents Document[]
+  emails    Email[]
+  taches    Task[]
 
   @@index([raisonSociale])
   @@index([deletedAt])
@@ -310,6 +314,9 @@ model Prospect {
   createdById String?
   createdBy   User?   @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  emails Email[]
+  taches Task[]
+
   @@index([statut])
   @@index([prochaineRelanceAt])
   @@index([companyId])
@@ -378,6 +385,9 @@ model Learner {
 
   inscriptions SessionLearner[]
   documents    Document[]
+
+  emails Email[]
+  taches Task[]
 
   @@index([nom, prenom])
   @@index([companyId])
@@ -525,6 +535,9 @@ model TrainingSession {
   inscriptions SessionLearner[]
   documents    Document[]
 
+  emails Email[]
+  taches Task[]
+
   @@index([dateDebut, dateFin])
   @@index([statut])
   @@index([formationId])
@@ -661,4 +674,191 @@ model DocumentVersion {
 
   @@unique([documentId, numero])
   @@map("document_versions")
+}
+
+// ===========================================================================
+// Emails, tâches et automatisations (Phase 9)
+// ===========================================================================
+
+/// SIMULE : l'envoi réel est désactivé, le message n'a pas quitté l'application.
+/// Les statuts DELIVRE et OUVERT sont renseignés par le prestataire d'envoi,
+/// quand il sait les détecter.
+enum StatutEmail {
+  SIMULE
+  ENVOYE
+  DELIVRE
+  OUVERT
+  ECHEC
+}
+
+/// Modèle d'email avec variables, ex. « Bonjour {{apprenant.prenom}} ».
+/// Le `code` est stable : les automatisations désignent un modèle par son code.
+model EmailTemplate {
+  id          String  @id @default(uuid(7))
+  code        String  @unique
+  nom         String
+  description String?
+  sujet       String
+  corps       String
+  actif       Boolean @default(true)
+
+  emails Email[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+/// Historique : chaque email envoyé (ou simulé) est conservé tel qu'il a été
+/// rendu, variables remplacées. Modifier un modèle ne réécrit pas le passé.
+model Email {
+  id String @id @default(uuid(7))
+
+  destinataire String
+  sujet        String
+  corps        String
+
+  statut StatutEmail
+  /// Identifiant chez le prestataire, pour rapprocher ses notifications
+  fournisseurId String? @unique
+  erreur        String?
+
+  envoyeAt  DateTime  @default(now())
+  delivreAt DateTime?
+  ouvertAt  DateTime?
+
+  templateId String?
+  template   EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  learnerId  String?
+  learner    Learner?         @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+  companyId  String?
+  company    Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  session    TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  prospectId String?
+  prospect   Prospect?        @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+
+  automationRunId String?
+  automationRun   AutomationRun? @relation(fields: [automationRunId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("EmailCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([envoyeAt])
+  @@index([learnerId])
+  @@index([sessionId])
+  @@index([statut])
+  @@map("emails")
+}
+
+enum StatutTache {
+  A_FAIRE
+  FAITE
+}
+
+enum PrioriteTache {
+  BASSE
+  NORMALE
+  HAUTE
+}
+
+/// Tâche à traiter (relance, dossier à compléter, préparation de facture…),
+/// créée à la main ou par une automatisation.
+model Task {
+  id String @id @default(uuid(7))
+
+  titre       String
+  description String?
+  echeance    DateTime?
+  statut      StatutTache   @default(A_FAIRE)
+  priorite    PrioriteTache @default(NORMALE)
+  faiteAt     DateTime?
+
+  learnerId  String?
+  learner    Learner?         @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+  companyId  String?
+  company    Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  session    TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  prospectId String?
+  prospect   Prospect?        @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+
+  automationRunId String?
+  automationRun   AutomationRun? @relation(fields: [automationRunId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([statut, echeance])
+  @@map("tasks")
+}
+
+/// Événements qui déclenchent une automatisation (cahier des charges, section 24).
+/// Les déclencheurs liés aux factures et aux signatures arriveront avec leurs
+/// phases (13 et 11).
+enum DeclencheurAutomatisation {
+  APPRENANT_CREE
+  INSCRIPTION_SESSION
+  SESSION_AVANT_DEBUT
+  SESSION_TERMINEE
+  RELANCE_PROSPECT_DUE
+}
+
+/// Règle DÉCLENCHEUR → CONDITION → ACTION.
+///
+/// `parametres` précise le déclencheur (ex. nombre de jours avant la session),
+/// `conditions` filtre les cas concernés, `actions` décrit ce qui est fait.
+/// Leur forme est validée par le moteur (lib/automatisations), pas par la base.
+model Automation {
+  id          String                    @id @default(uuid(7))
+  nom         String
+  description String?
+  declencheur DeclencheurAutomatisation
+  parametres  Json                      @default("{}")
+  conditions  Json                      @default("{}")
+  actions     Json
+  actif       Boolean                   @default(false)
+
+  executions AutomationRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("automations")
+}
+
+enum StatutExecution {
+  REUSSIE
+  IGNOREE
+  ECHEC
+}
+
+/// Trace de chaque exécution. La clé d'unicité garantit qu'une même
+/// automatisation ne traite jamais deux fois le même cas : un apprenant ne
+/// reçoit pas deux fois son email de bienvenue, même si le réveil quotidien
+/// tourne deux fois.
+model AutomationRun {
+  id String @id @default(uuid(7))
+
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  cleUnicite String          @unique
+  entityType String
+  entityId   String
+  statut     StatutExecution
+  detail     String?
+
+  emails Email[]
+  taches Task[]
+
+  createdAt DateTime @default(now())
+
+  @@index([automationId, createdAt])
+  @@map("automation_runs")
 }

@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
+import { EnvoiEmail } from "@/app/(app)/apprenants/[id]/envoi-email";
 import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-statut";
+import { LIBELLE_STATUT_EMAIL, TON_STATUT_EMAIL } from "@/lib/automatisations/libelles";
+import { construireContexte } from "@/lib/emails/contexte";
+import { envoiReelActif } from "@/lib/emails/envoi";
+import { rendre } from "@/lib/emails/modeles";
 import {
   LIBELLE_FINANCEMENT,
   TON_STATUT_APPRENANT,
@@ -55,10 +60,34 @@ export default async function PageApprenant({
         include: { session: { include: { formation: { select: { titre: true } } } } },
       },
       documents: SELECTION_DOCUMENT_RESUME,
+      emails: { orderBy: { envoyeAt: "desc" }, take: 10 },
     },
   });
 
   if (!apprenant) notFound();
+
+  // Modèles pré-remplis avec les informations de cet apprenant et de sa
+  // session la plus récente, prêts à être relus et ajustés avant l'envoi.
+  const derniereSession = apprenant.inscriptions[0]?.session;
+  const [modeles, contexte] = await Promise.all([
+    prisma.emailTemplate.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    construireContexte({
+      learnerId: apprenant.id,
+      sessionId: derniereSession?.id,
+      companyId: apprenant.companyId ?? undefined,
+    }),
+  ]);
+  const modelesRendus = modeles.map((m) => {
+    const sujet = rendre(m.sujet, contexte);
+    const corps = rendre(m.corps, contexte);
+    return {
+      id: m.id,
+      nom: m.nom,
+      sujet: sujet.resultat,
+      corps: corps.resultat,
+      manquantes: [...new Set([...sujet.manquantes, ...corps.manquantes])],
+    };
+  });
 
   return (
     <>
@@ -185,6 +214,30 @@ export default async function PageApprenant({
       <div className="mt-4">
         <ListeDocuments documents={apprenant.documents} lienAjout={`apprenant=${apprenant.id}`} />
       </div>
+
+      <section className="mt-4 rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="text-[14.5px] font-bold">
+            Emails <span className="font-normal text-texte-tenu">({apprenant.emails.length})</span>
+          </h2>
+        </div>
+        {apprenant.emails.length > 0 && (
+          <ul className="mb-4">
+            {apprenant.emails.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-3 border-t border-bordure-douce py-2 first:border-t-0">
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold">{e.sujet}</div>
+                  <div className="text-[11.5px] text-texte-tenu">{formaterDate(e.envoyeAt)}</div>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${TON_STATUT_EMAIL[e.statut]}`}>
+                  {LIBELLE_STATUT_EMAIL[e.statut]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <EnvoiEmail learnerId={apprenant.id} email={apprenant.email} modeles={modelesRendus} envoiReel={envoiReelActif()} />
+      </section>
     </>
   );
 }
