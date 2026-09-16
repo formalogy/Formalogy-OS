@@ -1,0 +1,13 @@
+// Formalogy OS — schéma de base de données
+// Aucune table n'est encore définie : elles arrivent en Phase 2.
+//
+// Depuis Prisma 7, les adresses de connexion ne vivent plus ici mais dans
+// prisma.config.ts (migrations) et dans src/lib/prisma.ts (application).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
