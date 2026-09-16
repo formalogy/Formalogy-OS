@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { FormulaireContact } from "@/app/(app)/entreprises/[id]/formulaire-contact";
+import {
+  LIBELLE_FINANCEMENT,
+  LIBELLE_STATUT_APPRENANT,
+} from "@/lib/apprenants-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 
@@ -29,6 +33,7 @@ export default async function PageEntreprise({
     where: { id, deletedAt: null },
     include: {
       contacts: { where: { deletedAt: null }, orderBy: { nom: "asc" } },
+      learners: { where: { deletedAt: null }, orderBy: { nom: "asc" } },
       createdBy: { select: { name: true } },
     },
   });
@@ -107,6 +112,47 @@ export default async function PageEntreprise({
           <FormulaireContact companyId={entreprise.id} />
         </section>
       </div>
+
+      <section className="mt-4 rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+        <h2 className="mb-3 text-[14.5px] font-bold">
+          Apprenants{" "}
+          <span className="font-normal text-texte-tenu">
+            ({entreprise.learners.length})
+          </span>
+        </h2>
+
+        {entreprise.learners.length === 0 ? (
+          <p className="text-[12.8px] text-texte-doux">
+            Aucun apprenant rattaché à cette entreprise.{" "}
+            <Link
+              href="/apprenants/nouveau"
+              className="font-semibold text-accent-fort hover:underline"
+            >
+              En ajouter un
+            </Link>
+          </p>
+        ) : (
+          <ul className="grid gap-x-6 sm:grid-cols-2">
+            {entreprise.learners.map((apprenant) => (
+              <li
+                key={apprenant.id}
+                className="border-t border-bordure-douce py-2 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+              >
+                <Link
+                  href={`/apprenants/${apprenant.id}`}
+                  className="text-[13px] font-semibold hover:text-accent-fort"
+                >
+                  {apprenant.prenom} {apprenant.nom}
+                </Link>
+                <div className="text-[11.5px] text-texte-tenu">
+                  {LIBELLE_STATUT_APPRENANT[apprenant.statut]} ·{" "}
+                  {LIBELLE_FINANCEMENT[apprenant.financement]}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="mt-4 rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
         <h2 className="text-[14.5px] font-bold text-texte-doux">

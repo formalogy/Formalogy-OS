@@ -66,6 +66,7 @@ model User {
   contactsCrees     Contact[]  @relation("ContactCreatedBy")
   prospectsCrees    Prospect[] @relation("ProspectCreatedBy")
   prospectsSuivis   Prospect[] @relation("ProspectCommercial")
+  apprenantsCrees   Learner[]  @relation("LearnerCreatedBy")
 
   @@index([deletedAt])
   @@map("user")
@@ -231,6 +232,7 @@ model Company {
 
   contacts  Contact[]
   prospects Prospect[]
+  learners  Learner[]
 
   @@index([raisonSociale])
   @@index([deletedAt])
@@ -307,4 +309,70 @@ model Prospect {
   @@index([companyId])
   @@index([deletedAt])
   @@map("prospects")
+}
+
+/// Qui paie la formation. Détermine les pièces à réunir et le circuit
+/// de facturation (Phases 13 et 14).
+enum TypeFinancement {
+  ENTREPRISE
+  OPCO
+  CPF
+  FRANCE_TRAVAIL
+  PERSONNEL
+  AUTRE
+}
+
+/// Où en est l'apprenant dans son parcours.
+enum StatutApprenant {
+  PROSPECT
+  INSCRIT
+  EN_FORMATION
+  TERMINE
+  ABANDONNE
+}
+
+/// Apprenant.
+///
+/// N'est JAMAIS un utilisateur de l'application : aucun compte, aucune
+/// connexion. Il reçoit des emails et signe ses documents depuis le portail
+/// Yousign, rien de plus.
+///
+/// Contient des données personnelles (identité, date de naissance, adresse) :
+/// la suppression est douce, et l'export comme l'effacement définitif devront
+/// être possibles depuis l'application (RGPD).
+model Learner {
+  id String @id @default(uuid(7))
+
+  prenom        String
+  nom           String
+  dateNaissance DateTime?
+  email         String?
+  telephone     String?
+
+  adresse    String?
+  codePostal String?
+  ville      String?
+
+  /// Entreprise qui inscrit l'apprenant. Absente pour un particulier
+  /// finançant lui-même sa formation (CPF, financement personnel).
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  statut      StatutApprenant @default(INSCRIT)
+  financement TypeFinancement @default(ENTREPRISE)
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("LearnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([nom, prenom])
+  @@index([companyId])
+  @@index([statut])
+  @@index([deletedAt])
+  @@map("learners")
 }
