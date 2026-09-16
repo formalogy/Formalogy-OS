@@ -37,8 +37,8 @@ export const MENU: GroupeMenu[] = [
     icone: "personnes",
     entrees: [
       { libelle: "Apprenants", phase: 5 },
-      { libelle: "Entreprises", phase: 4 },
-      { libelle: "CRM", phase: 4 },
+      { libelle: "Entreprises", chemin: "/entreprises" },
+      { libelle: "CRM", chemin: "/crm" },
       { libelle: "Formateurs", phase: 10 },
     ],
   },

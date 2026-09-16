@@ -56,7 +56,7 @@ export function Coque({ utilisateur, groupes, children }: Props) {
         <div className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-bordure bg-surface px-3 py-2 text-texte-tenu">
           <Icone nom="recherche" className="size-4 shrink-0" />
           <span className="truncate text-[13px]">
-            Recherche globale — disponible en Phase 4
+            Recherche globale — disponible en Phase 7
           </span>
         </div>
 

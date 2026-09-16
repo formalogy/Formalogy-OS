@@ -62,6 +62,11 @@ model User {
   accounts   Account[]
   activities Activity[]
 
+  entreprisesCreees Company[]  @relation("CompanyCreatedBy")
+  contactsCrees     Contact[]  @relation("ContactCreatedBy")
+  prospectsCrees    Prospect[] @relation("ProspectCreatedBy")
+  prospectsSuivis   Prospect[] @relation("ProspectCommercial")
+
   @@index([deletedAt])
   @@map("user")
 }
@@ -171,4 +176,135 @@ model Activity {
   @@index([entityType, entityId])
   @@index([userId])
   @@map("activities")
+}
+
+/// Étape du prospect dans le cycle commercial (cahier des charges, section 8).
+enum StatutProspect {
+  NOUVEAU
+  A_CONTACTER
+  CONTACTE
+  RELANCE
+  PROPOSITION_ENVOYEE
+  NEGOCIATION
+  GAGNE
+  PERDU
+}
+
+/// Origine du prospect, pour savoir ce qui fait venir les clients.
+enum SourceProspect {
+  SITE_INTERNET
+  CPF
+  RECOMMANDATION
+  PROSPECTION
+  EMAIL
+  TELEPHONE
+  PARTENAIRE
+  AUTRE
+}
+
+/// Entreprise cliente ou prospect.
+///
+/// Les entreprises ne sont jamais supprimées définitivement (deletedAt) :
+/// elles restent rattachées à des factures et à des sessions, que les
+/// obligations comptables imposent de conserver.
+model Company {
+  id String @id @default(uuid(7))
+
+  raisonSociale String
+  /// 14 chiffres. Non obligatoire : une entreprise peut être créée avant
+  /// que l'on dispose de son SIRET.
+  siret         String?
+  adresse       String?
+  codePostal    String?
+  ville         String?
+  telephone     String?
+  email         String?
+  siteWeb       String?
+  notes         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("CompanyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  contacts  Contact[]
+  prospects Prospect[]
+
+  @@index([raisonSociale])
+  @@index([deletedAt])
+  @@map("companies")
+}
+
+/// Personne physique rattachée à une entreprise.
+model Contact {
+  id String @id @default(uuid(7))
+
+  prenom    String
+  nom       String
+  fonction  String?
+  email     String?
+  telephone String?
+  notes     String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("ContactCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([deletedAt])
+  @@map("contacts")
+}
+
+/// Piste commerciale suivie dans le CRM.
+///
+/// Un prospect peut exister avant son entreprise : le nom de l'entreprise
+/// est alors saisi en texte libre, et le rattachement se fait plus tard.
+model Prospect {
+  id String @id @default(uuid(7))
+
+  prenom    String
+  nom       String
+  email     String?
+  telephone String?
+
+  /// Entreprise déjà enregistrée, si elle existe
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  /// Sinon, nom saisi tel quel
+  entreprise String?
+
+  source SourceProspect @default(AUTRE)
+  statut StatutProspect @default(NOUVEAU)
+
+  /// Montant estimé en euros
+  montantPotentiel Decimal? @db.Decimal(10, 2)
+
+  derniereInteractionAt DateTime?
+  prochaineRelanceAt    DateTime?
+  notes                 String?
+
+  /// Commercial en charge du suivi
+  commercialId String?
+  commercial   User?   @relation("ProspectCommercial", fields: [commercialId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([statut])
+  @@index([prochaineRelanceAt])
+  @@index([companyId])
+  @@index([deletedAt])
+  @@map("prospects")
 }
