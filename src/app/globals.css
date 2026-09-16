@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
+/* Palette Formalogy : neutres légèrement froids, un seul accent pétrole.
+   Volontairement sobre — c'est un outil de travail quotidien, pas une vitrine. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --fond: #f2f4f0;
+  --surface: #ffffff;
+  --surface-creuse: #eaede7;
+  --bordure: #dbe0d9;
+  --bordure-douce: #e6e9e3;
+  --texte: #1b2422;
+  --texte-doux: #5c6663;
+  --texte-tenu: #8b948e;
+  --accent: #28616b;
+  --accent-fort: #1d4b54;
+  --accent-pale: #e1eeee;
+  --succes: #3a7d5c;
+  --alerte: #a8681f;
+  --danger: #ae4638;
+  --danger-pale: #f5e4e1;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --fond: #121716;
+    --surface: #191f1e;
+    --surface-creuse: #0f1413;
+    --bordure: #293230;
+    --bordure-douce: #232b29;
+    --texte: #e7ece8;
+    --texte-doux: #a2aca6;
+    --texte-tenu: #6c7672;
+    --accent: #6fb6b9;
+    --accent-fort: #8fcacc;
+    --accent-pale: rgba(111, 182, 185, 0.14);
+    --succes: #63b187;
+    --alerte: #d69a52;
+    --danger: #d2806f;
+    --danger-pale: rgba(210, 128, 111, 0.16);
   }
 }
 
+@theme inline {
+  --color-fond: var(--fond);
+  --color-surface: var(--surface);
+  --color-surface-creuse: var(--surface-creuse);
+  --color-bordure: var(--bordure);
+  --color-bordure-douce: var(--bordure-douce);
+  --color-texte: var(--texte);
+  --color-texte-doux: var(--texte-doux);
+  --color-texte-tenu: var(--texte-tenu);
+  --color-accent: var(--accent);
+  --color-accent-fort: var(--accent-fort);
+  --color-accent-pale: var(--accent-pale);
+  --color-succes: var(--succes);
+  --color-alerte: var(--alerte);
+  --color-danger: var(--danger);
+  --color-danger-pale: var(--danger-pale);
+  --font-titre: var(--font-titre);
+  --font-texte: var(--font-texte);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: var(--font-texte), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-titre), system-ui, sans-serif;
+  text-wrap: balance;
 }
