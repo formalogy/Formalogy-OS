@@ -2,12 +2,22 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 // Point d'accès unique à la base de données, réservé au code serveur.
+//
+// La connexion est ouverte au premier usage réel, pas au chargement du module :
+// certains outils (génération de schéma, analyse de code) importent ce fichier
+// sans jamais interroger la base, et doivent fonctionner même quand la
+// connexion n'est pas encore configurée.
+//
 // En développement, Next.js recharge les modules à chaque modification :
-// on conserve l'instance sur globalThis pour ne pas ouvrir une connexion
-// supplémentaire à chaque rechargement.
+// l'instance est conservée sur globalThis pour ne pas rouvrir une connexion
+// à chaque rechargement.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-function createPrismaClient(): PrismaClient {
+function getClient(): PrismaClient {
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma;
+  }
+
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
@@ -18,11 +28,13 @@ function createPrismaClient(): PrismaClient {
 
   // L'application passe par le pooler Supabase ; les migrations, elles,
   // utilisent la connexion directe (voir prisma.config.ts).
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  globalForPrisma.prisma = client;
+  return client;
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property, receiver) {
+    return Reflect.get(getClient(), property, receiver);
+  },
+});

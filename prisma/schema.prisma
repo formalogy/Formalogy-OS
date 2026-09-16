@@ -1,8 +1,12 @@
 // Formalogy OS — schéma de base de données
-// Aucune table n'est encore définie : elles arrivent en Phase 2.
 //
 // Depuis Prisma 7, les adresses de connexion ne vivent plus ici mais dans
 // prisma.config.ts (migrations) et dans src/lib/prisma.ts (application).
+//
+// Les quatre tables d'authentification (user, session, account, verification)
+// ont une structure imposée par better-auth : leurs champs ne doivent pas être
+// renommés. Les champs propres à Formalogy y sont ajoutés en supplément et
+// déclarés dans src/lib/auth.ts.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,4 +14,161 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// Rôles internes. Il n'existe volontairement pas de table de permissions
+/// fines : l'outil est utilisé par 3 à 5 personnes, un rôle suffit.
+/// Les apprenants ne sont PAS des utilisateurs : ils n'ont jamais de compte.
+enum Role {
+  /// Accès complet, y compris paramètres et gestion des utilisateurs
+  ADMIN
+  /// Accès administratif et commercial, sans les réglages système
+  GESTIONNAIRE
+  /// Accès restreint à ses propres sessions (écrans construits en Phase 10)
+  FORMATEUR
+}
+
+/// Compte de connexion à l'application.
+///
+/// Le mot de passe n'est pas stocké ici mais dans Account.password, sous forme
+/// d'empreinte — c'est le fonctionnement de better-auth.
+///
+/// Une fiche formateur (Phase 10) pourra pointer vers un utilisateur, mais tous
+/// les formateurs n'ont pas de compte : les intervenants externes restent de
+/// simples fiches.
+model User {
+  id String @id @default(uuid(7))
+
+  name          String
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  image         String?
+
+  /// Le rôle est une énumération en base : une valeur inattendue est rejetée
+  /// par PostgreSQL lui-même, pas seulement par le code.
+  role Role @default(GESTIONNAIRE)
+
+  /// Désactiver un compte plutôt que le supprimer conserve l'historique de ses
+  /// actions dans le journal d'activité.
+  isActive Boolean @default(true)
+
+  lastLoginAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sessions   Session[]
+  accounts   Account[]
+  activities Activity[]
+
+  @@index([deletedAt])
+  @@map("user")
+}
+
+/// Sessions de connexion actives. Stockées en base — et donc révocables :
+/// un administrateur peut déconnecter un compte à distance.
+model Session {
+  id String @id @default(uuid(7))
+
+  token     String   @unique
+  expiresAt DateTime
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+/// Moyens d'authentification rattachés à un utilisateur.
+/// Dans notre cas il n'y en a qu'un : email + mot de passe, dont l'empreinte
+/// est stockée dans le champ `password`. La table prévoit aussi les connexions
+/// via un service tiers, que nous n'utilisons pas.
+model Account {
+  id String @id @default(uuid(7))
+
+  accountId  String
+  providerId String
+
+  /// Empreinte du mot de passe. Jamais le mot de passe en clair.
+  password String?
+
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+/// Jetons temporaires (réinitialisation de mot de passe, vérification d'email).
+/// Table technique gérée par better-auth.
+model Verification {
+  id String @id @default(uuid(7))
+
+  identifier String
+  value      String
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verification")
+}
+
+/// Journal d'activité global (cahier des charges, section 25).
+/// Sert à la fois au fil « Dernières activités » du tableau de bord et à la
+/// piste d'audit exigée par la section 29.
+///
+/// Les lignes ne sont jamais modifiées ni supprimées : c'est un journal.
+/// L'auteur est conservé en lien souple — si un compte disparaît, la trace de
+/// l'action subsiste.
+model Activity {
+  id String @id @default(uuid(7))
+
+  /// Code technique stable, ex. « user.login », « invoice.sent »
+  action String
+  /// Phrase lisible affichée dans l'interface,
+  /// ex. « Facture FA-2026-0142 envoyée à TechnoPlast SAS »
+  summary String
+
+  /// Objet concerné, pour retrouver l'historique d'une fiche.
+  /// Volontairement non contraint : le journal doit pouvoir référencer
+  /// n'importe quelle entité, y compris celles des phases futures.
+  entityType String?
+  entityId   String?
+
+  /// Détails complémentaires (montants, statuts, identifiants externes)
+  metadata Json?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("activities")
 }
