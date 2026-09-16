@@ -68,6 +68,7 @@ model User {
   prospectsSuivis   Prospect[] @relation("ProspectCommercial")
   apprenantsCrees   Learner[]  @relation("LearnerCreatedBy")
   formationsCreees  Formation[] @relation("FormationCreatedBy")
+  sessionsCreees    TrainingSession[] @relation("SessionCreatedBy")
 
   @@index([deletedAt])
   @@map("user")
@@ -234,6 +235,7 @@ model Company {
   contacts  Contact[]
   prospects Prospect[]
   learners  Learner[]
+  sessions  TrainingSession[]
 
   @@index([raisonSociale])
   @@index([deletedAt])
@@ -371,6 +373,8 @@ model Learner {
   createdById String?
   createdBy   User?   @relation("LearnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  inscriptions SessionLearner[]
+
   @@index([nom, prenom])
   @@index([companyId])
   @@index([statut])
@@ -446,8 +450,96 @@ model Formation {
   createdById String?
   createdBy   User?   @relation("FormationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  sessions TrainingSession[]
+
   @@index([categoryId])
   @@index([statut])
   @@index([deletedAt])
   @@map("formations")
+}
+
+/// Cycle de vie d'une session (cahier des charges, section 12).
+enum StatutSession {
+  BROUILLON
+  A_PREPARER
+  DOCUMENTS_EN_ATTENTE
+  PRETE
+  EN_COURS
+  TERMINEE
+  CLOTUREE
+  ANNULEE
+}
+
+/// Session de formation : la réalisation concrète d'une formation du
+/// catalogue, à des dates données, pour des apprenants donnés.
+///
+/// Nommée TrainingSession dans le code pour ne pas la confondre avec les
+/// sessions de connexion (modèle Session) ; la table s'appelle « sessions ».
+model TrainingSession {
+  id String @id @default(uuid(7))
+
+  /// Numéro lisible, unique, ex. « S-2026-0007 »
+  numero String @unique
+
+  formationId String
+  formation   Formation @relation(fields: [formationId], references: [id], onDelete: Restrict)
+
+  /// Entreprise cliente pour une session intra-entreprise. Absente pour une
+  /// session inter-entreprises ou des particuliers.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  /// Dates stockées à minuit UTC : ce sont des jours calendaires, pas des
+  /// instants. Tous les calculs de planning se font en UTC.
+  dateDebut DateTime
+  dateFin   DateTime
+  /// Ex. « 9h00–12h30 / 13h30–17h00 »
+  horaires  String?
+  lieu      String?
+
+  modalite ModaliteFormation
+  statut   StatutSession     @default(BROUILLON)
+
+  /// Nom de l'intervenant, en attendant les fiches formateurs (Phase 10)
+  intervenant String?
+  placesMax   Int?
+
+  /// Prix HT recopié depuis la formation à la création : modifier le
+  /// catalogue ensuite ne change pas le prix de cette session.
+  prixHT Decimal? @db.Decimal(10, 2)
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  inscriptions SessionLearner[]
+
+  @@index([dateDebut, dateFin])
+  @@index([statut])
+  @@index([formationId])
+  @@index([companyId])
+  @@index([deletedAt])
+  @@map("sessions")
+}
+
+/// Inscription d'un apprenant à une session.
+model SessionLearner {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  learnerId String
+  learner   Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, learnerId])
+  @@index([learnerId])
+  @@map("session_learners")
 }

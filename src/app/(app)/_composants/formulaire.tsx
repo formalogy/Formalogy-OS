@@ -83,7 +83,17 @@ export function ChampListe({ nom, libelle, options, valeurParDefaut }: ChampList
       <label htmlFor={nom} className="block text-[12.5px] font-semibold">
         {libelle}
       </label>
-      <select id={nom} name={nom} defaultValue={valeurParDefaut} className={CLASSE_CHAMP}>
+      <select
+        // React réinitialise le formulaire après chaque envoi. Pour un <select>,
+        // il reprend alors sa toute première valeur, et non celle qui vient
+        // d'être renvoyée après une erreur. La clé force sa reconstruction
+        // avec la bonne valeur.
+        key={valeurParDefaut}
+        id={nom}
+        name={nom}
+        defaultValue={valeurParDefaut}
+        className={CLASSE_CHAMP}
+      >
         {options.map((option) => (
           <option key={option.valeur} value={option.valeur}>
             {option.libelle}

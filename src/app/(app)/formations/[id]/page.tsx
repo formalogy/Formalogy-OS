@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { formaterEuros } from "@/lib/crm-libelles";
 import {
   formaterDuree,
@@ -36,7 +37,14 @@ export default async function PageFormation({
   const { id } = await params;
   const formation = await prisma.formation.findFirst({
     where: { id, deletedAt: null },
-    include: { category: { select: { nom: true } } },
+    include: {
+      category: { select: { nom: true } },
+      sessions: {
+        where: { deletedAt: null },
+        orderBy: { dateDebut: "desc" },
+        include: { company: { select: { raisonSociale: true } } },
+      },
+    },
   });
 
   if (!formation) notFound();
@@ -102,11 +110,30 @@ export default async function PageFormation({
             <Bloc titre="Certification" texte={formation.certification} />
           </section>
 
+          <ListeSessions
+            titre="Sessions"
+            lienCreation={formation.statut === "ACTIVE" ? `/sessions/nouvelle?formation=${formation.id}` : undefined}
+            messageVide={
+              formation.statut === "ACTIVE"
+                ? "Aucune session programmée pour cette formation."
+                : "Passez la formation au statut « Active » pour pouvoir programmer une session."
+            }
+            sessions={formation.sessions.map((s) => ({
+              id: s.id,
+              numero: s.numero,
+              dateDebut: s.dateDebut,
+              dateFin: s.dateFin,
+              statut: s.statut,
+              titre: s.company?.raisonSociale ?? "Inter-entreprises",
+              sousTitre: s.numero,
+            }))}
+          />
+
           <section className="rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
-            <h2 className="text-[14.5px] font-bold text-texte-doux">Sessions et documents</h2>
+            <h2 className="text-[14.5px] font-bold text-texte-doux">Formateur et documents</h2>
             <p className="mt-2 text-[12.5px] text-texte-tenu">
-              Les sessions programmées (Phase 7), le formateur associé (Phase 10) et les
-              documents pédagogiques (Phase 8) apparaîtront ici.
+              Le formateur associé (Phase 10) et les documents pédagogiques (Phase 8)
+              apparaîtront ici.
             </p>
           </section>
         </div>

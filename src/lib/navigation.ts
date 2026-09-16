@@ -47,8 +47,9 @@ export const MENU: GroupeMenu[] = [
     icone: "livre",
     entrees: [
       { libelle: "Formations", chemin: "/formations" },
-      { libelle: "Sessions", phase: 7, roles: TOUS },
-      { libelle: "Planning", phase: 7, roles: TOUS },
+      // Ouvertes aux formateurs en Phase 10, avec leurs seules sessions.
+      { libelle: "Sessions", chemin: "/sessions" },
+      { libelle: "Planning", chemin: "/planning" },
     ],
   },
   {

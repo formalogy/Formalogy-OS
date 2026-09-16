@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { FormulaireContact } from "@/app/(app)/entreprises/[id]/formulaire-contact";
 import {
   LIBELLE_FINANCEMENT,
@@ -34,6 +35,11 @@ export default async function PageEntreprise({
     include: {
       contacts: { where: { deletedAt: null }, orderBy: { nom: "asc" } },
       learners: { where: { deletedAt: null }, orderBy: { nom: "asc" } },
+      sessions: {
+        where: { deletedAt: null },
+        orderBy: { dateDebut: "desc" },
+        include: { formation: { select: { titre: true } }, _count: { select: { inscriptions: true } } },
+      },
       createdBy: { select: { name: true } },
     },
   });
@@ -154,13 +160,28 @@ export default async function PageEntreprise({
         )}
       </section>
 
+      <div className="mt-4">
+        <ListeSessions
+          titre="Sessions"
+          lienCreation={`/sessions/nouvelle?entreprise=${entreprise.id}`}
+          messageVide="Aucune session programmée pour cette entreprise."
+          sessions={entreprise.sessions.map((s) => ({
+            id: s.id,
+            numero: s.numero,
+            dateDebut: s.dateDebut,
+            dateFin: s.dateFin,
+            statut: s.statut,
+            titre: s.formation.titre,
+            sousTitre: `${s.numero} · ${s._count.inscriptions} inscrit${s._count.inscriptions > 1 ? "s" : ""}`,
+          }))}
+        />
+      </div>
+
       <section className="mt-4 rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
-        <h2 className="text-[14.5px] font-bold text-texte-doux">
-          Sessions, factures et documents
-        </h2>
+        <h2 className="text-[14.5px] font-bold text-texte-doux">Factures et documents</h2>
         <p className="mt-2 text-[12.5px] text-texte-tenu">
-          Cette fiche accueillera les sessions de formation (Phase 7), les documents
-          (Phase 8) et les factures (Phase 13) rattachés à l&apos;entreprise.
+          Les documents (Phase 8) et les factures (Phase 13) rattachés à l&apos;entreprise
+          apparaîtront ici.
         </p>
       </section>
     </>

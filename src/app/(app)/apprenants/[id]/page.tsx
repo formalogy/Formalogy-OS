@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-statut";
 import {
   LIBELLE_FINANCEMENT,
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 /// Chacun sera coché automatiquement par la phase qui le construit.
 const PARCOURS = [
   { etape: "Création de la fiche", phase: null },
-  { etape: "Inscription à une session", phase: 7 },
+  { etape: "Inscription à une session", phase: null },
   { etape: "Documents générés", phase: 8 },
   { etape: "Convention signée", phase: 11 },
   { etape: "Émargements", phase: 11 },
@@ -45,7 +46,14 @@ export default async function PageApprenant({
 
   const apprenant = await prisma.learner.findFirst({
     where: { id, deletedAt: null },
-    include: { company: { select: { id: true, raisonSociale: true } } },
+    include: {
+      company: { select: { id: true, raisonSociale: true } },
+      inscriptions: {
+        where: { session: { deletedAt: null } },
+        orderBy: { session: { dateDebut: "desc" } },
+        include: { session: { include: { formation: { select: { titre: true } } } } },
+      },
+    },
   });
 
   if (!apprenant) notFound();
@@ -122,7 +130,10 @@ export default async function PageApprenant({
           </p>
           <ol>
             {PARCOURS.map((jalon, rang) => {
-              const fait = jalon.phase === null;
+              // Chaque étape est vérifiée sur les données, jamais présumée.
+              const fait =
+                rang === 0 ||
+                (jalon.etape === "Inscription à une session" && apprenant.inscriptions.length > 0);
               return (
                 <li
                   key={jalon.etape}
@@ -143,7 +154,7 @@ export default async function PageApprenant({
                   >
                     {jalon.etape}
                   </span>
-                  {jalon.phase && (
+                  {jalon.phase && !fait && (
                     <span className="ml-auto rounded-full bg-bordure-douce px-1.5 py-px text-[10px] text-texte-tenu">
                       P{jalon.phase}
                     </span>
@@ -153,6 +164,21 @@ export default async function PageApprenant({
             })}
           </ol>
         </section>
+      </div>
+      <div className="mt-4">
+        <ListeSessions
+          titre="Sessions suivies"
+          messageVide="Cet apprenant n'est inscrit à aucune session. L'inscription se fait depuis la fiche d'une session."
+          sessions={apprenant.inscriptions.map(({ session }) => ({
+            id: session.id,
+            numero: session.numero,
+            dateDebut: session.dateDebut,
+            dateFin: session.dateFin,
+            statut: session.statut,
+            titre: session.formation.titre,
+            sousTitre: session.numero,
+          }))}
+        />
       </div>
     </>
   );

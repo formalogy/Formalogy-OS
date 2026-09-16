@@ -1,5 +1,6 @@
 "use client";
 
+import Form from "next/form";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -53,12 +54,24 @@ export function Coque({ utilisateur, groupes, children }: Props) {
           <Icone nom="menu" />
         </button>
 
-        <div className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-bordure bg-surface px-3 py-2 text-texte-tenu">
-          <Icone nom="recherche" className="size-4 shrink-0" />
-          <span className="truncate text-[13px]">
-            Recherche globale — disponible en Phase 7
-          </span>
-        </div>
+        <Form
+          action="/recherche"
+          role="search"
+          className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-bordure bg-surface px-3 py-2 text-texte-tenu focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-pale"
+        >
+          {/* Un vrai bouton d'envoi : la touche Entrée le déclenche de façon
+              fiable, et il reste cliquable. */}
+          <button type="submit" aria-label="Lancer la recherche" className="shrink-0 hover:text-accent-fort">
+            <Icone nom="recherche" className="size-4" />
+          </button>
+          <input
+            type="search"
+            name="q"
+            aria-label="Recherche globale"
+            placeholder="Rechercher un apprenant, une entreprise, une session…"
+            className="w-full min-w-0 bg-transparent text-[13px] text-texte outline-none placeholder:text-texte-tenu"
+          />
+        </Form>
 
         <div className="ml-auto flex items-center gap-3">
           <div className="hidden text-right leading-tight sm:block">
