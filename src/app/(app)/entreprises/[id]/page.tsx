@@ -1,0 +1,122 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { FormulaireContact } from "@/app/(app)/entreprises/[id]/formulaire-contact";
+import { prisma } from "@/lib/prisma";
+import { exigerRole } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+function Ligne({ libelle, valeur }: { libelle: string; valeur?: string | null }) {
+  return (
+    <div className="flex gap-3 border-t border-bordure-douce py-2 first:border-t-0">
+      <dt className="w-36 shrink-0 text-[12.5px] text-texte-tenu">{libelle}</dt>
+      <dd className="text-[13px]">{valeur?.trim() ? valeur : "—"}</dd>
+    </div>
+  );
+}
+
+export default async function PageEntreprise({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  await exigerRole("ADMIN", "GESTIONNAIRE");
+
+  const { id } = await params;
+
+  const entreprise = await prisma.company.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      contacts: { where: { deletedAt: null }, orderBy: { nom: "asc" } },
+      createdBy: { select: { name: true } },
+    },
+  });
+
+  if (!entreprise) notFound();
+
+  return (
+    <>
+      <header className="mb-6">
+        <Link
+          href="/entreprises"
+          className="text-[12.5px] font-semibold text-accent-fort hover:underline"
+        >
+          ← Entreprises
+        </Link>
+        <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
+          {entreprise.raisonSociale}
+        </h1>
+        {entreprise.createdBy && (
+          <p className="mt-1 text-[12px] text-texte-tenu">
+            Fiche créée par {entreprise.createdBy.name}
+          </p>
+        )}
+      </header>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-[14.5px] font-bold">Informations</h2>
+          <dl>
+            <Ligne libelle="SIRET" valeur={entreprise.siret} />
+            <Ligne
+              libelle="Adresse"
+              valeur={[entreprise.adresse, [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ")]
+                .filter(Boolean)
+                .join(", ")}
+            />
+            <Ligne libelle="Téléphone" valeur={entreprise.telephone} />
+            <Ligne libelle="Email" valeur={entreprise.email} />
+            <Ligne libelle="Site web" valeur={entreprise.siteWeb} />
+            <Ligne libelle="Notes" valeur={entreprise.notes} />
+          </dl>
+        </section>
+
+        <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-[14.5px] font-bold">
+            Contacts{" "}
+            <span className="font-normal text-texte-tenu">
+              ({entreprise.contacts.length})
+            </span>
+          </h2>
+
+          {entreprise.contacts.length === 0 ? (
+            <p className="text-[12.8px] text-texte-doux">
+              Aucun contact enregistré pour cette entreprise.
+            </p>
+          ) : (
+            <ul className="mb-4">
+              {entreprise.contacts.map((contact) => (
+                <li
+                  key={contact.id}
+                  className="border-t border-bordure-douce py-2.5 first:border-t-0"
+                >
+                  <div className="text-[13px] font-semibold">
+                    {contact.prenom} {contact.nom}
+                  </div>
+                  <div className="text-[11.5px] text-texte-tenu">
+                    {[contact.fonction, contact.email, contact.telephone]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <FormulaireContact companyId={entreprise.id} />
+        </section>
+      </div>
+
+      <section className="mt-4 rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
+        <h2 className="text-[14.5px] font-bold text-texte-doux">
+          Sessions, factures et documents
+        </h2>
+        <p className="mt-2 text-[12.5px] text-texte-tenu">
+          Cette fiche accueillera les sessions de formation (Phase 7), les documents
+          (Phase 8) et les factures (Phase 13) rattachés à l&apos;entreprise.
+        </p>
+      </section>
+    </>
+  );
+}
