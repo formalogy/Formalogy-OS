@@ -66,8 +66,16 @@ export default async function PageTableauDeBord() {
   const utilisateur = await exigerUtilisateur();
   const aujourdhui = aujourdhuiUTC();
 
-  const [nombreApprenants, nombreEntreprises, nombreFormations, sessionsEnCours, prochaines, activites] =
-    await Promise.all([
+  const [
+    nombreApprenants,
+    nombreEntreprises,
+    nombreFormations,
+    sessionsEnCours,
+    prochaines,
+    activites,
+    sansConvention,
+    inscriptionsTerminees,
+  ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
       }),
@@ -103,7 +111,52 @@ export default async function PageTableauDeBord() {
         take: 8,
         include: { user: { select: { name: true } } },
       }),
+      // Sessions en cours ou démarrant sous 30 jours sans convention déposée.
+      prisma.trainingSession.findMany({
+        where: {
+          deletedAt: null,
+          statut: { notIn: ["ANNULEE", "CLOTUREE"] },
+          dateFin: { gte: aujourdhui },
+          dateDebut: { lte: ajouterJours(aujourdhui, 30) },
+          documents: { none: { deletedAt: null, type: { code: "CONVENTION" } } },
+        },
+        orderBy: { dateDebut: "asc" },
+        take: 10,
+        select: { id: true, numero: true, dateDebut: true, formation: { select: { titre: true } } },
+      }),
+      // Apprenants de sessions achevées depuis moins de 90 jours : on cherche
+      // ceux qui n'ont pas d'attestation déposée pour cette session.
+      prisma.sessionLearner.findMany({
+        where: {
+          session: {
+            deletedAt: null,
+            statut: { not: "ANNULEE" },
+            dateFin: { lt: aujourdhui, gte: ajouterJours(aujourdhui, -90) },
+          },
+          learner: { deletedAt: null },
+        },
+        take: 300,
+        select: {
+          session: { select: { id: true, numero: true } },
+          learner: {
+            select: {
+              id: true,
+              prenom: true,
+              nom: true,
+              documents: {
+                where: { deletedAt: null, type: { code: "ATTESTATION" } },
+                select: { sessionId: true },
+              },
+            },
+          },
+        },
+      }),
     ]);
+
+  const sansAttestation = inscriptionsTerminees.filter(
+    (i) => !i.learner.documents.some((d) => d.sessionId === i.session.id),
+  );
+  const nombreManquants = sansConvention.length + sansAttestation.length;
 
   return (
     <>
@@ -229,13 +282,45 @@ export default async function PageTableauDeBord() {
         </section>
 
         <div className="flex flex-col gap-4">
-          <section className="rounded-xl border border-bordure bg-surface p-4 shadow-sm">
-            <h2 className="text-[14.5px] font-bold">Documents manquants</h2>
-            <p className="mt-2 text-[12.5px] text-texte-doux">
-              Conventions non signées, émargements absents, attestations à générer.
-            </p>
-            <p className="mt-3 border-t border-bordure-douce pt-3 text-[11.5px] text-texte-tenu">
-              Alimenté à partir de la Phase 8.
+          <section className="overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+            <div className="flex items-center justify-between border-b border-bordure-douce px-4 py-3">
+              <h2 className="text-[14.5px] font-bold">Documents manquants</h2>
+              <span className={`rounded-full px-2 py-0.5 font-mono text-[11px] ${nombreManquants > 0 ? "bg-danger-pale text-danger" : "bg-surface-creuse text-texte-tenu"}`}>
+                {nombreManquants}
+              </span>
+            </div>
+            {nombreManquants === 0 ? (
+              <p className="px-4 py-4 text-[12.8px] text-texte-doux">
+                Aucune convention ni attestation manquante.
+              </p>
+            ) : (
+              <ul className="max-h-72 overflow-y-auto">
+                {sansConvention.map((s) => (
+                  <li key={`c-${s.id}`} className="border-t border-bordure-douce first:border-t-0">
+                    <Link href={`/documents/nouveau?session=${s.id}&type=CONVENTION`} className="flex gap-2.5 px-4 py-2.5 hover:bg-surface-creuse">
+                      <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-danger" />
+                      <span className="min-w-0">
+                        <span className="block text-[12.8px] font-semibold">Convention absente</span>
+                        <span className="block truncate text-[11.5px] text-texte-tenu">{s.formation.titre} · {s.numero}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+                {sansAttestation.map((i) => (
+                  <li key={`a-${i.session.id}-${i.learner.id}`} className="border-t border-bordure-douce first:border-t-0">
+                    <Link href={`/documents/nouveau?session=${i.session.id}&apprenant=${i.learner.id}&type=ATTESTATION`} className="flex gap-2.5 px-4 py-2.5 hover:bg-surface-creuse">
+                      <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-alerte" />
+                      <span className="min-w-0">
+                        <span className="block text-[12.8px] font-semibold">Attestation absente</span>
+                        <span className="block truncate text-[11.5px] text-texte-tenu">{i.learner.prenom} {i.learner.nom} · {i.session.numero}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="border-t border-bordure-douce px-4 py-2.5 text-[11px] text-texte-tenu">
+              Conventions des sessions à moins de 30 jours ; attestations des 90 derniers jours.
             </p>
           </section>
 

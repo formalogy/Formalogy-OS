@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
@@ -43,6 +44,10 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           },
         },
       },
+      documents: {
+        ...SELECTION_DOCUMENT_RESUME,
+        select: { ...SELECTION_DOCUMENT_RESUME.select, type: { select: { nom: true, code: true } } },
+      },
     },
   });
   if (!session) notFound();
@@ -59,7 +64,10 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     ...candidats.filter((c) => !session.companyId || c.companyId !== session.companyId),
   ];
 
-  const controle = listeDeControle({ nombreInscrits: session.inscriptions.length });
+  const controle = listeDeControle({
+    nombreInscrits: session.inscriptions.length,
+    conventionDeposee: session.documents.some((d) => d.type?.code === "CONVENTION"),
+  });
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;
 
@@ -185,6 +193,8 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               />
             )}
           </section>
+
+          <ListeDocuments documents={session.documents} lienAjout={`session=${session.id}`} />
         </div>
 
         <section className="self-start rounded-xl border border-bordure bg-surface p-5 shadow-sm">

@@ -69,6 +69,8 @@ model User {
   apprenantsCrees   Learner[]  @relation("LearnerCreatedBy")
   formationsCreees  Formation[] @relation("FormationCreatedBy")
   sessionsCreees    TrainingSession[] @relation("SessionCreatedBy")
+  documentsCrees    Document[] @relation("DocumentCreatedBy")
+  versionsDeposees  DocumentVersion[] @relation("DocumentVersionCreatedBy")
 
   @@index([deletedAt])
   @@map("user")
@@ -236,6 +238,7 @@ model Company {
   prospects Prospect[]
   learners  Learner[]
   sessions  TrainingSession[]
+  documents Document[]
 
   @@index([raisonSociale])
   @@index([deletedAt])
@@ -374,6 +377,7 @@ model Learner {
   createdBy   User?   @relation("LearnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   inscriptions SessionLearner[]
+  documents    Document[]
 
   @@index([nom, prenom])
   @@index([companyId])
@@ -450,7 +454,8 @@ model Formation {
   createdById String?
   createdBy   User?   @relation("FormationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  sessions TrainingSession[]
+  sessions  TrainingSession[]
+  documents Document[]
 
   @@index([categoryId])
   @@index([statut])
@@ -518,6 +523,7 @@ model TrainingSession {
   createdBy   User?   @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   inscriptions SessionLearner[]
+  documents    Document[]
 
   @@index([dateDebut, dateFin])
   @@index([statut])
@@ -542,4 +548,117 @@ model SessionLearner {
   @@unique([sessionId, learnerId])
   @@index([learnerId])
   @@map("session_learners")
+}
+
+/// Catégories de la bibliothèque documentaire (cahier des charges, section 15).
+enum CategorieDocument {
+  APPRENANT
+  ENTREPRISE
+  SESSION
+  FORMATEUR
+  FORMATION
+  FINANCE
+  QUALIOPI
+}
+
+enum StatutDocument {
+  BROUILLON
+  VALIDE
+  ARCHIVE
+}
+
+/// Nature d'un document (convention, programme, attestation…).
+/// Table plutôt qu'énumération : la liste s'enrichira depuis les Paramètres.
+/// Certains types sont reconnus par le code (liste de contrôle d'une session,
+/// documents manquants) grâce à leur `code`, stable, et non à leur nom.
+model DocumentType {
+  id        String            @id @default(uuid(7))
+  code      String            @unique
+  nom       String            @unique
+  categorie CategorieDocument
+  ordre     Int               @default(0)
+
+  documents Document[]
+
+  @@map("document_types")
+}
+
+/// Document de la bibliothèque.
+///
+/// Le fichier lui-même n'est pas ici mais dans ses versions : remplacer un
+/// document crée une nouvelle version, sans effacer la précédente.
+/// Un document peut être rattaché à une fiche (apprenant, entreprise, session,
+/// formation) ou n'être rattaché à rien (document Qualiopi général, par exemple).
+model Document {
+  id String @id @default(uuid(7))
+
+  nom         String
+  description String?
+
+  typeId String?
+  type   DocumentType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+
+  categorie CategorieDocument
+  statut    StatutDocument    @default(VALIDE)
+
+  learnerId   String?
+  learner     Learner?         @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+  companyId   String?
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sessionId   String?
+  session     TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  formationId String?
+  formation   Formation?       @relation(fields: [formationId], references: [id], onDelete: SetNull)
+
+  versions DocumentVersion[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Suppression douce : le document disparaît de l'interface, ses fichiers
+  /// sont conservés (traçabilité Qualiopi). L'effacement définitif relèvera
+  /// des outils RGPD (Phase 17).
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([categorie])
+  @@index([typeId])
+  @@index([learnerId])
+  @@index([companyId])
+  @@index([sessionId])
+  @@index([formationId])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+/// Version d'un fichier. Les versions ne sont jamais modifiées : c'est
+/// l'historique du document.
+model DocumentVersion {
+  id String @id @default(uuid(7))
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  numero Int
+
+  /// Emplacement dans l'espace de stockage. Généré par le serveur, jamais
+  /// dérivé du nom de fichier fourni par l'utilisateur.
+  cheminStockage String @unique
+  nomFichier     String
+  typeMime       String
+  /// En octets
+  taille         Int
+  /// Empreinte SHA-256 : permet de prouver qu'un fichier n'a pas été altéré.
+  empreinte      String
+
+  commentaire String?
+
+  createdAt DateTime @default(now())
+
+  createdById String?
+  createdBy   User?   @relation("DocumentVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, numero])
+  @@map("document_versions")
 }

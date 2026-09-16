@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { formaterEuros } from "@/lib/crm-libelles";
 import {
@@ -44,6 +45,7 @@ export default async function PageFormation({
         orderBy: { dateDebut: "desc" },
         include: { company: { select: { raisonSociale: true } } },
       },
+      documents: SELECTION_DOCUMENT_RESUME,
     },
   });
 
@@ -129,11 +131,12 @@ export default async function PageFormation({
             }))}
           />
 
+          <ListeDocuments documents={formation.documents} lienAjout={`formation=${formation.id}`} />
+
           <section className="rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
-            <h2 className="text-[14.5px] font-bold text-texte-doux">Formateur et documents</h2>
+            <h2 className="text-[14.5px] font-bold text-texte-doux">Formateur</h2>
             <p className="mt-2 text-[12.5px] text-texte-tenu">
-              Le formateur associé (Phase 10) et les documents pédagogiques (Phase 8)
-              apparaîtront ici.
+              Le formateur associé (Phase 10) apparaîtra ici.
             </p>
           </section>
         </div>

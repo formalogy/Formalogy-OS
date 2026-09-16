@@ -114,11 +114,14 @@ export type ElementControle = {
 /// Chaque point est calculé à partir des données réelles. Les points dont le
 /// module n'existe pas encore restent non cochés, avec la phase qui les
 /// prendra en charge : on ne coche jamais « pour faire joli ».
-export function listeDeControle(session: { nombreInscrits: number }): ElementControle[] {
+export function listeDeControle(session: {
+  nombreInscrits: number;
+  conventionDeposee: boolean;
+}): ElementControle[] {
   return [
     { libelle: "Formation et dates définies", fait: true },
     { libelle: "Apprenants inscrits", fait: session.nombreInscrits > 0 },
-    { libelle: "Convention générée", fait: false, phase: 8 },
+    { libelle: "Convention déposée", fait: session.conventionDeposee },
     { libelle: "Convention signée", fait: false, phase: 11 },
     { libelle: "Programme envoyé", fait: false, phase: 9 },
     { libelle: "Convocations envoyées", fait: false, phase: 9 },

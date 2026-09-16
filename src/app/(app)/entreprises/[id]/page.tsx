@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { FormulaireContact } from "@/app/(app)/entreprises/[id]/formulaire-contact";
 import {
@@ -41,6 +42,7 @@ export default async function PageEntreprise({
         include: { formation: { select: { titre: true } }, _count: { select: { inscriptions: true } } },
       },
       createdBy: { select: { name: true } },
+      documents: SELECTION_DOCUMENT_RESUME,
     },
   });
 
@@ -177,11 +179,14 @@ export default async function PageEntreprise({
         />
       </div>
 
+      <div className="mt-4">
+        <ListeDocuments documents={entreprise.documents} lienAjout={`entreprise=${entreprise.id}`} />
+      </div>
+
       <section className="mt-4 rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
-        <h2 className="text-[14.5px] font-bold text-texte-doux">Factures et documents</h2>
+        <h2 className="text-[14.5px] font-bold text-texte-doux">Factures</h2>
         <p className="mt-2 text-[12.5px] text-texte-tenu">
-          Les documents (Phase 8) et les factures (Phase 13) rattachés à l&apos;entreprise
-          apparaîtront ici.
+          Les factures (Phase 13) rattachées à l&apos;entreprise apparaîtront ici.
         </p>
       </section>
     </>

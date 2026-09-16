@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-statut";
 import {
@@ -53,6 +54,7 @@ export default async function PageApprenant({
         orderBy: { session: { dateDebut: "desc" } },
         include: { session: { include: { formation: { select: { titre: true } } } } },
       },
+      documents: SELECTION_DOCUMENT_RESUME,
     },
   });
 
@@ -179,6 +181,9 @@ export default async function PageApprenant({
             sousTitre: session.numero,
           }))}
         />
+      </div>
+      <div className="mt-4">
+        <ListeDocuments documents={apprenant.documents} lienAjout={`apprenant=${apprenant.id}`} />
       </div>
     </>
   );

@@ -56,7 +56,8 @@ export const MENU: GroupeMenu[] = [
     titre: "Administratif",
     icone: "document",
     entrees: [
-      { libelle: "Documents", phase: 8, roles: TOUS },
+      // Ouverts aux formateurs en Phase 10, avec leurs seuls documents.
+      { libelle: "Documents", chemin: "/documents" },
       { libelle: "Signatures", phase: 11 },
       { libelle: "Émargements", phase: 11, roles: TOUS },
       { libelle: "Certificats", phase: 12 },
@@ -89,7 +90,9 @@ export const MENU: GroupeMenu[] = [
       { libelle: "Utilisateurs", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Rôles et permissions", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Modèles d'emails", phase: 9 },
-      { libelle: "Modèles de documents", phase: 8 },
+      // La génération de documents à partir de modèles arrive avec les
+      // attestations et certificats.
+      { libelle: "Modèles de documents", phase: 12 },
       { libelle: "Automatisations", phase: 9 },
       { libelle: "Intégrations", phase: 17, roles: ADMIN_SEUL },
       { libelle: "API", phase: 17, roles: ADMIN_SEUL },
