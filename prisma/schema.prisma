@@ -67,6 +67,7 @@ model User {
   prospectsCrees    Prospect[] @relation("ProspectCreatedBy")
   prospectsSuivis   Prospect[] @relation("ProspectCommercial")
   apprenantsCrees   Learner[]  @relation("LearnerCreatedBy")
+  formationsCreees  Formation[] @relation("FormationCreatedBy")
 
   @@index([deletedAt])
   @@map("user")
@@ -375,4 +376,78 @@ model Learner {
   @@index([statut])
   @@index([deletedAt])
   @@map("learners")
+}
+
+/// Comment la formation est dispensée (cahier des charges, section 11).
+enum ModaliteFormation {
+  PRESENTIEL
+  DISTANCIEL
+  E_LEARNING
+  HYBRIDE
+}
+
+/// Une formation en brouillon n'apparaît pas dans les choix de session ;
+/// une formation archivée reste consultable pour l'historique.
+enum StatutFormation {
+  BROUILLON
+  ACTIVE
+  ARCHIVEE
+}
+
+/// Catégorie du catalogue. Table plutôt qu'énumération : la liste pourra
+/// s'enrichir depuis les Paramètres sans modifier le code.
+model FormationCategory {
+  id    String @id @default(uuid(7))
+  nom   String @unique
+  ordre Int    @default(0)
+
+  formations Formation[]
+
+  @@map("formation_categories")
+}
+
+/// Formation du catalogue.
+///
+/// Elle décrit l'offre (programme, durée, prix) ; une session en est la
+/// réalisation concrète à des dates données (Phase 7). Modifier le prix d'une
+/// formation ne doit jamais modifier une session ou une facture passée : ces
+/// montants seront recopiés au moment de leur création.
+model Formation {
+  id String @id @default(uuid(7))
+
+  titre     String
+  /// Code interne unique, ex. « BUR-EXC-02 »
+  reference String @unique
+
+  categoryId String?
+  category   FormationCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  description  String?
+  objectifs    String?
+  programme    String?
+  prerequis    String?
+  publicVise   String?
+  competences  String?
+  /// Certification visée (RS, RNCP, TOSA…), le cas échéant
+  certification String?
+
+  dureeHeures Decimal? @db.Decimal(6, 2)
+  dureeJours  Decimal? @db.Decimal(4, 1)
+  /// Prix de référence hors taxes, en euros
+  prixHT      Decimal? @db.Decimal(10, 2)
+
+  modalite ModaliteFormation @default(PRESENTIEL)
+  statut   StatutFormation   @default(BROUILLON)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("FormationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
+  @@index([statut])
+  @@index([deletedAt])
+  @@map("formations")
 }

@@ -25,8 +25,8 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 |---|---|
 | Front + back | Next.js 16 (App Router, TypeScript, Tailwind 4) |
 | Base de données | PostgreSQL via Supabase |
-| Accès base | Prisma 7.10.0 (versions figées, pas de RC) |
-| Authentification | Auth.js — **jamais** Supabase Auth |
+| Accès base | Prisma 7.10.0 (versions figées, pas de bêta ni de RC) |
+| Authentification | better-auth (sessions en base) — **jamais** Supabase Auth |
 | Stockage documents | Supabase Storage, derrière une abstraction |
 | Emails | Resend |
 | Signature électronique | Yousign (API + webhook + réconciliation) |
@@ -39,7 +39,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 Supabase fournit **une base PostgreSQL et un espace de fichiers**, accessibles
 **uniquement depuis notre serveur**. Interdits :
 
-- ❌ Supabase Auth (on utilise Auth.js)
+- ❌ Supabase Auth (on utilise better-auth)
 - ❌ Row Level Security (les droits sont vérifiés dans notre code serveur)
 - ❌ SDK Supabase côté navigateur
 
@@ -74,6 +74,7 @@ décisions structurantes (architecture globale, budget).
 npm run dev     # démarre en local sur http://localhost:3000
 npm run build   # vérifie que le projet compile
 npm run lint    # analyse du code
+npm run creer-admin -- <email> "<Prénom Nom>" [ADMIN|GESTIONNAIRE|FORMATEUR]
 ```
 
 Node.js est installé dans `~/.local/node` (ajouté au PATH via `~/.zshrc`).

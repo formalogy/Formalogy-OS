@@ -58,13 +58,14 @@ function Indicateur({
 export default async function PageTableauDeBord() {
   const utilisateur = await exigerUtilisateur();
 
-  const [nombreComptes, nombreApprenants, nombreEntreprises, activites] =
+  const [nombreComptes, nombreApprenants, nombreEntreprises, nombreFormations, activites] =
     await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
       }),
       prisma.company.count({ where: { deletedAt: null } }),
+      prisma.formation.count({ where: { deletedAt: null, statut: "ACTIVE" } }),
       prisma.activity.findMany({
         orderBy: { createdAt: "desc" },
         take: 8,
@@ -102,7 +103,11 @@ export default async function PageTableauDeBord() {
           valeur={nombreEntreprises}
           precision={nombreEntreprises > 1 ? "fiches enregistrées" : "fiche enregistrée"}
         />
-        <IndicateurAVenir libelle="Formations au catalogue" phase={6} />
+        <Indicateur
+          libelle="Formations au catalogue"
+          valeur={nombreFormations}
+          precision={nombreFormations > 1 ? "formations actives" : "formation active"}
+        />
         <Indicateur
           libelle="Comptes internes"
           valeur={nombreComptes}
