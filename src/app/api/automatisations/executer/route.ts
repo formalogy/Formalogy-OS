@@ -1,10 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { executerPlanifiees } from "@/lib/automatisations/moteur";
+import { releverBoite } from "@/lib/signatures/boite-mail";
 
-/// Réveil des automatisations planifiées (rappels avant session, relances).
+/// Réveil des tâches de fond : automatisations planifiées (rappels avant
+/// session, relances) et relève des documents signés dans la boîte Gmail.
 ///
-/// Appelé une fois par jour par un planificateur externe (configuré à la mise
+/// Appelé régulièrement (au moins une fois par jour) par un planificateur externe (configuré à la mise
 /// en ligne, Phase 18). Protégé par un secret partagé : sans lui, n'importe qui
 /// pourrait déclencher des envois. Relancer plusieurs fois est sans danger,
 /// les cas déjà traités sont reconnus.
@@ -21,6 +23,6 @@ export async function POST(request: Request) {
     return new Response("Accès refusé.", { status: 401 });
   }
 
-  const bilan = await executerPlanifiees();
-  return Response.json(bilan);
+  const [automatisations, signatures] = await Promise.all([executerPlanifiees(), releverBoite()]);
+  return Response.json({ automatisations, signatures });
 }

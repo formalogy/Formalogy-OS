@@ -90,6 +90,9 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Tout ce qui ne se rattache pas reste visible dans « Signatures » ; le dépôt
   manuel du document signé est toujours possible.
 - Documents de plus de 5 Mo : BoldSign ne les joint pas, dépôt manuel.
+- La relève de la boîte (`lib/signatures/boite-mail.ts`, IMAP en lecture seule)
+  tourne avec le réveil `POST /api/automatisations/executer` et via le bouton
+  « Relever la boîte maintenant ». À planifier toutes les heures en Phase 18.
 
 ## Émargement
 

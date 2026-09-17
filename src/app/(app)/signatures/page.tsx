@@ -2,9 +2,11 @@ import type { StatutSignature } from "@prisma/client";
 import Link from "next/link";
 
 import { classerEmailEntrant } from "@/app/(app)/signatures/actions";
+import { ReleveBoite } from "@/app/(app)/signatures/releve";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
+import { boiteConfiguree } from "@/lib/signatures/boite-mail";
 import { LIBELLE_STATUT_SIGNATURE, TON_STATUT_SIGNATURE, type Signataire } from "@/lib/signatures/libelles";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +36,14 @@ export default async function PageSignatures({ searchParams }: { searchParams: P
 
   return (
     <>
-      <header className="mb-6">
-        <h1 className="text-[22px] font-extrabold tracking-tight">Signatures</h1>
-        <p className="mt-1 text-[12.8px] text-texte-doux">
-          Documents envoyés à la signature via BoldSign. Pour en lancer une, ouvrez le document concerné.
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-extrabold tracking-tight">Signatures</h1>
+          <p className="mt-1 text-[12.8px] text-texte-doux">
+            Documents envoyés à la signature via BoldSign. Pour en lancer une, ouvrez le document concerné.
+          </p>
+        </div>
+        <ReleveBoite configuree={boiteConfiguree()} />
       </header>
 
       <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-bordure bg-surface p-0.5 sm:inline-flex">

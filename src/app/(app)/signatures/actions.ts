@@ -14,6 +14,7 @@ import {
   type FichierPdf,
 } from "@/lib/signatures/enregistrement";
 import { NOMBRE_MAX_SIGNATAIRES, type Signataire } from "@/lib/signatures/libelles";
+import { releverBoite } from "@/lib/signatures/boite-mail";
 import { StockageNonConfigure } from "@/lib/stockage";
 
 export type EtatFormulaire = { erreur?: string; valeurs?: Record<string, string> };
@@ -161,4 +162,18 @@ export async function classerEmailEntrant(donnees: FormData): Promise<void> {
     data: { resultat: "IGNORE", motif: `Traité à la main par ${utilisateur.name}` },
   });
   if (r.count > 0) revalidatePath("/signatures");
+}
+
+export type EtatReleve = { message?: string; erreur?: string };
+
+/// Relève immédiate de la boîte, sans attendre le passage automatique.
+export async function releverBoiteMaintenant(): Promise<EtatReleve> {
+  await exigerRole("ADMIN", "GESTIONNAIRE");
+  const bilan = await releverBoite();
+  if (bilan.erreur) return { erreur: bilan.erreur };
+  revalidatePath("/signatures");
+  if (bilan.examines === 0) return { message: "Aucun nouvel email de BoldSign." };
+  return {
+    message: `${bilan.examines} email(s) examiné(s) : ${bilan.rapproches} document(s) signé(s) enregistré(s)${bilan.aVerifier ? `, ${bilan.aVerifier} à vérifier` : ""}.`,
+  };
 }
