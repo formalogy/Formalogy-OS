@@ -681,8 +681,8 @@ model DocumentVersion {
 // ===========================================================================
 
 /// SIMULE : l'envoi réel est désactivé, le message n'a pas quitté l'application.
-/// Les statuts DELIVRE et OUVERT sont renseignés par le prestataire d'envoi,
-/// quand il sait les détecter.
+/// DELIVRE et OUVERT sont inutilisés avec Gmail (pas de suivi) ; conservés pour
+/// un éventuel prestataire qui saurait les détecter.
 enum StatutEmail {
   SIMULE
   ENVOYE
