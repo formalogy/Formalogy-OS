@@ -118,6 +118,8 @@ export function listeDeControle(session: {
   nombreInscrits: number;
   conventionDeposee: boolean;
   conventionSignee: boolean;
+  programmeDisponible: boolean;
+  convocationsEnvoyees: boolean;
   presencesCompletes: boolean;
   feuilleEmargementDeposee: boolean;
   evaluationsCompletes: boolean;
@@ -128,8 +130,8 @@ export function listeDeControle(session: {
     { libelle: "Apprenants inscrits", fait: session.nombreInscrits > 0 },
     { libelle: "Convention déposée", fait: session.conventionDeposee },
     { libelle: "Convention signée", fait: session.conventionSignee },
-    { libelle: "Programme envoyé", fait: false, phase: 9 },
-    { libelle: "Convocations envoyées", fait: false, phase: 9 },
+    { libelle: "Programme déposé", fait: session.programmeDisponible },
+    { libelle: "Convocations envoyées", fait: session.convocationsEnvoyees },
     { libelle: "Présences saisies", fait: session.presencesCompletes },
     { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
     { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },

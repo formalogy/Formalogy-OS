@@ -43,7 +43,7 @@ export default async function PageFormation({
       sessions: {
         where: { deletedAt: null },
         orderBy: { dateDebut: "desc" },
-        include: { company: { select: { raisonSociale: true } } },
+        include: { company: { select: { raisonSociale: true } }, trainer: { select: { id: true, prenom: true, nom: true } } },
       },
       documents: SELECTION_DOCUMENT_RESUME,
     },
@@ -133,11 +133,25 @@ export default async function PageFormation({
 
           <ListeDocuments documents={formation.documents} lienAjout={`formation=${formation.id}`} />
 
-          <section className="rounded-xl border border-dashed border-bordure bg-surface/50 p-5">
-            <h2 className="text-[14.5px] font-bold text-texte-doux">Formateur</h2>
-            <p className="mt-2 text-[12.5px] text-texte-tenu">
-              Le formateur associé (Phase 10) apparaîtra ici.
-            </p>
+          <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+            <h2 className="mb-2 text-[14.5px] font-bold">Formateurs</h2>
+            {(() => {
+              // Formateurs ayant animé ou animant une session de cette formation.
+              const formateurs = [...new Map(formation.sessions.filter((s) => s.trainer).map((s) => [s.trainer!.id, s.trainer!])).values()];
+              return formateurs.length === 0 ? (
+                <p className="text-[12.8px] text-texte-doux">Aucun formateur affecté aux sessions de cette formation.</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {formateurs.map((f) => (
+                    <li key={f.id}>
+                      <Link href={`/formateurs/${f.id}`} className="text-[13px] font-semibold hover:text-accent-fort">
+                        {f.prenom} {f.nom}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </section>
         </div>
       </div>

@@ -36,11 +36,16 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
   const session = await prisma.trainingSession.findFirst({
     where: { id, deletedAt: null },
     include: {
-      formation: { select: { id: true, titre: true, reference: true } },
       company: { select: { id: true, raisonSociale: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
       presences: { select: { learnerId: true, jour: true, creneau: true } },
       evaluations: { select: { learnerId: true } },
+      // Convocations réellement parties (les envois simulés ne comptent pas)
+      emails: {
+        where: { statut: { in: ["ENVOYE", "DELIVRE", "OUVERT"] }, template: { code: "CONVOCATION" } },
+        select: { learnerId: true },
+      },
+      formation: { select: { id: true, titre: true, reference: true, _count: { select: { documents: { where: { deletedAt: null, type: { code: "PROGRAMME" } } } } } } },
       inscriptions: {
         orderBy: { learner: { nom: "asc" } },
         include: {
@@ -95,6 +100,10 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     nombreInscrits: session.inscriptions.length,
     conventionDeposee: session.documents.some((d) => d.type?.code === "CONVENTION"),
     conventionSignee: session.documents.some((d) => d.type?.code === "CONVENTION" && d.signatures.length > 0),
+    programmeDisponible:
+      session.formation._count.documents > 0 || session.documents.some((d) => d.type?.code === "PROGRAMME"),
+    convocationsEnvoyees:
+      session.inscriptions.length > 0 && session.inscriptions.every((i) => session.emails.some((e) => e.learnerId === i.learner.id)),
     presencesCompletes:
       session.dateFin <= aujourdhuiUTC() &&
       presencesCompletes({
