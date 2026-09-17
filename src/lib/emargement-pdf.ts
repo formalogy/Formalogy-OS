@@ -1,9 +1,10 @@
 import "server-only";
 
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, type PDFPage } from "pdf-lib";
 
 import { joursDeSession } from "@/lib/emargement";
 import type { sessionPourEmargement } from "@/lib/emargement-acces";
+import { tronquer } from "@/lib/pdf-outils";
 
 type Session = NonNullable<Awaited<ReturnType<typeof sessionPourEmargement>>>;
 
@@ -26,38 +27,6 @@ const COLONNES = [
 ];
 
 const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-
-/// Lettres sans décomposition Unicode, remplacées par leur plus proche équivalent.
-const LETTRES_PROCHES: Record<string, string> = { ł: "l", Ł: "L", đ: "d", Đ: "D", ı: "i", ß: "ss" };
-
-/// Les polices standard des PDF ne couvrent que l'alphabet latin occidental :
-/// un caractère non représentable est remplacé plutôt que de faire échouer
-/// toute la génération.
-function texteSur(police: PDFFont, texte: string): string {
-  return [...texte]
-    .map((c) => {
-      try {
-        police.encodeText(c);
-        return c;
-      } catch {
-        const sansAccent = (LETTRES_PROCHES[c] ?? c).normalize("NFD").replace(/\p{M}/gu, "");
-        try {
-          police.encodeText(sansAccent);
-          return sansAccent;
-        } catch {
-          return "?";
-        }
-      }
-    })
-    .join("");
-}
-
-function tronquer(police: PDFFont, texte: string, taille: number, largeurMax: number): string {
-  let t = texteSur(police, texte);
-  if (police.widthOfTextAtSize(t, taille) <= largeurMax) return t;
-  while (t.length > 1 && police.widthOfTextAtSize(`${t}…`, taille) > largeurMax) t = t.slice(0, -1);
-  return `${t}…`;
-}
 
 /// Feuilles d'émargement pré-remplies : une page par jour de session (plus
 /// des pages de suite si les apprenants ne tiennent pas sur une page), avec

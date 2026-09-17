@@ -138,3 +138,52 @@ export async function lancerAutomatisations(_precedent: EtatFormulaire): Promise
         : `${bilan.traites} cas traité${bilan.traites > 1 ? "s" : ""}.`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Organisme — informations légales, modification réservée aux administrateurs
+// ---------------------------------------------------------------------------
+
+const facultatif = z
+  .string()
+  .trim()
+  .transform((v) => (v === "" ? null : v));
+
+const schemaOrganisme = z.object({
+  raisonSociale: z.string().trim().min(1, "La raison sociale est obligatoire."),
+  siret: facultatif.refine((v) => v === null || /^\d{14}$/.test(v.replace(/\s/g, "")), "Le SIRET doit comporter 14 chiffres."),
+  numeroDeclaration: facultatif.refine((v) => v === null || /^\d{11}$/.test(v.replace(/\s/g, "")), "Le numéro de déclaration d'activité comporte 11 chiffres."),
+  adresse: facultatif,
+  codePostal: facultatif.refine((v) => v === null || /^\d{5}$/.test(v), "Le code postal doit comporter 5 chiffres."),
+  ville: facultatif,
+  telephone: facultatif,
+  email: facultatif.refine((v) => v === null || z.email().safeParse(v).success, "L'adresse email n'est pas valide."),
+  siteWeb: facultatif,
+  representantNom: facultatif,
+  representantFonction: facultatif,
+});
+
+export async function modifierOrganisme(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN");
+  const valeurs = Object.fromEntries([...donnees.entries()].map(([k, v]) => [k, String(v)]));
+
+  const r = schemaOrganisme.safeParse(valeurs);
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide.", valeurs };
+
+  const data = {
+    ...r.data,
+    siret: r.data.siret?.replace(/\s/g, "") ?? null,
+    numeroDeclaration: r.data.numeroDeclaration?.replace(/\s/g, "") ?? null,
+  };
+  await prisma.organisme.upsert({ where: { id: "organisme" }, create: { id: "organisme", ...data }, update: data });
+
+  await journaliser({
+    action: "organisation.updated",
+    summary: "Informations de l'organisme modifiées",
+    entityType: "Organisme",
+    entityId: "organisme",
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/parametres/organisme");
+  return { succes: "Informations enregistrées." };
+}

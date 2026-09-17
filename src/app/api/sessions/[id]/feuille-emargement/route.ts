@@ -1,6 +1,6 @@
-import { nomOrganisme } from "@/lib/emails/contexte";
 import { sessionPourEmargement } from "@/lib/emargement-acces";
 import { genererFeuillesEmargement } from "@/lib/emargement-pdf";
+import { lireOrganisme } from "@/lib/organisme";
 import { lireUtilisateur } from "@/lib/session";
 
 /// Feuilles d'émargement pré-remplies d'une session, générées à la demande.
@@ -13,7 +13,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/sessions/[i
   const session = await sessionPourEmargement(utilisateur, id);
   if (!session) return new Response("Session introuvable.", { status: 404 });
 
-  const pdf = await genererFeuillesEmargement(session, nomOrganisme());
+  const pdf = await genererFeuillesEmargement(session, (await lireOrganisme()).raisonSociale);
   const nom = `Emargement-${session.numero}.pdf`;
 
   return new Response(Buffer.from(pdf), {

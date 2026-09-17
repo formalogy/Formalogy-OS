@@ -321,7 +321,7 @@ export default async function PageTableauDeBord() {
                 ))}
                 {sansAttestation.map((i) => (
                   <li key={`a-${i.session.id}-${i.learner.id}`} className="border-t border-bordure-douce first:border-t-0">
-                    <Link href={`/documents/nouveau?session=${i.session.id}&apprenant=${i.learner.id}&type=ATTESTATION`} className="flex gap-2.5 px-4 py-2.5 hover:bg-surface-creuse">
+                    <Link href={`/sessions/${i.session.id}/fin-de-formation`} className="flex gap-2.5 px-4 py-2.5 hover:bg-surface-creuse">
                       <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-alerte" />
                       <span className="min-w-0">
                         <span className="block text-[12.8px] font-semibold">Attestation absente</span>

@@ -2,12 +2,10 @@ import "server-only";
 
 import type { Contexte } from "@/lib/emails/modeles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
+import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
 import { formaterPeriode } from "@/lib/sessions-libelles";
 
-export function nomOrganisme(): string {
-  return process.env.ORGANISME_NOM || "Formalogy";
-}
 
 /// Rassemble les valeurs des variables à partir des fiches concernées.
 export async function construireContexte(ids: {
@@ -16,7 +14,8 @@ export async function construireContexte(ids: {
   companyId?: string;
   prospectId?: string;
 }): Promise<Contexte> {
-  const [apprenant, session, entreprise, prospect] = await Promise.all([
+  const [organisme, apprenant, session, entreprise, prospect] = await Promise.all([
+    lireOrganisme(),
     ids.learnerId ? prisma.learner.findUnique({ where: { id: ids.learnerId } }) : null,
     ids.sessionId
       ? prisma.trainingSession.findUnique({
@@ -33,7 +32,7 @@ export async function construireContexte(ids: {
   ]);
 
   return {
-    "organisme.nom": nomOrganisme(),
+    "organisme.nom": organisme.raisonSociale,
     "apprenant.prenom": apprenant?.prenom,
     "apprenant.nom": apprenant?.nom,
     "session.numero": session?.numero,

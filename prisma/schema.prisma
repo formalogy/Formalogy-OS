@@ -76,6 +76,7 @@ model User {
   formateursCrees   Trainer[] @relation("TrainerCreatedBy")
   signaturesCreees  SignatureRequest[] @relation("SignatureCreatedBy")
   presencesSaisies  Presence[] @relation("PresenceSaisiePar")
+  evaluationsSaisies EvaluationAcquis[] @relation("EvaluationSaisiePar")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
   formateur Trainer? @relation("TrainerUser")
@@ -392,6 +393,8 @@ model Learner {
   inscriptions SessionLearner[]
   documents    Document[]
   presences    Presence[]
+  evaluations  EvaluationAcquis[]
+  satisfactions QuestionnaireSatisfaction[]
 
   emails Email[]
   taches Task[]
@@ -544,6 +547,8 @@ model TrainingSession {
   inscriptions SessionLearner[]
   documents    Document[]
   presences    Presence[]
+  evaluations  EvaluationAcquis[]
+  satisfactions QuestionnaireSatisfaction[]
 
   emails Email[]
   taches Task[]
@@ -1079,4 +1084,91 @@ model Presence {
   @@unique([sessionId, learnerId, jour, creneau])
   @@index([learnerId])
   @@map("presences")
+}
+
+// ===========================================================================
+// Organisme, fin de formation et évaluations (Phase 12)
+// ===========================================================================
+
+/// Informations légales de l'organisme, reprises sur les attestations et
+/// certificats. Une seule ligne, d'identifiant fixe « organisme ».
+model Organisme {
+  id String @id @default("organisme")
+
+  raisonSociale String
+  siret         String?
+  /// Numéro de déclaration d'activité (NDA) attribué par la DREETS
+  numeroDeclaration String?
+  adresse    String?
+  codePostal String?
+  ville      String?
+  telephone  String?
+  email      String?
+  siteWeb    String?
+
+  /// Signataire des attestations, ex. « Jimmy Struzyk », « Dirigeant »
+  representantNom      String?
+  representantFonction String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("organisme")
+}
+
+enum ResultatAcquis {
+  ACQUIS
+  PARTIELLEMENT_ACQUIS
+  NON_ACQUIS
+}
+
+/// Résultat de l'évaluation des acquis d'un apprenant à l'issue d'une session,
+/// reporté sur l'attestation de fin de formation (article L6353-1).
+model EvaluationAcquis {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  learnerId String
+  learner   Learner         @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  resultat    ResultatAcquis
+  commentaire String?
+
+  saisieParId String?
+  saisiePar   User?   @relation("EvaluationSaisiePar", fields: [saisieParId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, learnerId])
+  @@map("evaluations_acquis")
+}
+
+/// Questionnaire de satisfaction « à chaud », rempli par l'apprenant depuis un
+/// lien personnel. Seule l'empreinte du jeton est conservée : une fuite de la
+/// base ne permet pas de répondre à la place des apprenants.
+model QuestionnaireSatisfaction {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  learnerId String
+  learner   Learner         @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  /// Empreinte SHA-256 du jeton contenu dans le lien
+  jetonEmpreinte String   @unique
+  expireAt       DateTime
+
+  envoyeAt  DateTime?
+  reponduAt DateTime?
+
+  /// Notes de 1 à 5 par question, et commentaires libres
+  reponses   Json?
+  noteGlobale Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, learnerId])
+  @@index([reponduAt])
+  @@map("questionnaires_satisfaction")
 }

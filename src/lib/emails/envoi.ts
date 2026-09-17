@@ -3,6 +3,7 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 
 import { texteVersHtml } from "@/lib/emails/modeles";
+import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
 
 /// Envoi par un compte Gmail dédié (SMTP + mot de passe d'application).
@@ -115,7 +116,7 @@ export async function envoyerEmail(message: MessageAEnvoyer) {
       });
     }
 
-    const expediteur = process.env.GMAIL_NOM_EXPEDITEUR || process.env.ORGANISME_NOM || "Formalogy";
+    const expediteur = process.env.GMAIL_NOM_EXPEDITEUR || (await lireOrganisme()).raisonSociale;
     const info = await gmail().sendMail({
       from: { name: expediteur, address: process.env.GMAIL_ADRESSE ?? "" },
       to: message.destinataire,

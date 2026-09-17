@@ -87,6 +87,9 @@ export default async function PageMaSession({ params }: { params: Promise<{ id: 
           <Link href={`/mes-sessions/${session.id}/emargement`} className="rounded-lg bg-accent px-3 py-2 text-[13px] font-semibold text-white">
             Émargement
           </Link>
+          <Link href={`/mes-sessions/${session.id}/evaluations`} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold">
+            Évaluations
+          </Link>
         </div>
       </header>
 

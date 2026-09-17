@@ -67,7 +67,7 @@ export const MENU: GroupeMenu[] = [
       { libelle: "Documents", chemin: "/documents" },
       { libelle: "Signatures", chemin: "/signatures" },
       { libelle: "Émargements", chemin: "/emargements" },
-      { libelle: "Certificats", phase: 12 },
+      { libelle: "Attestations", chemin: "/attestations" },
     ],
   },
   {
@@ -94,13 +94,11 @@ export const MENU: GroupeMenu[] = [
     titre: "Paramètres",
     icone: "engrenage",
     entrees: [
+      { libelle: "Organisme", chemin: "/parametres/organisme" },
       { libelle: "Mon compte", chemin: "/mon-compte" },
       { libelle: "Utilisateurs", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Rôles et permissions", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Modèles d'emails", chemin: "/parametres/modeles-emails" },
-      // La génération de documents à partir de modèles arrive avec les
-      // attestations et certificats.
-      { libelle: "Modèles de documents", phase: 12 },
       { libelle: "Automatisations", chemin: "/parametres/automatisations" },
       { libelle: "Intégrations", phase: 17, roles: ADMIN_SEUL },
       { libelle: "API", phase: 17, roles: ADMIN_SEUL },

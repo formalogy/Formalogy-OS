@@ -120,6 +120,8 @@ export function listeDeControle(session: {
   conventionSignee: boolean;
   presencesCompletes: boolean;
   feuilleEmargementDeposee: boolean;
+  evaluationsCompletes: boolean;
+  attestationsCompletes: boolean;
 }): ElementControle[] {
   return [
     { libelle: "Formation et dates définies", fait: true },
@@ -130,8 +132,8 @@ export function listeDeControle(session: {
     { libelle: "Convocations envoyées", fait: false, phase: 9 },
     { libelle: "Présences saisies", fait: session.presencesCompletes },
     { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
-    { libelle: "Évaluations", fait: false, phase: 12 },
-    { libelle: "Attestations", fait: false, phase: 12 },
+    { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },
+    { libelle: "Attestations", fait: session.attestationsCompletes },
     { libelle: "Facture", fait: false, phase: 13 },
   ];
 }

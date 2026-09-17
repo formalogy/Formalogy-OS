@@ -40,6 +40,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       company: { select: { id: true, raisonSociale: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
       presences: { select: { learnerId: true, jour: true, creneau: true } },
+      evaluations: { select: { learnerId: true } },
       inscriptions: {
         orderBy: { learner: { nom: "asc" } },
         include: {
@@ -54,6 +55,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           ...SELECTION_DOCUMENT_RESUME.select,
           type: { select: { nom: true, code: true } },
           signatures: { where: { statut: "SIGNEE" }, select: { id: true } },
+          learnerId: true,
         },
       },
     },
@@ -102,6 +104,11 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
         saisies: new Set(session.presences.map((p) => clePresence(p.learnerId, p.jour, p.creneau))),
       }).complet,
     feuilleEmargementDeposee: session.documents.some((d) => d.type?.code === "EMARGEMENT"),
+    evaluationsCompletes:
+      session.inscriptions.length > 0 && session.inscriptions.every((i) => session.evaluations.some((e) => e.learnerId === i.learner.id)),
+    attestationsCompletes:
+      session.inscriptions.length > 0 &&
+      session.inscriptions.every((i) => session.documents.some((d) => d.type?.code === "ATTESTATION" && d.learnerId === i.learner.id)),
   });
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;
@@ -125,6 +132,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
             statut={session.statut}
             classeTon={TON_STATUT_SESSION[session.statut]}
           />
+          <Link
+            href={`/sessions/${session.id}/fin-de-formation`}
+            className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
+          >
+            Fin de formation
+          </Link>
           <Link
             href={`/sessions/${session.id}/emargement`}
             className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
