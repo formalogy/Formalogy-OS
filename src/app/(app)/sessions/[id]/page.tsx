@@ -41,6 +41,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       presences: { select: { learnerId: true, jour: true, creneau: true } },
       evaluations: { select: { learnerId: true } },
       factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, statut: true, numero: true } },
+      dossiers: { where: { statut: { not: "ANNULE" } }, select: { id: true, statut: true, financeurNom: true } },
       // Convocations réellement parties (les envois simulés ne comptent pas)
       emails: {
         where: { statut: { in: ["ENVOYE", "DELIVRE", "OUVERT"] }, template: { code: "CONVOCATION" } },
@@ -115,6 +116,8 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       }).complet,
     feuilleEmargementDeposee: session.documents.some((d) => d.type?.code === "EMARGEMENT"),
     factureEmise: session.factures.some((f) => f.statut === "EMISE" || f.statut === "PAYEE"),
+    // La ligne n'apparaît que si un dossier de financement existe.
+    priseEnChargeAccordee: session.dossiers.length === 0 ? null : session.dossiers.every((d) => d.statut === "ACCORDE"),
     evaluationsCompletes:
       session.inscriptions.length > 0 && session.inscriptions.every((i) => session.evaluations.some((e) => e.learnerId === i.learner.id)),
     attestationsCompletes:
@@ -143,6 +146,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
             statut={session.statut}
             classeTon={TON_STATUT_SESSION[session.statut]}
           />
+          <Link
+            href={session.dossiers[0] ? `/financements/${session.dossiers[0].id}` : `/financements/nouveau?session=${session.id}`}
+            className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
+          >
+            {session.dossiers[0] ? "Prise en charge" : "Financement"}
+          </Link>
           <Link
             href={session.factures[0] ? `/factures/${session.factures[0].id}` : `/factures/nouvelle?session=${session.id}`}
             className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"

@@ -124,6 +124,14 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Connexion API Henrri à brancher dès que le client aura créé sa clé Sandbox
   (avatar → API & Intégrations) : documentation accessible une fois connecté.
 
+## Prises en charge (OPCO, France Travail)
+
+- Aucun financeur n'expose d'API : le dossier se dépose sur leur portail et se
+  suit dans `/financements` (montants demandé et accordé, dates, subrogation,
+  accord de prise en charge en pièce jointe).
+- Le déclencheur `DOSSIER_SANS_REPONSE` crée une tâche de relance au bout de
+  N jours (15 par défaut). Automatisation livrée désactivée.
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend

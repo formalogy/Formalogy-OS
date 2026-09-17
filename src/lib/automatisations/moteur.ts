@@ -65,6 +65,7 @@ type Cas = {
   sessionId?: string;
   prospectId?: string;
   companyId?: string;
+  dossierId?: string;
 };
 
 /// Traite un cas une seule fois. La réservation se fait par l'insertion de la
@@ -159,6 +160,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
           learnerId: cas.learnerId,
           sessionId: cas.sessionId,
           prospectId: cas.prospectId,
+          dossierId: cas.dossierId,
           companyId: cas.companyId,
         });
         await prisma.task.create({
@@ -290,6 +292,28 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
           entityId: session.id,
           sessionId: session.id,
           companyId: session.companyId ?? undefined,
+        }),
+      );
+    }
+  }
+
+  for (const automation of await automationsActives("DOSSIER_SANS_REPONSE")) {
+    const jours = lireRegle(automation).parametres.jours ?? 15;
+    const dossiers = await prisma.dossierFinancement.findMany({
+      where: { statut: "DEPOSE", dateDepot: { lte: ajouterJours(aujourdhui, -jours) } },
+    });
+    for (const dossier of dossiers) {
+      compter(
+        await traiterCas(automation, {
+          // Une seule relance par dossier et par date de dépôt : redéposer le
+          // dossier en produit une nouvelle.
+          cle: `${automation.id}:dossier:${dossier.id}:${dossier.dateDepot!.toISOString().slice(0, 10)}`,
+          entityType: "DossierFinancement",
+          entityId: dossier.id,
+          dossierId: dossier.id,
+          learnerId: dossier.learnerId ?? undefined,
+          sessionId: dossier.sessionId ?? undefined,
+          companyId: dossier.companyId ?? undefined,
         }),
       );
     }

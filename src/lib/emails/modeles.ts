@@ -14,6 +14,8 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "session.formateur": "Prénom et nom du formateur",
   "entreprise.nom": "Raison sociale de l'entreprise",
   "prospect.nomComplet": "Prénom et nom du prospect",
+  "dossier.financeur": "Nom du financeur (dossier de prise en charge)",
+  "dossier.reference": "Numéro du dossier de financement",
   "questionnaire.lien": "Lien personnel vers le questionnaire de satisfaction (emails de fin de session)",
 };
 

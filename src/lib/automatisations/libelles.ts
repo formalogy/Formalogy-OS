@@ -11,12 +11,14 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   SESSION_AVANT_DEBUT: "Quelques jours avant le début d'une session",
   SESSION_TERMINEE: "Quand une session passe à « Terminée » ou « Clôturée »",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
+  DOSSIER_SANS_REPONSE: "Quand un dossier de financement déposé reste sans réponse",
 };
 
 /// Déclencheurs traités par le réveil quotidien plutôt qu'au moment d'une action.
 export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "SESSION_AVANT_DEBUT",
   "RELANCE_PROSPECT_DUE",
+  "DOSSIER_SANS_REPONSE",
 ];
 
 export const LIBELLE_STATUT_EMAIL: Record<StatutEmail, string> = {

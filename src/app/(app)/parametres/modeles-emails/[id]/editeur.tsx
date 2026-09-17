@@ -20,6 +20,8 @@ const EXEMPLE: Record<string, string> = {
   "session.formateur": "Alex Exemple",
   "entreprise.nom": "Entreprise Exemple",
   "prospect.nomComplet": "Dominique Exemple",
+  "dossier.financeur": "OPCO EP",
+  "dossier.reference": "D-2026-0001",
   "questionnaire.lien": "https://…/questionnaire/exemple",
 };
 

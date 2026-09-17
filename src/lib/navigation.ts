@@ -76,8 +76,7 @@ export const MENU: GroupeMenu[] = [
     entrees: [
       { libelle: "Factures", chemin: "/factures" },
       { libelle: "Paiements", chemin: "/paiements" },
-      { libelle: "OPCO", phase: 14 },
-      { libelle: "France Travail", phase: 14 },
+      { libelle: "Prises en charge", chemin: "/financements" },
     ],
   },
   {

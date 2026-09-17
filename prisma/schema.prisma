@@ -78,6 +78,7 @@ model User {
   presencesSaisies  Presence[] @relation("PresenceSaisiePar")
   evaluationsSaisies EvaluationAcquis[] @relation("EvaluationSaisiePar")
   facturesCreees     Facture[]  @relation("FactureCreatedBy")
+  dossiersCrees      DossierFinancement[] @relation("DossierCreatedBy")
   paiementsSaisis    Paiement[] @relation("PaiementCreatedBy")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
@@ -254,6 +255,7 @@ model Company {
   taches    Task[]
 
   factures Facture[]
+  dossiers DossierFinancement[]
 
   @@index([raisonSociale])
   @@index([deletedAt])
@@ -400,6 +402,7 @@ model Learner {
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
   factures     Facture[]
+  dossiers     DossierFinancement[]
 
   emails Email[]
   taches Task[]
@@ -555,6 +558,7 @@ model TrainingSession {
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
   factures     Facture[]
+  dossiers     DossierFinancement[]
 
   emails Email[]
   taches Task[]
@@ -839,6 +843,8 @@ enum DeclencheurAutomatisation {
   SESSION_AVANT_DEBUT
   SESSION_TERMINEE
   RELANCE_PROSPECT_DUE
+  /// Dossier de financement déposé et sans réponse depuis N jours
+  DOSSIER_SANS_REPONSE
 }
 
 /// Règle DÉCLENCHEUR → CONDITION → ACTION.
@@ -1251,6 +1257,7 @@ model Facture {
   createdBy   User?   @relation("FactureCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   paiements Paiement[]
+  dossiers  DossierFinancement[]
 
   @@index([statut])
   @@index([sessionId])
@@ -1289,4 +1296,75 @@ model Paiement {
   @@index([factureId])
   @@index([date])
   @@map("paiements")
+}
+
+// ===========================================================================
+// Prises en charge OPCO et France Travail (Phase 14)
+// ===========================================================================
+
+enum TypeFinanceur {
+  OPCO
+  FRANCE_TRAVAIL
+  CPF
+  ENTREPRISE
+  AUTRE
+}
+
+/// Aucun financeur n'expose d'API : le dossier se dépose sur leur portail et
+/// se suit ici, avec ses montants, ses dates et son accord en pièce jointe.
+enum StatutDossier {
+  /// Dossier à préparer et à déposer
+  A_MONTER
+  /// Déposé sur le portail du financeur, en attente de réponse
+  DEPOSE
+  ACCORDE
+  REFUSE
+  ANNULE
+}
+
+model DossierFinancement {
+  id String @id @default(uuid(7))
+
+  /// Numéro du dossier chez le financeur
+  reference String?
+
+  financeurType TypeFinanceur
+  /// Nom exact du financeur, ex. « OPCO EP », « France Travail — agence de Lille »
+  financeurNom  String
+
+  sessionId String?
+  session   TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  learnerId String?
+  learner   Learner?         @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+  companyId String?
+  company   Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  montantDemande Decimal? @db.Decimal(10, 2)
+  montantAccorde Decimal? @db.Decimal(10, 2)
+  /// Subrogation : le financeur paie directement l'organisme
+  subrogation    Boolean  @default(true)
+
+  statut StatutDossier @default(A_MONTER)
+  /// Date limite de dépôt imposée par le financeur
+  dateLimite   DateTime?
+  dateDepot    DateTime?
+  dateReponse  DateTime?
+  motifRefus   String?
+
+  /// Facture adressée au financeur, le cas échéant
+  factureId String?
+  facture   Facture? @relation(fields: [factureId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("DossierCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([statut])
+  @@index([sessionId])
+  @@index([dateLimite])
+  @@map("dossiers_financement")
 }

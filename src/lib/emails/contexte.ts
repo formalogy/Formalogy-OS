@@ -13,9 +13,10 @@ export async function construireContexte(ids: {
   sessionId?: string;
   companyId?: string;
   prospectId?: string;
+  dossierId?: string;
   lienQuestionnaire?: string;
 }): Promise<Contexte> {
-  const [organisme, apprenant, session, entreprise, prospect] = await Promise.all([
+  const [organisme, apprenant, session, entreprise, prospect, dossier] = await Promise.all([
     lireOrganisme(),
     ids.learnerId ? prisma.learner.findUnique({ where: { id: ids.learnerId } }) : null,
     ids.sessionId
@@ -30,6 +31,7 @@ export async function construireContexte(ids: {
       : null,
     ids.companyId ? prisma.company.findUnique({ where: { id: ids.companyId } }) : null,
     ids.prospectId ? prisma.prospect.findUnique({ where: { id: ids.prospectId } }) : null,
+    ids.dossierId ? prisma.dossierFinancement.findUnique({ where: { id: ids.dossierId } }) : null,
   ]);
 
   return {
@@ -45,6 +47,8 @@ export async function construireContexte(ids: {
     "session.formateur": session?.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : undefined,
     "entreprise.nom": entreprise?.raisonSociale ?? session?.company?.raisonSociale,
     "prospect.nomComplet": prospect ? `${prospect.prenom} ${prospect.nom}` : undefined,
+    "dossier.financeur": dossier?.financeurNom,
+    "dossier.reference": dossier?.reference,
     "questionnaire.lien": ids.lienQuestionnaire,
   };
 }
