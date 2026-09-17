@@ -30,7 +30,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 | Stockage documents | Supabase Storage, derrière une abstraction |
 | Emails | Compte Gmail dédié, en SMTP avec mot de passe d'application (nodemailer) |
 | Signature électronique | BoldSign, région Europe, formule **sans API** (envoi depuis le site BoldSign, retour par email) |
-| Facturation externe | Henrri, derrière une interface (mock tant que l'API n'est pas fournie) |
+| Facturation externe | Henrri : numéro et PDF saisis à la main tant que la clé API n'est pas fournie (API Henrri existante, bac à sable gratuit) |
 | Automatisations | Moteur interne (`lib/automatisations`) + réveil quotidien `POST /api/automatisations/executer` |
 | Hébergement | À trancher (Phase 18) |
 
@@ -112,6 +112,17 @@ et que le projet peut migrer ailleurs en quelques heures.
   (Paramètres → Organisme), durée en heures de la formation, présences
   complètes et évaluation des acquis de l'apprenant.
 - Heures suivies = durée × demi-journées présentes / demi-journées de la session.
+
+## Factures et paiements
+
+- Le numéro légal d'une facture vient toujours de Henrri : Formalogy OS ne
+  numérote jamais. Une facture « À émettre » est préparée ici, puis émise dans
+  Henrri (numéro, dates et PDF reportés), puis suivie jusqu'au paiement.
+- Une facture émise ne se modifie plus ; son annulation (admin) suppose un
+  avoir dans Henrri. Montants calculés en centimes entiers ; les paiements ne
+  peuvent pas dépasser le reste dû (transaction sérialisable).
+- Connexion API Henrri à brancher dès que le client aura créé sa clé Sandbox
+  (avatar → API & Intégrations) : documentation accessible une fois connecté.
 
 ## Sécurité
 

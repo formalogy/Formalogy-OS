@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { enCentimes, formaterMontant, situationFacture } from "@/lib/factures";
 import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerUtilisateur } from "@/lib/session";
@@ -30,20 +31,6 @@ const heureCourte = new Intl.DateTimeFormat("fr-FR", {
   timeZone: "Europe/Paris",
 });
 
-/// Indicateur dont la source de données n'existe pas encore.
-/// On affiche la structure cible sans jamais inventer de chiffre.
-function IndicateurAVenir({ libelle, phase }: { libelle: string; phase: number }) {
-  return (
-    <div className="rounded-xl border border-dashed border-bordure bg-surface/50 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-texte-tenu">{libelle}</div>
-      <div className="mt-2 font-mono text-2xl text-texte-tenu">—</div>
-      <div className="mt-2.5 border-t border-bordure-douce pt-2.5 text-[11.5px] text-texte-tenu">
-        Disponible en Phase {phase}
-      </div>
-    </div>
-  );
-}
-
 function Indicateur({
   libelle,
   valeur,
@@ -69,6 +56,7 @@ export default async function PageTableauDeBord() {
   // Les formateurs ont leur propre accueil, limité à leurs sessions.
   if (utilisateur.role === "FORMATEUR") redirect("/mes-sessions");
   const aujourdhui = aujourdhuiUTC();
+  const debutMois = new Date(Date.UTC(aujourdhui.getUTCFullYear(), aujourdhui.getUTCMonth(), 1));
 
   const [
     nombreApprenants,
@@ -81,6 +69,9 @@ export default async function PageTableauDeBord() {
     inscriptionsTerminees,
     taches,
     nombreTaches,
+    facturesMois,
+    paiementsMois,
+    facturesOuvertes,
   ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
@@ -164,7 +155,22 @@ export default async function PageTableauDeBord() {
         take: 6,
       }),
       prisma.task.count({ where: { statut: "A_FAIRE" } }),
+      prisma.facture.findMany({
+        where: { statut: { in: ["EMISE", "PAYEE"] }, dateEmission: { gte: debutMois } },
+        select: { montantHT: true },
+      }),
+      prisma.paiement.findMany({ where: { date: { gte: debutMois } }, select: { montant: true } }),
+      prisma.facture.findMany({
+        where: { statut: "EMISE" },
+        select: { statut: true, montantTTC: true, dateEcheance: true, paiements: { select: { montant: true } } },
+      }),
     ]);
+
+  const caMois = facturesMois.reduce((t, f) => t + enCentimes(f.montantHT), 0);
+  const encaisseMois = paiementsMois.reduce((t, p) => t + enCentimes(p.montant), 0);
+  const situations = facturesOuvertes.map((f) => situationFacture(f, f.paiements, aujourdhui));
+  const resteAEncaisser = situations.reduce((t, x) => t + x.resteCentimes, 0);
+  const facturesEnRetard = situations.filter((x) => x.enRetard).length;
 
   const sansAttestation = inscriptionsTerminees.filter(
     (i) => !i.learner.documents.some((d) => d.sessionId === i.session.id),
@@ -181,9 +187,14 @@ export default async function PageTableauDeBord() {
       </header>
 
       <section aria-label="Indicateurs financiers" className="grid gap-3.5 sm:grid-cols-3">
-        <IndicateurAVenir libelle="CA du mois" phase={13} />
-        <IndicateurAVenir libelle="CA encaissé" phase={13} />
-        <IndicateurAVenir libelle="Reste à encaisser" phase={13} />
+        <Indicateur libelle="Facturé ce mois" valeur={formaterMontant(caMois / 100)} precision="hors taxes, factures émises" href="/factures?filtre=toutes" />
+        <Indicateur libelle="Encaissé ce mois" valeur={formaterMontant(encaisseMois / 100)} precision="paiements reçus" href="/paiements" />
+        <Indicateur
+          libelle="Reste à encaisser"
+          valeur={formaterMontant(resteAEncaisser / 100)}
+          precision={facturesEnRetard > 0 ? `dont ${facturesEnRetard} facture(s) en retard` : "factures émises non soldées"}
+          href={facturesEnRetard > 0 ? "/factures?filtre=retard" : "/factures"}
+        />
       </section>
 
       <section aria-label="Indicateurs d'activité" className="mt-3.5 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">

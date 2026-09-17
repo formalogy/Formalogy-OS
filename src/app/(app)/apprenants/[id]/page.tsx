@@ -29,7 +29,7 @@ const PARCOURS = [
   { etape: "Présences saisies", phase: null },
   { etape: "Évaluation des acquis", phase: null },
   { etape: "Attestation", phase: null },
-  { etape: "Facturation", phase: 13 },
+  { etape: "Facturation", phase: null },
 ];
 
 function Ligne({ libelle, valeur }: { libelle: string; valeur?: string | null }) {
@@ -71,7 +71,7 @@ export default async function PageApprenant({
   const derniereSession = apprenant.inscriptions[0]?.session;
   // Convention ou contrat signé, rattaché à l'apprenant ou à l'une de ses sessions.
   const idsSessions = apprenant.inscriptions.map((i) => i.session.id);
-  const [modeles, contexte, presences, evaluations, attestations, conventionsSignees] = await Promise.all([
+  const [modeles, contexte, presences, factures, evaluations, attestations, conventionsSignees] = await Promise.all([
     // Les modèles à lien personnel (questionnaire) partent depuis la fin de
     // formation, où le lien est créé : pas depuis la fiche.
     prisma.emailTemplate.findMany({
@@ -84,6 +84,10 @@ export default async function PageApprenant({
       companyId: apprenant.companyId ?? undefined,
     }),
     prisma.presence.count({ where: { learnerId: apprenant.id } }),
+    // Facture émise pour l'apprenant ou pour l'une de ses sessions
+    prisma.facture.count({
+      where: { statut: { in: ["EMISE", "PAYEE"] }, OR: [{ learnerId: apprenant.id }, { sessionId: { in: idsSessions } }] },
+    }),
     prisma.evaluationAcquis.count({ where: { learnerId: apprenant.id } }),
     prisma.document.count({ where: { learnerId: apprenant.id, deletedAt: null, type: { code: "ATTESTATION" } } }),
     prisma.signatureRequest.count({
@@ -189,7 +193,8 @@ export default async function PageApprenant({
                 (jalon.etape === "Convention signée" && conventionsSignees > 0) ||
                 (jalon.etape === "Présences saisies" && presences > 0) ||
                 (jalon.etape === "Évaluation des acquis" && evaluations > 0) ||
-                (jalon.etape === "Attestation" && attestations > 0);
+                (jalon.etape === "Attestation" && attestations > 0) ||
+                (jalon.etape === "Facturation" && factures > 0);
               return (
                 <li
                   key={jalon.etape}

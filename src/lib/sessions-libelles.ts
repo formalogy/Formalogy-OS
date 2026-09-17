@@ -124,6 +124,7 @@ export function listeDeControle(session: {
   feuilleEmargementDeposee: boolean;
   evaluationsCompletes: boolean;
   attestationsCompletes: boolean;
+  factureEmise: boolean;
 }): ElementControle[] {
   return [
     { libelle: "Formation et dates définies", fait: true },
@@ -136,6 +137,6 @@ export function listeDeControle(session: {
     { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
     { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },
     { libelle: "Attestations", fait: session.attestationsCompletes },
-    { libelle: "Facture", fait: false, phase: 13 },
+    { libelle: "Facture émise", fait: session.factureEmise },
   ];
 }

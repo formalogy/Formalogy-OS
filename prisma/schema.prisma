@@ -77,6 +77,8 @@ model User {
   signaturesCreees  SignatureRequest[] @relation("SignatureCreatedBy")
   presencesSaisies  Presence[] @relation("PresenceSaisiePar")
   evaluationsSaisies EvaluationAcquis[] @relation("EvaluationSaisiePar")
+  facturesCreees     Facture[]  @relation("FactureCreatedBy")
+  paiementsSaisis    Paiement[] @relation("PaiementCreatedBy")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
   formateur Trainer? @relation("TrainerUser")
@@ -251,6 +253,8 @@ model Company {
   emails    Email[]
   taches    Task[]
 
+  factures Facture[]
+
   @@index([raisonSociale])
   @@index([deletedAt])
   @@map("companies")
@@ -395,6 +399,7 @@ model Learner {
   presences    Presence[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
+  factures     Facture[]
 
   emails Email[]
   taches Task[]
@@ -549,6 +554,7 @@ model TrainingSession {
   presences    Presence[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
+  factures     Facture[]
 
   emails Email[]
   taches Task[]
@@ -643,6 +649,7 @@ model Document {
 
   versions   DocumentVersion[]
   signatures SignatureRequest[]
+  factures   Facture[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1171,4 +1178,115 @@ model QuestionnaireSatisfaction {
   @@unique([sessionId, learnerId])
   @@index([reponduAt])
   @@map("questionnaires_satisfaction")
+}
+
+// ===========================================================================
+// Factures et paiements (Phase 13)
+// ===========================================================================
+
+/// Qui règle la facture.
+enum TypePayeur {
+  ENTREPRISE
+  OPCO
+  APPRENANT
+  FRANCE_TRAVAIL
+  AUTRE
+}
+
+/// Le numéro légal d'une facture est attribué par Henrri, le logiciel de
+/// facturation : l'application ne numérote jamais elle-même, pour éviter deux
+/// séries de numéros concurrentes.
+enum StatutFacture {
+  /// Préparée dans Formalogy OS, pas encore émise dans Henrri
+  A_EMETTRE
+  /// Émise (numéro Henrri connu), en attente de paiement
+  EMISE
+  /// Entièrement réglée
+  PAYEE
+  ANNULEE
+}
+
+model Facture {
+  id String @id @default(uuid(7))
+
+  /// Numéro attribué par Henrri (ex. « F-2026-0042 »), absent tant que la
+  /// facture n'est pas émise
+  numero String? @unique
+  /// Identifiant de la facture chez Henrri, une fois la connexion en place
+  henrriId String? @unique
+
+  objet String
+
+  sessionId String?
+  session   TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  companyId String?
+  company   Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  learnerId String?
+  learner   Learner?         @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+
+  payeurType TypePayeur
+  /// Nom affiché du payeur (raison sociale, nom de l'OPCO, apprenant…)
+  payeurNom  String
+
+  montantHT  Decimal @db.Decimal(10, 2)
+  /// 0 pour les formations exonérées (article 261-4-4° du CGI), sinon 20
+  tauxTva    Decimal @db.Decimal(4, 2)
+  montantTTC Decimal @db.Decimal(10, 2)
+
+  statut        StatutFacture @default(A_EMETTRE)
+  dateEmission  DateTime?
+  dateEcheance  DateTime?
+  annuleeAt     DateTime?
+
+  /// PDF de la facture Henrri, rangé dans les documents
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("FactureCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  paiements Paiement[]
+
+  @@index([statut])
+  @@index([sessionId])
+  @@index([companyId])
+  @@index([dateEcheance])
+  @@map("factures")
+}
+
+enum MoyenPaiement {
+  VIREMENT
+  CHEQUE
+  CARTE
+  PRELEVEMENT
+  ESPECES
+  AUTRE
+}
+
+model Paiement {
+  id String @id @default(uuid(7))
+
+  factureId String
+  facture   Facture @relation(fields: [factureId], references: [id], onDelete: Restrict)
+
+  montant  Decimal       @db.Decimal(10, 2)
+  /// Jour de l'encaissement, à minuit UTC
+  date     DateTime
+  moyen    MoyenPaiement
+  reference String?
+  notes    String?
+
+  createdAt DateTime @default(now())
+
+  createdById String?
+  createdBy   User?   @relation("PaiementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([factureId])
+  @@index([date])
+  @@map("paiements")
 }
