@@ -29,7 +29,6 @@ export const MENU: GroupeMenu[] = [
     icone: "livre",
     entrees: [
       { libelle: "Mes sessions", chemin: "/mes-sessions", roles: FORMATEUR_SEUL },
-      { libelle: "Émargements", phase: 11, roles: FORMATEUR_SEUL },
       { libelle: "Mon compte", chemin: "/mon-compte", roles: FORMATEUR_SEUL },
     ],
   },
@@ -67,7 +66,7 @@ export const MENU: GroupeMenu[] = [
     entrees: [
       { libelle: "Documents", chemin: "/documents" },
       { libelle: "Signatures", chemin: "/signatures" },
-      { libelle: "Émargements", phase: 11 },
+      { libelle: "Émargements", chemin: "/emargements" },
       { libelle: "Certificats", phase: 12 },
     ],
   },

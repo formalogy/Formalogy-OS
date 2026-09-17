@@ -80,9 +80,14 @@ export default async function PageMaSession({ params }: { params: Promise<{ id: 
             <span className="font-mono text-texte-tenu">{session.numero}</span> · {formaterPeriode(session.dateDebut, session.dateFin)}
           </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${TON_STATUT_SESSION[session.statut]}`}>
-          {LIBELLE_STATUT_SESSION[session.statut]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${TON_STATUT_SESSION[session.statut]}`}>
+            {LIBELLE_STATUT_SESSION[session.statut]}
+          </span>
+          <Link href={`/mes-sessions/${session.id}/emargement`} className="rounded-lg bg-accent px-3 py-2 text-[13px] font-semibold text-white">
+            Émargement
+          </Link>
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">

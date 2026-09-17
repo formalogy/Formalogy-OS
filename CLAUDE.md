@@ -91,6 +91,15 @@ et que le projet peut migrer ailleurs en quelques heures.
   manuel du document signé est toujours possible.
 - Documents de plus de 5 Mo : BoldSign ne les joint pas, dépôt manuel.
 
+## Émargement
+
+- Feuilles d'émargement PDF générées à la demande (une page par jour,
+  `lib/emargement-pdf.ts`), à imprimer ou à faire signer via BoldSign ; la
+  feuille signée est déposée comme document de type `EMARGEMENT`.
+- Les présences (`presences`, une ligne par apprenant et demi-journée) sont
+  saisies par l'équipe ou par le formateur de la session, jamais pour un jour
+  à venir. Elles serviront aux attestations (Phase 12).
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend

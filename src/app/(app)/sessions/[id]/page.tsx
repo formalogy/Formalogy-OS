@@ -10,7 +10,9 @@ import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
+import { clePresence, joursDeSession, presencesCompletes } from "@/lib/emargement";
 import {
+  aujourdhuiUTC,
   formaterPeriode,
   listeDeControle,
   TON_STATUT_SESSION,
@@ -37,6 +39,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       formation: { select: { id: true, titre: true, reference: true } },
       company: { select: { id: true, raisonSociale: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
+      presences: { select: { learnerId: true, jour: true, creneau: true } },
       inscriptions: {
         orderBy: { learner: { nom: "asc" } },
         include: {
@@ -90,6 +93,15 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     nombreInscrits: session.inscriptions.length,
     conventionDeposee: session.documents.some((d) => d.type?.code === "CONVENTION"),
     conventionSignee: session.documents.some((d) => d.type?.code === "CONVENTION" && d.signatures.length > 0),
+    presencesCompletes:
+      session.dateFin <= aujourdhuiUTC() &&
+      presencesCompletes({
+        jours: joursDeSession(session.dateDebut, session.dateFin),
+        aujourdhui: aujourdhuiUTC(),
+        idsApprenants: session.inscriptions.map((i) => i.learner.id),
+        saisies: new Set(session.presences.map((p) => clePresence(p.learnerId, p.jour, p.creneau))),
+      }).complet,
+    feuilleEmargementDeposee: session.documents.some((d) => d.type?.code === "EMARGEMENT"),
   });
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;
@@ -113,6 +125,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
             statut={session.statut}
             classeTon={TON_STATUT_SESSION[session.statut]}
           />
+          <Link
+            href={`/sessions/${session.id}/emargement`}
+            className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
+          >
+            Émargement
+          </Link>
           <Link
             href={`/sessions/${session.id}/modifier`}
             className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"

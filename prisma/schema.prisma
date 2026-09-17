@@ -75,6 +75,7 @@ model User {
   tachesCreees      Task[] @relation("TaskCreatedBy")
   formateursCrees   Trainer[] @relation("TrainerCreatedBy")
   signaturesCreees  SignatureRequest[] @relation("SignatureCreatedBy")
+  presencesSaisies  Presence[] @relation("PresenceSaisiePar")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
   formateur Trainer? @relation("TrainerUser")
@@ -390,6 +391,7 @@ model Learner {
 
   inscriptions SessionLearner[]
   documents    Document[]
+  presences    Presence[]
 
   emails Email[]
   taches Task[]
@@ -541,6 +543,7 @@ model TrainingSession {
 
   inscriptions SessionLearner[]
   documents    Document[]
+  presences    Presence[]
 
   emails Email[]
   taches Task[]
@@ -1031,4 +1034,49 @@ model EmailEntrant {
 
   @@index([resultat])
   @@map("emails_entrants")
+}
+
+// ===========================================================================
+// Émargement et présences (Phase 11)
+// ===========================================================================
+
+enum Creneau {
+  MATIN
+  APRES_MIDI
+}
+
+enum StatutPresence {
+  PRESENT
+  ABSENT
+  /// Absence justifiée (arrêt maladie, convocation…)
+  ABSENT_JUSTIFIE
+}
+
+/// Présence d'un apprenant sur une demi-journée de session.
+///
+/// Saisie par l'équipe ou par le formateur de la session. Elle ne remplace pas
+/// la feuille d'émargement signée, qui reste la preuve déposée dans les
+/// documents ; elle sert au suivi, aux attestations et aux financeurs.
+model Presence {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  learnerId String
+  learner   Learner         @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  /// Jour calendaire, à minuit UTC comme les dates de session
+  jour    DateTime
+  creneau Creneau
+  statut  StatutPresence
+
+  saisieParId String?
+  saisiePar   User?   @relation("PresenceSaisiePar", fields: [saisieParId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, learnerId, jour, creneau])
+  @@index([learnerId])
+  @@map("presences")
 }
