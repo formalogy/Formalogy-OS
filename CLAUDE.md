@@ -12,7 +12,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 
 - **Mono-organisme** : pas d'identifiant d'organisation sur les tables.
 - **Aucun compte apprenant** : les apprenants sont des fiches en base, jamais
-  des utilisateurs authentifiés. Ils signent depuis le portail Yousign et
+  des utilisateurs authentifiés. Ils signent depuis la page de signature BoldSign et
   reçoivent des emails, rien de plus.
 - **Rôles simples** portés par l'utilisateur : `ADMIN`, `GESTIONNAIRE`,
   `FORMATEUR`. Pas de table de permissions fines.
@@ -29,7 +29,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 | Authentification | better-auth (sessions en base) — **jamais** Supabase Auth |
 | Stockage documents | Supabase Storage, derrière une abstraction |
 | Emails | Compte Gmail dédié, en SMTP avec mot de passe d'application (nodemailer) |
-| Signature électronique | Yousign (API + webhook + réconciliation) |
+| Signature électronique | BoldSign, région Europe, formule **sans API** (envoi depuis le site BoldSign, retour par email) |
 | Facturation externe | Henrri, derrière une interface (mock tant que l'API n'est pas fournie) |
 | Automatisations | Moteur interne (`lib/automatisations`) + réveil quotidien `POST /api/automatisations/executer` |
 | Hébergement | À trancher (Phase 18) |
@@ -78,6 +78,19 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Fermer l'accès ou désactiver la fiche désactive le compte et coupe ses
   connexions ; un compte désactivé ne peut plus se connecter (hook better-auth).
 
+## Signatures électroniques
+
+- Le client a choisi la formule BoldSign sans API (15 $/mois). Une demande de
+  signature crée une référence `SIG-AAAA-NNNN` ; le gestionnaire envoie le
+  document depuis le site BoldSign avec cette référence en tête du titre.
+- L'email de fin de signature (document signé + « Audit Trail » en pièces
+  jointes) arrive dans la boîte Gmail dédiée ; `lib/signatures/rapprochement.ts`
+  le rattache par sa référence. Un email n'est accepté que si son origine
+  BoldSign est authentifiée (DKIM), et n'est examiné qu'une fois (Message-ID).
+- Tout ce qui ne se rattache pas reste visible dans « Signatures » ; le dépôt
+  manuel du document signé est toujours possible.
+- Documents de plus de 5 Mo : BoldSign ne les joint pas, dépôt manuel.
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend
@@ -85,7 +98,7 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Les secrets (clé `service_role` Supabase, clés API) restent côté serveur.
 - Trois catégories de routes, protégées différemment :
   1. l'application — session authentifiée + rôle
-  2. les webhooks (Yousign) — vérification de signature
+  2. les webhooks (aucun pour l'instant) — vérification de signature
      cryptographique, horodatage de moins de 5 minutes
   3. les éventuels liens à usage unique — jeton signé, expirant
 - Données personnelles d'apprenants en base : obligations RGPD entières, même

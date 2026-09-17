@@ -74,6 +74,7 @@ model User {
   emailsEnvoyes     Email[] @relation("EmailCreatedBy")
   tachesCreees      Task[] @relation("TaskCreatedBy")
   formateursCrees   Trainer[] @relation("TrainerCreatedBy")
+  signaturesCreees  SignatureRequest[] @relation("SignatureCreatedBy")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
   formateur Trainer? @relation("TrainerUser")
@@ -632,7 +633,8 @@ model Document {
   trainerId   String?
   trainer     Trainer?         @relation(fields: [trainerId], references: [id], onDelete: SetNull)
 
-  versions DocumentVersion[]
+  versions   DocumentVersion[]
+  signatures SignatureRequest[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -681,6 +683,11 @@ model DocumentVersion {
 
   createdById String?
   createdBy   User?   @relation("DocumentVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Demande de signature dont cette version est le fichier envoyé…
+  signaturesEnvoyees SignatureRequest[] @relation("SignatureVersionSource")
+  /// …ou le résultat signé
+  signatureObtenue   SignatureRequest?  @relation("SignatureVersionSignee")
 
   @@unique([documentId, numero])
   @@map("document_versions")
@@ -924,4 +931,104 @@ model Trainer {
   @@index([nom, prenom])
   @@index([deletedAt])
   @@map("trainers")
+}
+
+// ===========================================================================
+// Signatures électroniques (Phase 11)
+// ===========================================================================
+
+/// La formule BoldSign retenue n'a pas d'API : l'envoi se fait depuis le site
+/// BoldSign, avec la référence de la demande dans le titre. Le document signé
+/// revient par email dans la boîte Gmail dédiée, où l'application le récupère
+/// grâce à cette référence. Un dépôt manuel reste toujours possible.
+enum StatutSignature {
+  /// Référence créée, document pas encore envoyé depuis BoldSign
+  A_ENVOYER
+  /// Envoyé aux signataires, en attente du document signé
+  ENVOYEE
+  /// Document signé récupéré et enregistré
+  SIGNEE
+  ANNULEE
+}
+
+enum OrigineSignature {
+  /// Récupéré automatiquement depuis l'email de fin de signature
+  EMAIL
+  /// Déposé à la main
+  MANUEL
+}
+
+model SignatureRequest {
+  id String @id @default(uuid(7))
+
+  /// Référence à reporter dans le titre BoldSign, ex. « SIG-2026-0007 »
+  reference String @unique
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  /// Version exacte envoyée à la signature
+  versionSourceId String
+  versionSource   DocumentVersion @relation("SignatureVersionSource", fields: [versionSourceId], references: [id], onDelete: Restrict)
+
+  statut StatutSignature @default(A_ENVOYER)
+
+  /// Signataires attendus : [{ nom, email }]. Informatif : c'est BoldSign qui
+  /// fait foi sur qui a signé (voir la preuve de signature).
+  signataires Json
+
+  envoyeeAt DateTime?
+  signeeAt  DateTime?
+  annuleeAt DateTime?
+
+  /// Version du document créée à partir du fichier signé
+  versionSigneeId String?          @unique
+  versionSignee   DocumentVersion? @relation("SignatureVersionSignee", fields: [versionSigneeId], references: [id], onDelete: SetNull)
+  origine         OrigineSignature?
+
+  /// Preuve de signature (journal d'audit BoldSign), stockée à part
+  preuveChemin     String? @unique
+  preuveNomFichier String?
+  preuveTaille     Int?
+  preuveEmpreinte  String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("SignatureCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([statut])
+  @@index([documentId])
+  @@map("signature_requests")
+}
+
+/// Emails déjà examinés dans la boîte dédiée : un même email n'est jamais
+/// traité deux fois, et tout ce qui n'a pas pu être rapproché reste visible.
+enum ResultatEmailEntrant {
+  RAPPROCHE
+  IGNORE
+  A_VERIFIER
+}
+
+model EmailEntrant {
+  id String @id @default(uuid(7))
+
+  /// En-tête Message-ID : identifiant unique de l'email
+  messageId String @unique
+  expediteur String
+  sujet      String
+  recuAt     DateTime
+
+  resultat ResultatEmailEntrant
+  motif    String?
+
+  signatureRequestId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([resultat])
+  @@map("emails_entrants")
 }

@@ -47,7 +47,11 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       },
       documents: {
         ...SELECTION_DOCUMENT_RESUME,
-        select: { ...SELECTION_DOCUMENT_RESUME.select, type: { select: { nom: true, code: true } } },
+        select: {
+          ...SELECTION_DOCUMENT_RESUME.select,
+          type: { select: { nom: true, code: true } },
+          signatures: { where: { statut: "SIGNEE" }, select: { id: true } },
+        },
       },
     },
   });
@@ -85,6 +89,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
   const controle = listeDeControle({
     nombreInscrits: session.inscriptions.length,
     conventionDeposee: session.documents.some((d) => d.type?.code === "CONVENTION"),
+    conventionSignee: session.documents.some((d) => d.type?.code === "CONVENTION" && d.signatures.length > 0),
   });
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;

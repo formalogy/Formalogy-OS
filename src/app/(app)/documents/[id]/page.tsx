@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ActionsDocument } from "@/app/(app)/documents/[id]/actions-document";
 import { FormulaireVersion } from "@/app/(app)/documents/[id]/formulaire-version";
+import { ActionsSignature, BoutonCopier, PreparationSignature } from "@/app/(app)/documents/[id]/signature";
 import {
   FORMATS_ACCEPTES,
   formaterTaille,
@@ -12,6 +13,13 @@ import {
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { formaterPeriode } from "@/lib/sessions-libelles";
+import {
+  LIBELLE_STATUT_SIGNATURE,
+  TAILLE_MAX_PIECE_JOINTE_BOLDSIGN,
+  titreBoldSign,
+  TON_STATUT_SIGNATURE,
+  type Signataire,
+} from "@/lib/signatures/libelles";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +40,20 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
     where: { id, deletedAt: null },
     include: {
       type: { select: { nom: true } },
-      learner: { select: { id: true, prenom: true, nom: true } },
-      company: { select: { id: true, raisonSociale: true } },
+      learner: { select: { id: true, prenom: true, nom: true, email: true } },
+      company: {
+        select: {
+          id: true,
+          raisonSociale: true,
+          contacts: { where: { deletedAt: null, email: { not: null } }, orderBy: { createdAt: "asc" }, take: 3, select: { prenom: true, nom: true, email: true } },
+        },
+      },
       session: { select: { id: true, numero: true, dateDebut: true, dateFin: true } },
       formation: { select: { id: true, titre: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
       createdBy: { select: { name: true } },
       versions: { orderBy: { numero: "desc" }, include: { createdBy: { select: { name: true } } } },
+      signatures: { orderBy: { createdAt: "desc" }, include: { versionSource: { select: { numero: true, taille: true } } } },
     },
   });
   if (!document) notFound();
@@ -54,6 +69,13 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
     document.formation && { href: `/formations/${document.formation.id}`, libelle: `Formation : ${document.formation.titre}` },
     document.trainer && { href: `/formateurs/${document.trainer.id}`, libelle: `Formateur : ${document.trainer.prenom} ${document.trainer.nom}` },
   ].filter((r): r is { href: string; libelle: string } => Boolean(r));
+
+  const signatureEnCours = document.signatures.find((sg) => sg.statut === "A_ENVOYER" || sg.statut === "ENVOYEE");
+  // Signataires proposés : l'apprenant concerné puis les contacts de l'entreprise.
+  const suggestions: Signataire[] = [
+    ...(document.learner?.email ? [{ nom: `${document.learner.prenom} ${document.learner.nom}`, email: document.learner.email }] : []),
+    ...(document.company?.contacts ?? []).map((c) => ({ nom: `${c.prenom} ${c.nom}`, email: c.email! })),
+  ];
 
   return (
     <>
@@ -133,6 +155,82 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
               Déposé le {horodatage.format(document.createdAt)}
               {document.createdBy ? ` par ${document.createdBy.name}` : ""}
             </p>
+          </section>
+
+          <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+            <h2 className="mb-3 text-[14.5px] font-bold">Signature électronique</h2>
+            {signatureEnCours ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[13px] font-semibold">{signatureEnCours.reference}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TON_STATUT_SIGNATURE[signatureEnCours.statut]}`}>
+                    {LIBELLE_STATUT_SIGNATURE[signatureEnCours.statut]}
+                  </span>
+                </div>
+                <p className="text-[12px] text-texte-tenu">
+                  Signataires : {(signatureEnCours.signataires as Signataire[]).map((sg) => `${sg.nom} (${sg.email})`).join(", ")}
+                </p>
+                {signatureEnCours.statut === "A_ENVOYER" && (
+                  <ol className="flex list-decimal flex-col gap-2 rounded-lg bg-surface-creuse py-3 pl-8 pr-3 text-[12.5px]">
+                    <li>
+                      <a href={`${lienFichier(signatureEnCours.versionSourceId)}?telecharger`} className="font-semibold text-accent-fort hover:underline">
+                        Téléchargez le document
+                      </a>{" "}
+                      (version {signatureEnCours.versionSource.numero}).
+                    </li>
+                    <li>Sur BoldSign, créez une demande de signature avec ce fichier et les signataires ci-dessus.</li>
+                    <li>
+                      Donnez-lui <strong>exactement</strong> ce titre :
+                      <span className="mt-1 flex items-center gap-2">
+                        <code className="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 font-mono text-[12px]">
+                          {titreBoldSign(signatureEnCours.reference, document.nom)}
+                        </code>
+                        <BoutonCopier texte={titreBoldSign(signatureEnCours.reference, document.nom)} />
+                      </span>
+                    </li>
+                    <li>Envoyez, puis cliquez sur « C&apos;est envoyé » ci-dessous.</li>
+                  </ol>
+                )}
+                {signatureEnCours.statut === "ENVOYEE" && (
+                  <p className="text-[12.5px] text-texte-doux">
+                    Dès que tout le monde aura signé, le document signé sera ajouté ici automatiquement comme nouvelle version.
+                  </p>
+                )}
+                {signatureEnCours.versionSource.taille > TAILLE_MAX_PIECE_JOINTE_BOLDSIGN && (
+                  <p className="rounded-lg bg-alerte/12 px-3 py-2 text-[12px] text-alerte">
+                    Ce fichier dépasse 5 Mo : BoldSign ne joindra pas le document signé à son email. Il faudra le déposer à la main.
+                  </p>
+                )}
+                <ActionsSignature id={signatureEnCours.id} statut={signatureEnCours.statut as "A_ENVOYER" | "ENVOYEE"} />
+              </div>
+            ) : courante ? (
+              <PreparationSignature documentId={document.id} suggestions={suggestions} />
+            ) : (
+              <p className="text-[12.8px] text-texte-doux">Déposez d&apos;abord un fichier.</p>
+            )}
+
+            {document.signatures.some((sg) => sg.id !== signatureEnCours?.id) && (
+              <ul className="mt-4 border-t border-bordure-douce pt-3">
+                {document.signatures
+                  .filter((sg) => sg.id !== signatureEnCours?.id)
+                  .map((sg) => (
+                    <li key={sg.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-[12px]">
+                      <span>
+                        <span className="font-mono font-semibold">{sg.reference}</span>{" "}
+                        <span className={`ml-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold ${TON_STATUT_SIGNATURE[sg.statut]}`}>
+                          {LIBELLE_STATUT_SIGNATURE[sg.statut]}
+                        </span>
+                        {sg.signeeAt && <span className="text-texte-tenu"> · {horodatage.format(sg.signeeAt)}{sg.origine === "EMAIL" ? " · automatique" : " · dépôt manuel"}</span>}
+                      </span>
+                      {sg.preuveChemin && (
+                        <a href={`/api/signatures/${sg.id}/preuve`} target="_blank" rel="noopener" className="font-semibold text-accent-fort hover:underline">
+                          Preuve de signature
+                        </a>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            )}
           </section>
 
           <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">

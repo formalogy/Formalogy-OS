@@ -117,12 +117,13 @@ export type ElementControle = {
 export function listeDeControle(session: {
   nombreInscrits: number;
   conventionDeposee: boolean;
+  conventionSignee: boolean;
 }): ElementControle[] {
   return [
     { libelle: "Formation et dates définies", fait: true },
     { libelle: "Apprenants inscrits", fait: session.nombreInscrits > 0 },
     { libelle: "Convention déposée", fait: session.conventionDeposee },
-    { libelle: "Convention signée", fait: false, phase: 11 },
+    { libelle: "Convention signée", fait: session.conventionSignee },
     { libelle: "Programme envoyé", fait: false, phase: 9 },
     { libelle: "Convocations envoyées", fait: false, phase: 9 },
     { libelle: "Émargements", fait: false, phase: 11 },

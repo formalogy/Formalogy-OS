@@ -24,8 +24,8 @@ export const dynamic = "force-dynamic";
 const PARCOURS = [
   { etape: "Création de la fiche", phase: null },
   { etape: "Inscription à une session", phase: null },
-  { etape: "Documents générés", phase: 8 },
-  { etape: "Convention signée", phase: 11 },
+  { etape: "Documents déposés", phase: null },
+  { etape: "Convention signée", phase: null },
   { etape: "Émargements", phase: 11 },
   { etape: "Évaluation", phase: 12 },
   { etape: "Attestation", phase: 12 },
@@ -69,12 +69,24 @@ export default async function PageApprenant({
   // Modèles pré-remplis avec les informations de cet apprenant et de sa
   // session la plus récente, prêts à être relus et ajustés avant l'envoi.
   const derniereSession = apprenant.inscriptions[0]?.session;
-  const [modeles, contexte] = await Promise.all([
+  // Convention ou contrat signé, rattaché à l'apprenant ou à l'une de ses sessions.
+  const idsSessions = apprenant.inscriptions.map((i) => i.session.id);
+  const [modeles, contexte, conventionsSignees] = await Promise.all([
     prisma.emailTemplate.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
     construireContexte({
       learnerId: apprenant.id,
       sessionId: derniereSession?.id,
       companyId: apprenant.companyId ?? undefined,
+    }),
+    prisma.signatureRequest.count({
+      where: {
+        statut: "SIGNEE",
+        document: {
+          deletedAt: null,
+          type: { code: { in: ["CONVENTION", "CONTRAT"] } },
+          OR: [{ learnerId: apprenant.id }, { sessionId: { in: idsSessions } }],
+        },
+      },
     }),
   ]);
   const modelesRendus = modeles.map((m) => {
@@ -164,7 +176,9 @@ export default async function PageApprenant({
               // Chaque étape est vérifiée sur les données, jamais présumée.
               const fait =
                 rang === 0 ||
-                (jalon.etape === "Inscription à une session" && apprenant.inscriptions.length > 0);
+                (jalon.etape === "Inscription à une session" && apprenant.inscriptions.length > 0) ||
+                (jalon.etape === "Documents déposés" && apprenant.documents.length > 0) ||
+                (jalon.etape === "Convention signée" && conventionsSignees > 0);
               return (
                 <li
                   key={jalon.etape}
