@@ -9,6 +9,7 @@ import { envoyerEmail } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
+import { preparerLienQuestionnaire } from "@/lib/satisfaction";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
 
 // ---------------------------------------------------------------------------
@@ -117,15 +118,30 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             comptes.sansAdresse++;
             continue;
           }
+          // Modèle avec lien personnel vers le questionnaire : un lien par
+          // apprenant, et rien à envoyer à qui a déjà répondu.
+          let lienQuestionnaire: string | undefined;
+          if (cas.sessionId && `${modele.sujet}${modele.corps}`.includes("questionnaire.lien")) {
+            const lien = await preparerLienQuestionnaire(cas.sessionId, apprenant.id);
+            if (!lien) {
+              comptes.ignores++;
+              continue;
+            }
+            lienQuestionnaire = lien;
+          }
           const contexte = await construireContexte({
             learnerId: apprenant.id,
             sessionId: cas.sessionId,
             companyId: apprenant.companyId ?? cas.companyId,
+            lienQuestionnaire,
           });
           const email = await envoyerEmail({
             destinataire: apprenant.email,
             sujet: rendre(modele.sujet, contexte).resultat,
             corps: rendre(modele.corps, contexte).resultat,
+            corpsJournal: lienQuestionnaire
+              ? rendre(modele.corps, { ...contexte, "questionnaire.lien": "[lien personnel masqué]" }).resultat
+              : undefined,
             templateId: modele.id,
             learnerId: apprenant.id,
             sessionId: cas.sessionId,

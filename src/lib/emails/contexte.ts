@@ -13,6 +13,7 @@ export async function construireContexte(ids: {
   sessionId?: string;
   companyId?: string;
   prospectId?: string;
+  lienQuestionnaire?: string;
 }): Promise<Contexte> {
   const [organisme, apprenant, session, entreprise, prospect] = await Promise.all([
     lireOrganisme(),
@@ -44,5 +45,6 @@ export async function construireContexte(ids: {
     "session.formateur": session?.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : undefined,
     "entreprise.nom": entreprise?.raisonSociale ?? session?.company?.raisonSociale,
     "prospect.nomComplet": prospect ? `${prospect.prenom} ${prospect.nom}` : undefined,
+    "questionnaire.lien": ids.lienQuestionnaire,
   };
 }

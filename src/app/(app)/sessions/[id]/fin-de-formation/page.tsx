@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EvaluationAcquis } from "@/app/(app)/_composants/evaluation-acquis";
-import { GenerationAttestations } from "@/app/(app)/sessions/[id]/fin-de-formation/generation";
+import { EnvoiQuestionnaires, GenerationAttestations } from "@/app/(app)/sessions/[id]/fin-de-formation/generation";
 import { bilanFinDeFormation, chargerFinDeFormation } from "@/lib/fin-de-formation";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
+import { QUESTIONS_SATISFACTION, type ReponsesSatisfaction } from "@/lib/satisfaction-questions";
 import { exigerRole } from "@/lib/session";
 import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -21,6 +22,8 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
   const bilan = bilanFinDeFormation(session, manquesOrganisme(organisme));
   const commencee = session.dateDebut <= aujourdhuiUTC();
   const prets = bilan.apprenants.filter((a) => a.blocages.length === 0).length;
+  const reponses = session.satisfactions.filter((q) => q.reponduAt && q.noteGlobale);
+  const moyenne = reponses.length ? reponses.reduce((t, q) => t + q.noteGlobale!, 0) / reponses.length : null;
 
   return (
     <>
@@ -35,7 +38,10 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
             {bilan.heuresPrevues !== null && ` · ${heures(bilan.heuresPrevues)} prévues`}
           </p>
         </div>
-        <GenerationAttestations sessionId={session.id} desactive={bilan.blocagesSession.length > 0 || prets === 0} />
+        <div className="flex flex-col items-end gap-2">
+          <GenerationAttestations sessionId={session.id} desactive={bilan.blocagesSession.length > 0 || prets === 0} />
+          <EnvoiQuestionnaires sessionId={session.id} desactive={session.dateFin > aujourdhuiUTC() || session.inscriptions.length === 0} />
+        </div>
       </header>
 
       {bilan.blocagesSession.length > 0 && (
@@ -63,6 +69,13 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
         </div>
       )}
 
+      <p className="mb-3 rounded-lg border border-bordure bg-surface px-4 py-2.5 text-[12.5px] text-texte-doux shadow-sm">
+        <strong className="text-texte">Satisfaction :</strong>{" "}
+        {session.satisfactions.length === 0
+          ? "questionnaires pas encore envoyés."
+          : `${reponses.length} réponse(s) sur ${session.satisfactions.length} envoi(s)${moyenne !== null ? ` · note globale moyenne ${moyenne.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} / 5` : ""}.`}
+      </p>
+
       <p className="mb-3 text-[12.5px] text-texte-doux">
         Pour chaque apprenant : présences saisies (
         <Link href={`/sessions/${session.id}/emargement`} className="font-semibold text-accent-fort hover:underline">émargement</Link>
@@ -86,7 +99,13 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
                       {a.heures !== null && ` · ${heures(a.heures)} suivies`}
                     </span>
                   </div>
-                  <div className="flex gap-3 text-[12px]">
+                  <div className="flex flex-wrap gap-3 text-[12px]">
+                    {(() => {
+                      const q = session.satisfactions.find((x) => x.learnerId === a.learnerId);
+                      if (!q) return <span className="text-texte-tenu">Questionnaire non envoyé</span>;
+                      if (q.reponduAt) return <span className="font-semibold text-succes">Satisfaction {q.noteGlobale} / 5</span>;
+                      return <span className="text-texte-tenu">Questionnaire envoyé, sans réponse</span>;
+                    })()}
                     {a.attestationId ? (
                       <Link href={`/documents/${a.attestationId}`} className="font-semibold text-accent-fort hover:underline">Attestation</Link>
                     ) : (
@@ -110,6 +129,47 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
           </ul>
         )}
       </section>
+
+      {reponses.length > 0 && (
+        <section className="mt-4 overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+          <h2 className="border-b border-bordure-douce px-4 py-3 text-[14.5px] font-bold">Réponses au questionnaire de satisfaction</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[12.5px]">
+              <thead>
+                <tr className="bg-surface-creuse text-left text-[10.5px] uppercase tracking-wider text-texte-tenu">
+                  <th className="px-4 py-2 font-semibold">Apprenant</th>
+                  {QUESTIONS_SATISFACTION.map((q) => (
+                    <th key={q.cle} title={q.libelle} className="whitespace-nowrap px-2 py-2 text-center font-semibold">
+                      {q.cle}
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-center font-semibold">Global</th>
+                  <th className="px-4 py-2 font-semibold">Commentaires</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reponses.map((q) => {
+                  const r = q.reponses as ReponsesSatisfaction | null;
+                  const nom = bilan.apprenants.find((a) => a.learnerId === q.learnerId)?.nom ?? "—";
+                  return (
+                    <tr key={q.learnerId} className="border-t border-bordure-douce align-top">
+                      <td className="whitespace-nowrap px-4 py-2 font-semibold">{nom}</td>
+                      {QUESTIONS_SATISFACTION.map((question) => (
+                        <td key={question.cle} className="px-2 py-2 text-center font-mono tabular-nums">{r?.notes[question.cle] ?? "—"}</td>
+                      ))}
+                      <td className="px-2 py-2 text-center font-mono font-semibold tabular-nums">{q.noteGlobale}</td>
+                      <td className="px-4 py-2 text-texte-doux">
+                        {r?.pointsForts && <p><span className="font-semibold text-succes">+</span> {r.pointsForts}</p>}
+                        {r?.ameliorations && <p><span className="font-semibold text-alerte">→</span> {r.ameliorations}</p>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </>
   );
 }

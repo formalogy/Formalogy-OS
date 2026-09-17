@@ -72,7 +72,12 @@ export default async function PageApprenant({
   // Convention ou contrat signé, rattaché à l'apprenant ou à l'une de ses sessions.
   const idsSessions = apprenant.inscriptions.map((i) => i.session.id);
   const [modeles, contexte, conventionsSignees] = await Promise.all([
-    prisma.emailTemplate.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    // Les modèles à lien personnel (questionnaire) partent depuis la fin de
+    // formation, où le lien est créé : pas depuis la fiche.
+    prisma.emailTemplate.findMany({
+      where: { actif: true, NOT: [{ corps: { contains: "questionnaire.lien" } }, { sujet: { contains: "questionnaire.lien" } }] },
+      orderBy: { nom: "asc" },
+    }),
     construireContexte({
       learnerId: apprenant.id,
       sessionId: derniereSession?.id,

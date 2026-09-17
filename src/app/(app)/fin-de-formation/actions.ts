@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { sessionPourEmargement } from "@/lib/emargement-acces";
 import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
+import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
+import { envoyerQuestionnaires } from "@/lib/satisfaction";
 import { exigerRole, exigerUtilisateur } from "@/lib/session";
 import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 
@@ -81,4 +83,33 @@ export async function genererAttestations(_precedent: EtatGeneration, donnees: F
     succes: parties.length ? `${parties.join(", ")}.` : "Aucun document généré.",
     ignores,
   };
+}
+
+export async function envoyerQuestionnairesSession(_precedent: EtatGeneration, donnees: FormData): Promise<EtatGeneration> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const sessionId = String(donnees.get("sessionId") ?? "");
+  const session = await prisma.trainingSession.findFirst({ where: { id: sessionId, deletedAt: null } });
+  if (!session) return { erreur: "Session introuvable." };
+  if (session.dateFin > aujourdhuiUTC()) return { erreur: "Le questionnaire s'envoie à partir du dernier jour de la session." };
+
+  const r = await envoyerQuestionnaires(sessionId, utilisateur.id);
+  if ("erreur" in r) return { erreur: r.erreur };
+
+  const b = r.bilan;
+  await journaliser({
+    action: "satisfaction.sent",
+    summary: `Questionnaires de satisfaction de la session ${session.numero} : ${b.envoyes} envoyé(s), ${b.simules} simulé(s)`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+    userId: utilisateur.id,
+  });
+  rafraichir(sessionId);
+  const parties = [
+    b.envoyes && `${b.envoyes} envoyé(s)`,
+    b.simules && `${b.simules} simulé(s) (envoi réel désactivé)`,
+    b.dejaRepondu && `${b.dejaRepondu} déjà répondu`,
+    b.sansAdresse && `${b.sansAdresse} sans adresse email`,
+    b.echecs && `${b.echecs} en échec (voir l'historique des emails)`,
+  ].filter(Boolean);
+  return { succes: parties.length ? `${parties.join(", ")}.` : "Aucun apprenant." };
 }

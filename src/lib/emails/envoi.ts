@@ -31,6 +31,9 @@ export type MessageAEnvoyer = {
   destinataire: string;
   sujet: string;
   corps: string;
+  /// Version conservée dans l'historique quand le corps contient un secret
+  /// (lien personnel) : on ne garde pas le lien en clair en base.
+  corpsJournal?: string;
   templateId?: string;
   learnerId?: string;
   companyId?: string;
@@ -82,7 +85,7 @@ export async function envoyerEmail(message: MessageAEnvoyer) {
   const base = {
     destinataire: message.destinataire,
     sujet: message.sujet,
-    corps: message.corps,
+    corps: message.corpsJournal ?? message.corps,
     templateId: message.templateId,
     learnerId: message.learnerId,
     companyId: message.companyId,

@@ -103,6 +103,16 @@ et que le projet peut migrer ailleurs en quelques heures.
   saisies par l'équipe ou par le formateur de la session, jamais pour un jour
   à venir. Elles serviront aux attestations (Phase 12).
 
+## Fin de formation
+
+- Attestation de fin de formation et certificat de réalisation générés en PDF
+  (`lib/attestations-pdf.ts`), rangés comme documents ; régénérer un document
+  inchangé ne crée pas de version (métadonnées PDF fixes).
+- Préalables : session terminée, informations de l'organisme complètes
+  (Paramètres → Organisme), durée en heures de la formation, présences
+  complètes et évaluation des acquis de l'apprenant.
+- Heures suivies = durée × demi-journées présentes / demi-journées de la session.
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend
@@ -112,7 +122,9 @@ et que le projet peut migrer ailleurs en quelques heures.
   1. l'application — session authentifiée + rôle
   2. les webhooks (aucun pour l'instant) — vérification de signature
      cryptographique, horodatage de moins de 5 minutes
-  3. les éventuels liens à usage unique — jeton signé, expirant
+  3. les liens à usage unique (questionnaire de satisfaction) — jeton aléatoire
+     de 256 bits, seule son empreinte est stockée, expirant après 60 jours,
+     une seule réponse possible
 - Données personnelles d'apprenants en base : obligations RGPD entières, même
   sans compte apprenant. Prévoir export et suppression côté administrateur.
 
