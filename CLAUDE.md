@@ -64,6 +64,20 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Le réveil quotidien exige `Authorization: Bearer <CRON_SECRET>` ; le
   planificateur sera configuré à la mise en ligne (Phase 18).
 
+## Formateurs
+
+- Une fiche formateur (`trainers`) existe sans compte. Un administrateur peut
+  lui ouvrir un accès depuis la fiche : compte `FORMATEUR`, mot de passe
+  provisoire affiché une seule fois, jamais stocké.
+- Un formateur ne voit que « Mes sessions » (hors brouillons) et « Mon compte ».
+  Jamais les prix, notes internes, coordonnées ou financements des apprenants.
+- Documents visibles par un formateur : liste fermée de types
+  (`TYPES_VISIBLES_FORMATEUR` dans `lib/formateurs.ts`), rattachés à ses
+  sessions ou aux formations qu'il anime. La même règle filtre la route de
+  téléchargement.
+- Fermer l'accès ou désactiver la fiche désactive le compte et coupe ses
+  connexions ; un compte désactivé ne peut plus se connecter (hook better-auth).
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend

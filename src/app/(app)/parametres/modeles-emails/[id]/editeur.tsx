@@ -17,6 +17,7 @@ const EXEMPLE: Record<string, string> = {
   "session.horaires": "9h00–12h30 / 13h30–17h00",
   "session.lieu": "12 rue de l'Exemple, Lille",
   "session.modalite": "Présentiel",
+  "session.formateur": "Alex Exemple",
   "entreprise.nom": "Entreprise Exemple",
   "prospect.nomComplet": "Dominique Exemple",
 };

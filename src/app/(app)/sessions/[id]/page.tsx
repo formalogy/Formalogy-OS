@@ -36,6 +36,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     include: {
       formation: { select: { id: true, titre: true, reference: true } },
       company: { select: { id: true, raisonSociale: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       inscriptions: {
         orderBy: { learner: { nom: "asc" } },
         include: {
@@ -51,6 +52,23 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     },
   });
   if (!session) notFound();
+
+  // Un formateur ne peut pas animer deux sessions aux mêmes dates : on le
+  // signale sans bloquer (demi-journées, visio courte…).
+  const conflits = session.trainerId
+    ? await prisma.trainingSession.findMany({
+        where: {
+          id: { not: session.id },
+          trainerId: session.trainerId,
+          deletedAt: null,
+          statut: { not: "ANNULEE" },
+          dateDebut: { lte: session.dateFin },
+          dateFin: { gte: session.dateDebut },
+        },
+        orderBy: { dateDebut: "asc" },
+        select: { id: true, numero: true, dateDebut: true, dateFin: true },
+      })
+    : [];
 
   const idsInscrits = session.inscriptions.map((i) => i.learner.id);
   // On propose en priorité les apprenants de l'entreprise cliente.
@@ -99,6 +117,22 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
         </div>
       </header>
 
+      {conflits.length > 0 && (
+        <p role="alert" className="mb-4 rounded-lg bg-alerte/12 px-3 py-2 text-[12.5px] text-alerte">
+          Attention : ce formateur est aussi affecté aux mêmes dates à{" "}
+          {conflits.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && ", "}
+              <Link href={`/sessions/${c.id}`} className="font-semibold underline">
+                {c.numero}
+              </Link>{" "}
+              ({formaterPeriode(c.dateDebut, c.dateFin)})
+            </span>
+          ))}
+          .
+        </p>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-4">
           <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
@@ -127,7 +161,16 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               <Ligne libelle="Horaires" valeur={session.horaires} />
               <Ligne libelle="Lieu" valeur={session.lieu} />
               <Ligne libelle="Modalité" valeur={LIBELLE_MODALITE[session.modalite]} />
-              <Ligne libelle="Intervenant" valeur={session.intervenant} />
+              <Ligne
+                libelle="Formateur"
+                valeur={
+                  session.trainer && (
+                    <Link href={`/formateurs/${session.trainer.id}`} className="hover:text-accent-fort">
+                      {session.trainer.prenom} {session.trainer.nom}
+                    </Link>
+                  )
+                }
+              />
               <Ligne libelle="Prix HT" valeur={formaterEuros(session.prixHT)} />
               <Ligne libelle="Notes" valeur={session.notes} />
             </dl>

@@ -1,4 +1,7 @@
+import type { Prisma } from "@prisma/client";
+
 import { FORMATS_ACCEPTES } from "@/lib/documents-libelles";
+import { documentsVisiblesPourFormateur, formateurDuCompte } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { lireUtilisateur } from "@/lib/session";
 import { stockage } from "@/lib/stockage";
@@ -11,17 +14,24 @@ import { stockage } from "@/lib/stockage";
 export async function GET(request: Request, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const utilisateur = await lireUtilisateur();
   if (!utilisateur) return new Response("Connexion requise.", { status: 401 });
-  // Les formateurs auront accès à certains documents en Phase 10, avec leurs
-  // propres règles. D'ici là, seuls administrateurs et gestionnaires.
-  if (utilisateur.role !== "ADMIN" && utilisateur.role !== "GESTIONNAIRE") {
+  const { id } = await ctx.params;
+
+  // Administrateurs et gestionnaires voient tous les documents. Un formateur
+  // ne voit que les documents autorisés de ses propres sessions : la règle est
+  // intégrée à la requête elle-même.
+  let filtreDocument: Prisma.DocumentWhereInput = { deletedAt: null };
+  if (utilisateur.role === "FORMATEUR") {
+    const formateur = await formateurDuCompte(utilisateur.id);
+    if (!formateur) return new Response("Document introuvable.", { status: 404 });
+    filtreDocument = documentsVisiblesPourFormateur(formateur.id);
+  } else if (utilisateur.role !== "ADMIN" && utilisateur.role !== "GESTIONNAIRE") {
     return new Response("Accès refusé.", { status: 403 });
   }
 
-  const { id } = await ctx.params;
   const version = await prisma.documentVersion.findFirst({
-    where: { id, document: { deletedAt: null } },
+    where: { id, document: filtreDocument },
   });
-  // Même réponse pour « inexistant » et « supprimé » : ne rien révéler.
+  // Même réponse pour « inexistant », « supprimé » et « non autorisé » : ne rien révéler.
   if (!version) return new Response("Document introuvable.", { status: 404 });
 
   let fichier: Blob;

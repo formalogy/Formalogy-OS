@@ -17,17 +17,27 @@ export type GroupeMenu = {
   entrees: EntreeMenu[];
 };
 
-const TOUS: Role[] = ["ADMIN", "GESTIONNAIRE", "FORMATEUR"];
 const ADMIN_SEUL: Role[] = ["ADMIN"];
+const FORMATEUR_SEUL: Role[] = ["FORMATEUR"];
 
 // Les chemins déclarés ici existent réellement. Ajouter un chemin sans créer
 // la page correspondante produirait un lien mort.
 export const MENU: GroupeMenu[] = [
   {
+    // Espace des formateurs : leurs seules sessions, en lecture.
+    titre: "Mon espace",
+    icone: "livre",
+    entrees: [
+      { libelle: "Mes sessions", chemin: "/mes-sessions", roles: FORMATEUR_SEUL },
+      { libelle: "Émargements", phase: 11, roles: FORMATEUR_SEUL },
+      { libelle: "Mon compte", chemin: "/mon-compte", roles: FORMATEUR_SEUL },
+    ],
+  },
+  {
     titre: "Pilotage",
     icone: "jauge",
     entrees: [
-      { libelle: "Tableau de bord", chemin: "/tableau-de-bord", roles: TOUS },
+      { libelle: "Tableau de bord", chemin: "/tableau-de-bord" },
       { libelle: "Activité", chemin: "/activite" },
       { libelle: "Statistiques", phase: 16 },
     ],
@@ -39,7 +49,7 @@ export const MENU: GroupeMenu[] = [
       { libelle: "Apprenants", chemin: "/apprenants" },
       { libelle: "Entreprises", chemin: "/entreprises" },
       { libelle: "CRM", chemin: "/crm" },
-      { libelle: "Formateurs", phase: 10 },
+      { libelle: "Formateurs", chemin: "/formateurs" },
     ],
   },
   {
@@ -47,7 +57,6 @@ export const MENU: GroupeMenu[] = [
     icone: "livre",
     entrees: [
       { libelle: "Formations", chemin: "/formations" },
-      // Ouvertes aux formateurs en Phase 10, avec leurs seules sessions.
       { libelle: "Sessions", chemin: "/sessions" },
       { libelle: "Planning", chemin: "/planning" },
     ],
@@ -56,10 +65,9 @@ export const MENU: GroupeMenu[] = [
     titre: "Administratif",
     icone: "document",
     entrees: [
-      // Ouverts aux formateurs en Phase 10, avec leurs seuls documents.
       { libelle: "Documents", chemin: "/documents" },
       { libelle: "Signatures", phase: 11 },
-      { libelle: "Émargements", phase: 11, roles: TOUS },
+      { libelle: "Émargements", phase: 11 },
       { libelle: "Certificats", phase: 12 },
     ],
   },
@@ -87,6 +95,7 @@ export const MENU: GroupeMenu[] = [
     titre: "Paramètres",
     icone: "engrenage",
     entrees: [
+      { libelle: "Mon compte", chemin: "/mon-compte" },
       { libelle: "Utilisateurs", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Rôles et permissions", phase: 17, roles: ADMIN_SEUL },
       { libelle: "Modèles d'emails", chemin: "/parametres/modeles-emails" },

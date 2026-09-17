@@ -37,7 +37,7 @@ function premierDuMois(date: Date): Date {
 export default async function PagePlanning({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; date?: string; formation?: string; entreprise?: string; statut?: string }>;
+  searchParams: Promise<{ vue?: string; date?: string; formation?: string; entreprise?: string; formateur?: string; statut?: string }>;
 }) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
 
@@ -64,7 +64,7 @@ export default async function PagePlanning({
       ? new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + 1, 1))
       : ajouterJours(reference, 7);
 
-  const [sessions, formations, entreprises] = await Promise.all([
+  const [sessions, formations, entreprises, formateurs] = await Promise.all([
     prisma.trainingSession.findMany({
       where: {
         deletedAt: null,
@@ -74,16 +74,19 @@ export default async function PagePlanning({
         ...(statut ? { statut } : { statut: { not: "ANNULEE" } }),
         ...(params.formation ? { formationId: params.formation } : {}),
         ...(params.entreprise ? { companyId: params.entreprise } : {}),
+        ...(params.formateur ? { trainerId: params.formateur } : {}),
       },
       orderBy: [{ dateDebut: "asc" }, { numero: "asc" }],
       include: {
         formation: { select: { titre: true } },
         company: { select: { raisonSociale: true } },
+        trainer: { select: { prenom: true, nom: true } },
         _count: { select: { inscriptions: true } },
       },
     }),
     prisma.formation.findMany({ where: { deletedAt: null }, orderBy: { titre: "asc" }, select: { id: true, titre: true } }),
     prisma.company.findMany({ where: { deletedAt: null }, orderBy: { raisonSociale: "asc" }, select: { id: true, raisonSociale: true } }),
+    prisma.trainer.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
   ]);
 
   const jours = Array.from({ length: nombreJours }, (_, i) => ajouterJours(debut, i));
@@ -93,7 +96,7 @@ export default async function PagePlanning({
   /// Lien vers le planning en conservant les filtres courants.
   const lien = (changements: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const fusion = { vue, date: jourVersSaisie(reference), formation: params.formation, entreprise: params.entreprise, statut, ...changements };
+    const fusion = { vue, date: jourVersSaisie(reference), formation: params.formation, entreprise: params.entreprise, formateur: params.formateur, statut, ...changements };
     for (const [cle, valeur] of Object.entries(fusion)) if (valeur) p.set(cle, valeur);
     return `/planning?${p.toString()}`;
   };
@@ -159,6 +162,12 @@ export default async function PagePlanning({
           <option value="">Toutes les entreprises</option>
           {entreprises.map((e) => (
             <option key={e.id} value={e.id}>{e.raisonSociale}</option>
+          ))}
+        </select>
+        <select name="formateur" defaultValue={params.formateur ?? ""} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent">
+          <option value="">Tous les formateurs</option>
+          {formateurs.map((f) => (
+            <option key={f.id} value={f.id}>{f.prenom} {f.nom}</option>
           ))}
         </select>
         <select name="statut" defaultValue={statut ?? ""} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent">
@@ -238,7 +247,7 @@ export default async function PagePlanning({
                           <div className="truncate text-[13px] font-semibold">{s.formation.titre}</div>
                           <div className="truncate text-[11.5px] text-texte-doux">
                             {s.company?.raisonSociale ?? "Inter-entreprises"}
-                            {s.intervenant ? ` · ${s.intervenant}` : ""}
+                            {s.trainer ? ` · ${s.trainer.prenom} ${s.trainer.nom}` : ""}
                           </div>
                           <div className="mt-1.5 flex items-center justify-between gap-2">
                             <span className="truncate text-[11px] text-texte-tenu">

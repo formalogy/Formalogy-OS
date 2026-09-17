@@ -11,6 +11,7 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "session.horaires": "Horaires de la session",
   "session.lieu": "Lieu de la session",
   "session.modalite": "Modalité (présentiel, distanciel…)",
+  "session.formateur": "Prénom et nom du formateur",
   "entreprise.nom": "Raison sociale de l'entreprise",
   "prospect.nomComplet": "Prénom et nom du prospect",
 };

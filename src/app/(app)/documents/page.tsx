@@ -47,6 +47,7 @@ export default async function PageDocuments({
         company: { select: { raisonSociale: true } },
         session: { select: { numero: true } },
         formation: { select: { titre: true } },
+        trainer: { select: { prenom: true, nom: true } },
         versions: { orderBy: { numero: "desc" }, take: 1, select: { numero: true, taille: true } },
       },
     }),
@@ -144,6 +145,7 @@ export default async function PageDocuments({
                     d.company?.raisonSociale,
                     d.session?.numero,
                     d.formation?.titre,
+                    d.trainer && `${d.trainer.prenom} ${d.trainer.nom}`,
                   ].filter(Boolean).join(" · ");
                   const version = d.versions[0];
                   return (

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { FormulaireSession } from "@/app/(app)/sessions/formulaire";
 import { prisma } from "@/lib/prisma";
+import { optionsFormateurs } from "@/lib/formateurs";
 import { exigerRole } from "@/lib/session";
 import { jourVersSaisie } from "@/lib/sessions-libelles";
 
@@ -18,7 +19,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
   });
   if (!session) notFound();
 
-  const [actives, entreprises] = await Promise.all([
+  const [actives, entreprises, formateurs] = await Promise.all([
     prisma.formation.findMany({
       where: { deletedAt: null, statut: "ACTIVE" },
       orderBy: { titre: "asc" },
@@ -29,6 +30,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
       orderBy: { raisonSociale: "asc" },
       select: { id: true, raisonSociale: true },
     }),
+    optionsFormateurs(session.trainerId),
   ]);
 
   // La formation actuelle reste proposée même si elle n'est plus active.
@@ -46,7 +48,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
     lieu: session.lieu ?? "",
     modalite: session.modalite,
     statut: session.statut,
-    intervenant: session.intervenant ?? "",
+    trainerId: session.trainerId ?? "",
     placesMax: session.placesMax?.toString() ?? "",
     notes: session.notes ?? "",
   };
@@ -60,7 +62,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Modifier la session</h1>
       </header>
 
-      <FormulaireSession formations={formations} entreprises={entreprises} initiales={initiales} />
+      <FormulaireSession formations={formations} entreprises={entreprises} formateurs={formateurs} initiales={initiales} />
     </>
   );
 }

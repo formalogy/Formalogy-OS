@@ -11,12 +11,12 @@ export const dynamic = "force-dynamic";
 export default async function PageNouveauDocument({
   searchParams,
 }: {
-  searchParams: Promise<{ apprenant?: string; entreprise?: string; session?: string; formation?: string; type?: string }>;
+  searchParams: Promise<{ apprenant?: string; entreprise?: string; session?: string; formation?: string; formateur?: string; type?: string }>;
 }) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
   const params = await searchParams;
 
-  const [types, apprenants, entreprises, sessions, formations] = await Promise.all([
+  const [types, apprenants, entreprises, sessions, formations, formateurs] = await Promise.all([
     prisma.documentType.findMany({ orderBy: { ordre: "asc" } }),
     prisma.learner.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, nom: true, prenom: true } }),
     prisma.company.findMany({ where: { deletedAt: null }, orderBy: { raisonSociale: "asc" }, select: { id: true, raisonSociale: true } }),
@@ -27,6 +27,7 @@ export default async function PageNouveauDocument({
       select: { id: true, numero: true, dateDebut: true, dateFin: true, formation: { select: { titre: true } } },
     }),
     prisma.formation.findMany({ where: { deletedAt: null }, orderBy: { titre: "asc" }, select: { id: true, titre: true } }),
+    prisma.trainer.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, nom: true, prenom: true } }),
   ]);
 
   // Pré-remplissage depuis une fiche : rattachement, type et catégorie déduits.
@@ -52,6 +53,10 @@ export default async function PageNouveauDocument({
     depart.formationId = params.formation!;
     depart.categorie ??= "FORMATION";
   }
+  if (formateurs.some((f) => f.id === params.formateur)) {
+    depart.trainerId = params.formateur!;
+    depart.categorie ??= "FORMATEUR";
+  }
 
   return (
     <>
@@ -70,6 +75,7 @@ export default async function PageNouveauDocument({
         entreprises={entreprises.map((e) => ({ id: e.id, libelle: e.raisonSociale }))}
         sessions={sessions.map((s) => ({ id: s.id, libelle: `${s.numero} — ${s.formation.titre} (${formaterPeriode(s.dateDebut, s.dateFin)})` }))}
         formations={formations.map((f) => ({ id: f.id, libelle: f.titre }))}
+        formateurs={formateurs.map((f) => ({ id: f.id, libelle: `${f.nom} ${f.prenom}` }))}
       />
     </>
   );

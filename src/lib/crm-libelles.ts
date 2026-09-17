@@ -64,9 +64,18 @@ const euros = new Intl.NumberFormat("fr-FR", {
   maximumFractionDigits: 0,
 });
 
+const eurosCentimes = new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+});
+
+/// « 1 200 € » pour un montant rond, « 450,50 € » sinon : les centimes ne
+/// sont jamais arrondis silencieusement.
 export function formaterEuros(montant: unknown): string {
   if (montant === null || montant === undefined) return "—";
-  return euros.format(Number(montant));
+  const valeur = Number(montant);
+  return Number.isInteger(valeur) ? euros.format(valeur) : eurosCentimes.format(valeur);
 }
 
 const dateCourte = new Intl.DateTimeFormat("fr-FR", {

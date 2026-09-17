@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerUtilisateur } from "@/lib/session";
 import {
@@ -64,6 +66,8 @@ function Indicateur({
 
 export default async function PageTableauDeBord() {
   const utilisateur = await exigerUtilisateur();
+  // Les formateurs ont leur propre accueil, limité à leurs sessions.
+  if (utilisateur.role === "FORMATEUR") redirect("/mes-sessions");
   const aujourdhui = aujourdhuiUTC();
 
   const [
@@ -105,6 +109,7 @@ export default async function PageTableauDeBord() {
         include: {
           formation: { select: { titre: true } },
           company: { select: { raisonSociale: true } },
+          trainer: { select: { prenom: true, nom: true } },
           _count: { select: { inscriptions: true } },
         },
       }),
@@ -224,7 +229,7 @@ export default async function PageTableauDeBord() {
                 <tr className="bg-surface-creuse text-left text-[10.8px] uppercase tracking-wider text-texte-tenu">
                   <th className="px-4 py-2 font-semibold">Formation</th>
                   <th className="whitespace-nowrap px-4 py-2 font-semibold">Entreprise</th>
-                  <th className="whitespace-nowrap px-4 py-2 font-semibold">Intervenant</th>
+                  <th className="whitespace-nowrap px-4 py-2 font-semibold">Formateur</th>
                   <th className="whitespace-nowrap px-4 py-2 font-semibold">Dates</th>
                   <th className="whitespace-nowrap px-4 py-2 text-right font-semibold">Apprenants</th>
                   <th className="whitespace-nowrap px-4 py-2 font-semibold">Statut</th>
@@ -241,7 +246,7 @@ export default async function PageTableauDeBord() {
                     <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">
                       {s.company?.raisonSociale ?? "Inter-entreprises"}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">{s.intervenant ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">{nomFormateur(s.trainer) ?? "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">{formaterPeriode(s.dateDebut, s.dateFin)}</td>
                     {/* Une session proche sans aucun inscrit est une anomalie à traiter. */}
                     <td className={`whitespace-nowrap px-4 py-2.5 text-right font-mono tabular-nums ${s._count.inscriptions === 0 ? "font-semibold text-danger" : ""}`}>

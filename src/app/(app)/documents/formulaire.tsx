@@ -28,6 +28,7 @@ type Props = {
   entreprises: Option[];
   sessions: Option[];
   formations: Option[];
+  formateurs: Option[];
   valeursDeDepart: Record<string, string>;
   stockagePret: boolean;
 };
@@ -98,6 +99,7 @@ export function FormulaireDocument(props: Props) {
         <ChampListe nom="companyId" libelle="Entreprise" options={[aucun("Aucune"), ...options(props.entreprises)]} valeurParDefaut={v("companyId") ?? ""} />
         <ChampListe nom="sessionId" libelle="Session" options={[aucun("Aucune"), ...options(props.sessions)]} valeurParDefaut={v("sessionId") ?? ""} />
         <ChampListe nom="formationId" libelle="Formation" options={[aucun("Aucune"), ...options(props.formations)]} valeurParDefaut={v("formationId") ?? ""} />
+        <ChampListe nom="trainerId" libelle="Formateur" options={[aucun("Aucun"), ...options(props.formateurs)]} valeurParDefaut={v("trainerId") ?? ""} />
         <div className="sm:col-span-2">
           <ChampLong nom="description" libelle="Description" valeurParDefaut={v("description")} />
         </div>

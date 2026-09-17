@@ -22,6 +22,22 @@ export const auth = betterAuth({
     minPasswordLength: 12,
   },
 
+  databaseHooks: {
+    session: {
+      create: {
+        // Un compte désactivé (formateur dont l'accès est fermé, par exemple)
+        // ne peut plus ouvrir de session, même avec le bon mot de passe.
+        before: async (session) => {
+          const compte = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { isActive: true, deletedAt: true },
+          });
+          if (!compte?.isActive || compte.deletedAt) return false;
+        },
+      },
+    },
+  },
+
   session: {
     // Une semaine, prolongée à chaque journée d'utilisation.
     expiresIn: 60 * 60 * 24 * 7,

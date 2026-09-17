@@ -104,6 +104,7 @@ const schemaDocument = z.object({
   companyId: texteFacultatif,
   sessionId: texteFacultatif,
   formationId: texteFacultatif,
+  trainerId: texteFacultatif,
 });
 
 export async function deposerDocument(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
@@ -117,14 +118,15 @@ export async function deposerDocument(_precedent: EtatFormulaire, donnees: FormD
   const d = resultat.data;
 
   // Chaque rattachement doit désigner une fiche existante.
-  const [type, apprenant, entreprise, session, formation] = await Promise.all([
+  const [type, apprenant, entreprise, session, formation, formateur] = await Promise.all([
     d.typeId ? prisma.documentType.findUnique({ where: { id: d.typeId } }) : null,
     d.learnerId ? prisma.learner.findFirst({ where: { id: d.learnerId, deletedAt: null } }) : null,
     d.companyId ? prisma.company.findFirst({ where: { id: d.companyId, deletedAt: null } }) : null,
     d.sessionId ? prisma.trainingSession.findFirst({ where: { id: d.sessionId, deletedAt: null } }) : null,
     d.formationId ? prisma.formation.findFirst({ where: { id: d.formationId, deletedAt: null } }) : null,
+    d.trainerId ? prisma.trainer.findFirst({ where: { id: d.trainerId, deletedAt: null } }) : null,
   ]);
-  if ((d.typeId && !type) || (d.learnerId && !apprenant) || (d.companyId && !entreprise) || (d.sessionId && !session) || (d.formationId && !formation)) {
+  if ((d.typeId && !type) || (d.learnerId && !apprenant) || (d.companyId && !entreprise) || (d.sessionId && !session) || (d.formationId && !formation) || (d.trainerId && !formateur)) {
     return { erreur: "Un des éléments rattachés n'existe plus. Rechargez la page.", valeurs: saisie(donnees) };
   }
 
@@ -155,6 +157,7 @@ export async function deposerDocument(_precedent: EtatFormulaire, donnees: FormD
         companyId: d.companyId ?? null,
         sessionId: d.sessionId ?? null,
         formationId: d.formationId ?? null,
+        trainerId: d.trainerId ?? null,
         createdById: utilisateur.id,
         versions: {
           create: {

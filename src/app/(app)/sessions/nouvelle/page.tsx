@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FormulaireSession } from "@/app/(app)/sessions/formulaire";
 import { prisma } from "@/lib/prisma";
+import { optionsFormateurs } from "@/lib/formateurs";
 import { exigerRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -9,12 +10,12 @@ export const dynamic = "force-dynamic";
 export default async function PageNouvelleSession({
   searchParams,
 }: {
-  searchParams: Promise<{ formation?: string; entreprise?: string }>;
+  searchParams: Promise<{ formation?: string; entreprise?: string; formateur?: string }>;
 }) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
-  const { formation, entreprise } = await searchParams;
+  const { formation, entreprise, formateur } = await searchParams;
 
-  const [formations, entreprises] = await Promise.all([
+  const [formations, entreprises, formateurs] = await Promise.all([
     prisma.formation.findMany({
       where: { deletedAt: null, statut: "ACTIVE" },
       orderBy: { titre: "asc" },
@@ -25,6 +26,7 @@ export default async function PageNouvelleSession({
       orderBy: { raisonSociale: "asc" },
       select: { id: true, raisonSociale: true },
     }),
+    optionsFormateurs(),
   ]);
 
   // Pré-remplissage quand on arrive depuis une fiche formation ou entreprise.
@@ -36,6 +38,9 @@ export default async function PageNouvelleSession({
   }
   if (entreprises.some((e) => e.id === entreprise)) {
     valeursDeDepart.companyId = entreprise as string;
+  }
+  if (formateurs.some((f) => f.id === formateur)) {
+    valeursDeDepart.trainerId = formateur as string;
   }
 
   return (
@@ -50,6 +55,7 @@ export default async function PageNouvelleSession({
       <FormulaireSession
         formations={formations}
         entreprises={entreprises}
+        formateurs={formateurs}
         valeursDeDepart={valeursDeDepart}
       />
     </>

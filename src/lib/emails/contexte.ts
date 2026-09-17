@@ -21,7 +21,11 @@ export async function construireContexte(ids: {
     ids.sessionId
       ? prisma.trainingSession.findUnique({
           where: { id: ids.sessionId },
-          include: { formation: { select: { titre: true } }, company: { select: { raisonSociale: true } } },
+          include: {
+            formation: { select: { titre: true } },
+            company: { select: { raisonSociale: true } },
+            trainer: { select: { prenom: true, nom: true } },
+          },
         })
       : null,
     ids.companyId ? prisma.company.findUnique({ where: { id: ids.companyId } }) : null,
@@ -38,6 +42,7 @@ export async function construireContexte(ids: {
     "session.horaires": session?.horaires,
     "session.lieu": session?.lieu,
     "session.modalite": session ? LIBELLE_MODALITE[session.modalite] : undefined,
+    "session.formateur": session?.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : undefined,
     "entreprise.nom": entreprise?.raisonSociale ?? session?.company?.raisonSociale,
     "prospect.nomComplet": prospect ? `${prospect.prenom} ${prospect.nom}` : undefined,
   };

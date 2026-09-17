@@ -54,7 +54,7 @@ const schemaSession = z
     lieu: texteFacultatif,
     modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
     statut: z.enum(STATUTS_SESSION as [string, ...string[]]),
-    intervenant: texteFacultatif,
+    trainerId: texteFacultatif,
     placesMax: texteFacultatif.refine(
       (v) => v === undefined || (/^\d+$/.test(v) && Number(v) > 0),
       "Le nombre de places doit être un entier positif.",
@@ -64,6 +64,11 @@ const schemaSession = z
   .refine((d) => !d.dateDebut || !d.dateFin || d.dateFin >= d.dateDebut, {
     message: "La date de fin ne peut pas précéder la date de début.",
   });
+
+/// Un formateur ne peut être affecté que s'il existe et est actif.
+async function formateurValide(trainerId: string) {
+  return Boolean(await prisma.trainer.findFirst({ where: { id: trainerId, deletedAt: null, actif: true } }));
+}
 
 /// Numéro lisible et unique : S-2026-0001, S-2026-0002…
 /// En cas de création simultanée, la contrainte d'unicité en base tranche et
@@ -112,6 +117,10 @@ export async function creerSession(
     return { erreur: "Cette formation n'est pas active dans le catalogue.", valeurs: saisie(donnees) };
   }
 
+  if (d.trainerId && !(await formateurValide(d.trainerId))) {
+    return { erreur: "Ce formateur n'est plus disponible. Rechargez la page.", valeurs: saisie(donnees) };
+  }
+
   const session = await creerAvecNumero(d.dateDebut.getUTCFullYear(), (numero) =>
     prisma.trainingSession.create({
       data: {
@@ -124,7 +133,7 @@ export async function creerSession(
         lieu: d.lieu,
         modalite: d.modalite,
         statut: d.statut as never,
-        intervenant: d.intervenant,
+        trainerId: d.trainerId ?? null,
         placesMax: d.placesMax ? Number(d.placesMax) : null,
         prixHT: formation.prixHT,
         notes: d.notes,
@@ -173,6 +182,10 @@ export async function modifierSession(
     }
   }
 
+  if (d.trainerId && d.trainerId !== existante.trainerId && !(await formateurValide(d.trainerId))) {
+    return { erreur: "Ce formateur n'est plus disponible. Rechargez la page.", valeurs: saisie(donnees) };
+  }
+
   if (d.placesMax) {
     const inscrits = await prisma.sessionLearner.count({ where: { sessionId: id } });
     if (Number(d.placesMax) < inscrits) {
@@ -193,7 +206,7 @@ export async function modifierSession(
       horaires: d.horaires ?? null,
       lieu: d.lieu ?? null,
       modalite: d.modalite,
-      intervenant: d.intervenant ?? null,
+      trainerId: d.trainerId ?? null,
       placesMax: d.placesMax ? Number(d.placesMax) : null,
       notes: d.notes ?? null,
     },

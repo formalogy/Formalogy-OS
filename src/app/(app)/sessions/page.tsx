@@ -1,6 +1,7 @@
 import type { StatutSession } from "@prisma/client";
 import Link from "next/link";
 
+import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import {
@@ -47,7 +48,7 @@ export default async function PageSessions({
               { numero: { contains: recherche, mode: "insensitive" } },
               { formation: { titre: { contains: recherche, mode: "insensitive" } } },
               { company: { raisonSociale: { contains: recherche, mode: "insensitive" } } },
-              { intervenant: { contains: recherche, mode: "insensitive" } },
+              { trainer: { OR: [{ nom: { contains: recherche, mode: "insensitive" } }, { prenom: { contains: recherche, mode: "insensitive" } }] } },
             ],
           }
         : {}),
@@ -56,6 +57,7 @@ export default async function PageSessions({
     include: {
       formation: { select: { titre: true } },
       company: { select: { raisonSociale: true } },
+      trainer: { select: { prenom: true, nom: true } },
       _count: { select: { inscriptions: true } },
     },
   });
@@ -90,7 +92,7 @@ export default async function PageSessions({
           type="search"
           name="q"
           defaultValue={recherche}
-          placeholder="Numéro, formation, entreprise, intervenant…"
+          placeholder="Numéro, formation, entreprise, formateur…"
           className="w-full max-w-xs rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
         />
         <select
@@ -139,7 +141,7 @@ export default async function PageSessions({
                   <th className="px-4 py-2.5 font-semibold">Formation</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Dates</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Entreprise</th>
-                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Intervenant</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Formateur</th>
                   <th className="whitespace-nowrap px-4 py-2.5 text-right font-semibold">Inscrits</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Statut</th>
                 </tr>
@@ -159,7 +161,7 @@ export default async function PageSessions({
                     <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">
                       {s.company?.raisonSociale ?? "Inter-entreprises"}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">{s.intervenant ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">{nomFormateur(s.trainer) ?? "—"}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono tabular-nums">
                       {s._count.inscriptions}
                       {s.placesMax ? <span className="text-texte-tenu"> / {s.placesMax}</span> : null}

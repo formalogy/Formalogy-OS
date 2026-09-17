@@ -20,13 +20,14 @@ import { LIBELLE_STATUT_SESSION, STATUTS_SESSION } from "@/lib/sessions-libelles
 type Props = {
   formations: { id: string; titre: string; reference: string; modalite: string }[];
   entreprises: { id: string; raisonSociale: string }[];
+  formateurs: { id: string; libelle: string }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
   initiales?: Record<string, string> & { id: string };
   /// Pré-remplissage d'une création (depuis une fiche formation ou entreprise)
   valeursDeDepart?: Record<string, string>;
 };
 
-export function FormulaireSession({ formations, entreprises, initiales, valeursDeDepart }: Props) {
+export function FormulaireSession({ formations, entreprises, formateurs, initiales, valeursDeDepart }: Props) {
   const modification = Boolean(initiales);
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(
     modification ? modifierSession : creerSession,
@@ -92,11 +93,14 @@ export function FormulaireSession({ formations, entreprises, initiales, valeursD
           options={STATUTS_SESSION.map((s) => ({ valeur: s, libelle: LIBELLE_STATUT_SESSION[s] }))}
           valeurParDefaut={v("statut") ?? "BROUILLON"}
         />
-        <Champ
-          nom="intervenant"
-          libelle="Intervenant"
-          aide="Nom du formateur. Sera relié aux fiches formateurs en Phase 10."
-          valeurParDefaut={v("intervenant")}
+        <ChampListe
+          nom="trainerId"
+          libelle="Formateur"
+          options={[
+            { valeur: "", libelle: "Pas encore choisi" },
+            ...formateurs.map((f) => ({ valeur: f.id, libelle: f.libelle })),
+          ]}
+          valeurParDefaut={v("trainerId") ?? ""}
         />
         <Champ nom="placesMax" libelle="Places maximum" placeholder="12" valeurParDefaut={v("placesMax")} />
         <div className="sm:col-span-2">

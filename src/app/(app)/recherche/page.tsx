@@ -54,7 +54,7 @@ export default async function PageRecherche({ searchParams }: { searchParams: Pr
     );
   }
 
-  const [apprenants, entreprises, contacts, prospects, formations, sessions] = await Promise.all([
+  const [apprenants, entreprises, contacts, prospects, formations, sessions, formateurs] = await Promise.all([
     prisma.learner.findMany({
       where: { deletedAt: null, OR: [{ nom: contient }, { prenom: contient }, { email: contient }] },
       take: LIMITE,
@@ -85,15 +85,20 @@ export default async function PageRecherche({ searchParams }: { searchParams: Pr
     prisma.trainingSession.findMany({
       where: {
         deletedAt: null,
-        OR: [{ numero: contient }, { formation: { titre: contient } }, { company: { raisonSociale: contient } }, { intervenant: contient }],
+        OR: [{ numero: contient }, { formation: { titre: contient } }, { company: { raisonSociale: contient } }, { trainer: { OR: [{ nom: contient }, { prenom: contient }] } }],
       },
       take: LIMITE,
       orderBy: { dateDebut: "desc" },
       include: { formation: { select: { titre: true } }, company: { select: { raisonSociale: true } } },
     }),
+    prisma.trainer.findMany({
+      where: { deletedAt: null, OR: [{ nom: contient }, { prenom: contient }, { email: contient }, { specialites: contient }] },
+      take: LIMITE,
+      orderBy: { nom: "asc" },
+    }),
   ]);
 
-  const total = apprenants.length + entreprises.length + contacts.length + prospects.length + formations.length + sessions.length;
+  const total = apprenants.length + entreprises.length + contacts.length + prospects.length + formations.length + sessions.length + formateurs.length;
 
   return (
     <>
@@ -136,6 +141,15 @@ export default async function PageRecherche({ searchParams }: { searchParams: Pr
           titre="Formations"
           voirTout={`/formations?q=${encodeURIComponent(terme)}`}
           resultats={formations.map((f) => ({ href: `/formations/${f.id}`, titre: f.titre, detail: f.reference }))}
+        />
+        <Groupe
+          titre="Formateurs"
+          voirTout={`/formateurs?q=${encodeURIComponent(terme)}`}
+          resultats={formateurs.map((f) => ({
+            href: `/formateurs/${f.id}`,
+            titre: `${f.prenom} ${f.nom}`,
+            detail: [f.specialites, f.email].filter(Boolean).join(" · ") || "—",
+          }))}
         />
         <Groupe
           titre="Contacts"
