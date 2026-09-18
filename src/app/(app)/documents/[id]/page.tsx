@@ -51,6 +51,7 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
       session: { select: { id: true, numero: true, dateDebut: true, dateFin: true } },
       formation: { select: { id: true, titre: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
+      indicateur: { select: { numero: true, critere: true } },
       createdBy: { select: { name: true } },
       versions: { orderBy: { numero: "desc" }, include: { createdBy: { select: { name: true } } } },
       signatures: { orderBy: { createdAt: "desc" }, include: { versionSource: { select: { numero: true, taille: true } } } },
@@ -68,6 +69,7 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
     document.session && { href: `/sessions/${document.session.id}`, libelle: `Session : ${document.session.numero} (${formaterPeriode(document.session.dateDebut, document.session.dateFin)})` },
     document.formation && { href: `/formations/${document.formation.id}`, libelle: `Formation : ${document.formation.titre}` },
     document.trainer && { href: `/formateurs/${document.trainer.id}`, libelle: `Formateur : ${document.trainer.prenom} ${document.trainer.nom}` },
+    document.indicateur && { href: `/qualiopi`, libelle: `Preuve Qualiopi : indicateur ${document.indicateur.numero} (critère ${document.indicateur.critere})` },
   ].filter((r): r is { href: string; libelle: string } => Boolean(r));
 
   const signatureEnCours = document.signatures.find((sg) => sg.statut === "A_ENVOYER" || sg.statut === "ENVOYEE");

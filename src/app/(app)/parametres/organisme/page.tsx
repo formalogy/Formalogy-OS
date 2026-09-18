@@ -1,6 +1,7 @@
 import { FormulaireOrganisme } from "@/app/(app)/parametres/organisme/formulaire";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
 import { exigerRole } from "@/lib/session";
+import { jourVersSaisie } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function PageOrganisme() {
   const initiales = Object.fromEntries(
     Object.entries(o)
       .filter(([cle]) => cle !== "id" && cle !== "updatedAt")
-      .map(([cle, valeur]) => [cle, valeur === null ? "" : String(valeur)]),
+      .map(([cle, valeur]) => [cle, valeur === null ? "" : valeur instanceof Date ? jourVersSaisie(valeur) : String(valeur)]),
   );
 
   return (

@@ -83,10 +83,8 @@ export const MENU: GroupeMenu[] = [
     titre: "Qualité",
     icone: "etoile",
     entrees: [
-      { libelle: "Qualiopi", phase: 15 },
-      { libelle: "Indicateurs", phase: 15 },
-      { libelle: "Audits", phase: 15 },
-      { libelle: "Plan d'actions", phase: 15 },
+      { libelle: "Qualiopi", chemin: "/qualiopi" },
+      { libelle: "Plan d'actions", chemin: "/qualiopi/actions" },
     ],
   },
   {

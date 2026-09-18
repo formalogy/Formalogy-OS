@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState, useTransition } from "react";
 
-import { BoutonEnvoyer, MessageErreur } from "@/app/(app)/_composants/formulaire";
+import { MessageErreur } from "@/app/(app)/_composants/formulaire";
 import { changerStatutDossier, type EtatFormulaire } from "@/app/(app)/financements/actions";
 
 const CHAMP =
@@ -13,13 +13,17 @@ type Etape = "DEPOSE" | "ACCORDE" | "REFUSE" | "ANNULE" | "A_MONTER";
 /// Étapes proposées selon l'état du dossier : on n'accorde pas un dossier
 /// qui n'a pas été déposé.
 export function AvancementDossier({ id, statut, aujourdhui, montantDemande }: { id: string; statut: string; aujourdhui: string; montantDemande: string }) {
-  const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(changerStatutDossier, {});
+  const [etat, setEtat] = useState<EtatFormulaire>({});
   const [etape, setEtape] = useState<Etape | null>(null);
+  const [enCours, demarrer] = useTransition();
 
   // Étape confirmée : on referme le formulaire pour proposer les suivantes.
-  useEffect(() => {
-    if (etat.succes) setEtape(null);
-  }, [etat]);
+  const envoyer = (donnees: FormData) =>
+    demarrer(async () => {
+      const resultat = await changerStatutDossier({}, donnees);
+      setEtat(resultat);
+      if (resultat.succes) setEtape(null);
+    });
 
   const possibles: { valeur: Etape; libelle: string }[] =
     statut === "A_MONTER"
@@ -90,7 +94,9 @@ export function AvancementDossier({ id, statut, aujourdhui, montantDemande }: { 
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <BoutonEnvoyer libelle="Confirmer" />
+        <button type="submit" disabled={enCours} className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white transition disabled:opacity-60">
+          {enCours ? "Enregistrement…" : "Confirmer"}
+        </button>
         <button type="button" onClick={() => setEtape(null)} className="text-[12.5px] font-semibold text-texte-doux">Annuler</button>
         <MessageErreur message={etat.erreur} />
       </div>

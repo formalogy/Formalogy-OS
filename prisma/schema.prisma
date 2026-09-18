@@ -79,6 +79,8 @@ model User {
   evaluationsSaisies EvaluationAcquis[] @relation("EvaluationSaisiePar")
   facturesCreees     Facture[]  @relation("FactureCreatedBy")
   dossiersCrees      DossierFinancement[] @relation("DossierCreatedBy")
+  indicateursSuivis  IndicateurQualiopi[] @relation("IndicateurUpdatedBy")
+  actionsQualiteCreees ActionQualite[]    @relation("ActionQualiteCreatedBy")
   paiementsSaisis    Paiement[] @relation("PaiementCreatedBy")
 
   /// Fiche formateur liée, pour un compte de rôle FORMATEUR
@@ -650,6 +652,9 @@ model Document {
   formation   Formation?       @relation(fields: [formationId], references: [id], onDelete: SetNull)
   trainerId   String?
   trainer     Trainer?         @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  /// Preuve rattachée à un indicateur Qualiopi
+  indicateurQualiopi Int?
+  indicateur         IndicateurQualiopi? @relation(fields: [indicateurQualiopi], references: [numero], onDelete: SetNull)
 
   versions   DocumentVersion[]
   signatures SignatureRequest[]
@@ -672,6 +677,7 @@ model Document {
   @@index([sessionId])
   @@index([formationId])
   @@index([trainerId])
+  @@index([indicateurQualiopi])
   @@index([deletedAt])
   @@map("documents")
 }
@@ -1123,6 +1129,12 @@ model Organisme {
   representantNom      String?
   representantFonction String?
 
+  /// Certification Qualiopi : organisme certificateur et échéances
+  qualiopiCertificateur  String?
+  qualiopiObtentionAt    DateTime?
+  qualiopiExpireAt       DateTime?
+  qualiopiProchainAuditAt DateTime?
+
   updatedAt DateTime @updatedAt
 
   @@map("organisme")
@@ -1367,4 +1379,87 @@ model DossierFinancement {
   @@index([sessionId])
   @@index([dateLimite])
   @@map("dossiers_financement")
+}
+
+// ===========================================================================
+// Qualiopi (Phase 15)
+// ===========================================================================
+
+enum StatutIndicateur {
+  A_FAIRE
+  EN_COURS
+  CONFORME
+}
+
+/// Indicateur du Référentiel national qualité, dans sa version V10 (décret
+/// n° 2026-728 du 1er août 2026, applicable aux audits à partir du
+/// 1er novembre 2026). Les intitulés sont ceux du décret et ne se modifient
+/// pas depuis l'application ; seuls le suivi et les preuves sont saisis ici.
+model IndicateurQualiopi {
+  numero   Int    @id
+  critere  Int
+  intitule String
+
+  /// Indicateur spécifique : ne concerne que certaines activités
+  /// (certification professionnelle, apprentissage, alternance, AFEST).
+  specifique Boolean @default(false)
+  /// L'organisme déclare si l'indicateur le concerne.
+  applicable Boolean @default(true)
+
+  statut StatutIndicateur @default(A_FAIRE)
+  /// Ce qui est en place, où le trouver, ce qui reste à faire.
+  notes  String?
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("IndicateurUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  preuves Document[]
+  actions ActionQualite[]
+
+  @@map("indicateurs_qualiopi")
+}
+
+enum OrigineActionQualite {
+  /// Écart relevé lors d'un audit
+  AUDIT
+  /// Constat interne
+  INTERNE
+  /// Réclamation d'un apprenant, d'une entreprise ou d'un financeur
+  RECLAMATION
+}
+
+enum StatutActionQualite {
+  A_FAIRE
+  EN_COURS
+  FAITE
+}
+
+/// Plan d'actions qualité : écarts d'audit, réclamations et améliorations,
+/// avec leur suivi jusqu'à la clôture (indicateur 32).
+model ActionQualite {
+  id String @id @default(uuid(7))
+
+  titre       String
+  description String?
+  origine     OrigineActionQualite @default(INTERNE)
+  statut      StatutActionQualite  @default(A_FAIRE)
+
+  numeroIndicateur Int?
+  indicateur       IndicateurQualiopi? @relation(fields: [numeroIndicateur], references: [numero], onDelete: SetNull)
+
+  responsable String?
+  echeance    DateTime?
+  faiteAt     DateTime?
+  bilan       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("ActionQualiteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([statut])
+  @@index([numeroIndicateur])
+  @@map("actions_qualite")
 }

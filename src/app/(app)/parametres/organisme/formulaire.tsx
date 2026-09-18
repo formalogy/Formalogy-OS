@@ -46,6 +46,15 @@ export function FormulaireOrganisme({ initiales, lectureSeule }: { initiales: Re
           <Champ nom="representantFonction" libelle="Fonction" placeholder="Dirigeant" valeurParDefaut={v("representantFonction")} />
         </div>
 
+        <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Certification Qualiopi</h2>
+        <p className="mb-3 text-[12px] text-texte-tenu">Rappelées sur l&apos;écran Qualiopi, pour ne pas manquer l&apos;audit de surveillance.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Champ nom="qualiopiCertificateur" libelle="Organisme certificateur" placeholder="Ex. : AFNOR Certification" valeurParDefaut={v("qualiopiCertificateur")} />
+          <Champ nom="qualiopiObtentionAt" libelle="Date d'obtention" type="date" valeurParDefaut={v("qualiopiObtentionAt")} />
+          <Champ nom="qualiopiExpireAt" libelle="Fin de validité" type="date" valeurParDefaut={v("qualiopiExpireAt")} />
+          <Champ nom="qualiopiProchainAuditAt" libelle="Prochain audit" type="date" valeurParDefaut={v("qualiopiProchainAuditAt")} />
+        </div>
+
         {!lectureSeule && (
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <BoutonEnvoyer libelle="Enregistrer" />

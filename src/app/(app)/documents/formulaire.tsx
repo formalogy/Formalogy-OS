@@ -29,6 +29,7 @@ type Props = {
   sessions: Option[];
   formations: Option[];
   formateurs: Option[];
+  indicateurs: { numero: number; intitule: string }[];
   valeursDeDepart: Record<string, string>;
   stockagePret: boolean;
 };
@@ -99,6 +100,15 @@ export function FormulaireDocument(props: Props) {
         <ChampListe nom="companyId" libelle="Entreprise" options={[aucun("Aucune"), ...options(props.entreprises)]} valeurParDefaut={v("companyId") ?? ""} />
         <ChampListe nom="sessionId" libelle="Session" options={[aucun("Aucune"), ...options(props.sessions)]} valeurParDefaut={v("sessionId") ?? ""} />
         <ChampListe nom="formationId" libelle="Formation" options={[aucun("Aucune"), ...options(props.formations)]} valeurParDefaut={v("formationId") ?? ""} />
+        <ChampListe
+          nom="indicateurQualiopi"
+          libelle="Indicateur Qualiopi"
+          options={[
+            aucun("Aucun"),
+            ...props.indicateurs.map((i) => ({ valeur: String(i.numero), libelle: `${i.numero} — ${i.intitule.slice(0, 60)}…` })),
+          ]}
+          valeurParDefaut={v("indicateurQualiopi") ?? ""}
+        />
         <ChampListe nom="trainerId" libelle="Formateur" options={[aucun("Aucun"), ...options(props.formateurs)]} valeurParDefaut={v("trainerId") ?? ""} />
         <div className="sm:col-span-2">
           <ChampLong nom="description" libelle="Description" valeurParDefaut={v("description")} />

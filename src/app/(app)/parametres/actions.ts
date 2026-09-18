@@ -8,6 +8,7 @@ import { variablesInconnues } from "@/lib/emails/modeles";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
+import { jourDepuisSaisie } from "@/lib/sessions-libelles";
 
 export type EtatFormulaire = { erreur?: string; succes?: string; valeurs?: Record<string, string> };
 
@@ -160,7 +161,18 @@ const schemaOrganisme = z.object({
   siteWeb: facultatif,
   representantNom: facultatif,
   representantFonction: facultatif,
+  qualiopiCertificateur: facultatif,
+  qualiopiObtentionAt: facultatif,
+  qualiopiExpireAt: facultatif,
+  qualiopiProchainAuditAt: facultatif,
 });
+
+/// Dates de la certification Qualiopi, saisies au format jour.
+function jourOuNull(valeur: string | null, libelle: string): Date | null | string {
+  if (!valeur) return null;
+  const jour = jourDepuisSaisie(valeur);
+  return jour ?? `${libelle} : date invalide.`;
+}
 
 export async function modifierOrganisme(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
   const utilisateur = await exigerRole("ADMIN");
@@ -169,8 +181,18 @@ export async function modifierOrganisme(_precedent: EtatFormulaire, donnees: For
   const r = schemaOrganisme.safeParse(valeurs);
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide.", valeurs };
 
+  const dates = {
+    qualiopiObtentionAt: jourOuNull(r.data.qualiopiObtentionAt, "Date d'obtention"),
+    qualiopiExpireAt: jourOuNull(r.data.qualiopiExpireAt, "Date de fin de validité"),
+    qualiopiProchainAuditAt: jourOuNull(r.data.qualiopiProchainAuditAt, "Date du prochain audit"),
+  };
+  for (const valeur of Object.values(dates)) {
+    if (typeof valeur === "string") return { erreur: valeur, valeurs };
+  }
+
   const data = {
     ...r.data,
+    ...(dates as { qualiopiObtentionAt: Date | null; qualiopiExpireAt: Date | null; qualiopiProchainAuditAt: Date | null }),
     siret: r.data.siret?.replace(/\s/g, "") ?? null,
     numeroDeclaration: r.data.numeroDeclaration?.replace(/\s/g, "") ?? null,
   };

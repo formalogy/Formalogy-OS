@@ -132,6 +132,19 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Le déclencheur `DOSSIER_SANS_REPONSE` crée une tâche de relance au bout de
   N jours (15 par défaut). Automatisation livrée désactivée.
 
+## Qualiopi
+
+- Référentiel suivi : **V10**, décret n° 2026-728 du 1er août 2026, applicable
+  aux audits à partir du 1er novembre 2026 — 7 critères, 33 indicateurs.
+- Les intitulés sont ceux du décret, chargés en base par migration et non
+  modifiables depuis l'application ; seuls le suivi (case « conforme », notes,
+  preuves) et l'applicabilité des 11 indicateurs spécifiques se saisissent.
+- Une preuve est un document rattaché à un indicateur (`documents.indicateurQualiopi`).
+- Le plan d'actions (`actions_qualite`) porte les écarts d'audit, réclamations
+  et améliorations : c'est la trace de l'amélioration continue (indicateur 32).
+- À la prochaine version du référentiel : ajouter une migration qui met à jour
+  les intitulés, sans toucher au suivi saisi par le client.
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend
