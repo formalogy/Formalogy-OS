@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { EnvoiEmail } from "@/app/(app)/apprenants/[id]/envoi-email";
+import { ActionsRgpd } from "@/app/(app)/apprenants/[id]/rgpd";
 import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-statut";
 import { LIBELLE_STATUT_EMAIL, TON_STATUT_EMAIL } from "@/lib/automatisations/libelles";
 import { construireContexte } from "@/lib/emails/contexte";
@@ -46,7 +47,7 @@ export default async function PageApprenant({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await exigerRole("ADMIN", "GESTIONNAIRE");
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
 
   const { id } = await params;
 
@@ -154,6 +155,16 @@ export default async function PageApprenant({
                 .join(", ")}
             />
           </dl>
+
+          <div className="mt-4 border-t border-bordure-douce pt-3">
+            {utilisateur.role === "ADMIN" ? (
+              <ActionsRgpd id={apprenant.id} nomComplet={`${apprenant.prenom} ${apprenant.nom}`} />
+            ) : (
+              <a href={`/api/apprenants/${apprenant.id}/export-rgpd`} className="rounded-lg border border-bordure bg-surface px-3 py-1.5 text-[12.5px] font-semibold">
+                Exporter ses données
+              </a>
+            )}
+          </div>
 
           <h2 className="mb-3 mt-6 text-[14.5px] font-bold">Administratif</h2>
           <dl>

@@ -215,7 +215,37 @@ et que le projet peut migrer ailleurs en quelques heures.
      de 256 bits, seule son empreinte est stockée, expirant après 60 jours,
      une seule réponse possible
 - Données personnelles d'apprenants en base : obligations RGPD entières, même
-  sans compte apprenant. Prévoir export et suppression côté administrateur.
+  sans compte apprenant. Export et anonymisation depuis chaque fiche apprenant
+  (Phase 17, voir `lib/rgpd.ts`) : l'anonymisation vide identité et coordonnées
+  mais conserve les enregistrements liés (sessions, factures, évaluations),
+  la loi imposant leur conservation (comptabilité, traçabilité Qualiopi).
+
+## Administration (Phase 17)
+
+- **Utilisateurs** (`/parametres/utilisateurs`, admin) : crée et gère les
+  comptes internes (ADMIN, GESTIONNAIRE) — même mécanisme que l'ouverture
+  d'accès d'un formateur (mot de passe provisoire affiché une seule fois,
+  session coupée à la désactivation). Un administrateur ne peut ni désactiver
+  ni se retirer le rôle à lui-même, ni retirer le dernier administrateur actif.
+  Les formateurs restent gérés depuis leur fiche (Phase 10), pas ici.
+- **Rôles et permissions** (`/parametres/roles`) : page de référence, pas un
+  éditeur — le projet a délibérément trois rôles fixes, sans table de
+  permissions fines (voir plus haut).
+- **Intégrations** (`/parametres/integrations`) : état de chaque service
+  externe (Gmail, Supabase, BoldSign, Henrri, réveil quotidien), lecture seule
+  à partir des variables d'environnement — aucune clé ne se modifie depuis
+  l'application.
+- **API** (`/parametres/api`) : Formalogy OS n'expose pas d'API pour des
+  tiers ; cette page documente uniquement le réveil `POST
+  /api/automatisations/executer`, à l'usage de qui configurera le
+  planificateur externe à la mise en ligne (Phase 18).
+- Le champ `User.lastLoginAt`, présent depuis le début mais jamais renseigné,
+  est maintenant mis à jour à chaque connexion réussie (hook `after` dans
+  `lib/auth.ts`).
+- La Statistiques (chiffre d'affaires, remplissage, assiduité, satisfaction,
+  résultats) restait prévue pour cette phase mais n'a pas été construite : le
+  numéro qui lui était réservé a servi entre-temps à la facturation
+  automatique Henrri (Phase 16), à la demande du client. À reprogrammer.
 
 ## Méthode de travail
 

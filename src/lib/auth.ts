@@ -34,6 +34,13 @@ export const auth = betterAuth({
           });
           if (!compte?.isActive || compte.deletedAt) return false;
         },
+        // Connexion réussie : la fiche affiche « dernière connexion » sans
+        // avoir à interroger la table des sessions à chaque consultation.
+        after: async (session) => {
+          await prisma.user
+            .update({ where: { id: session.userId }, data: { lastLoginAt: new Date() } })
+            .catch(() => undefined);
+        },
       },
     },
   },

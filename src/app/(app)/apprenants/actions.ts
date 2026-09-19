@@ -10,6 +10,7 @@ import { declencher } from "@/lib/automatisations/moteur";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
+import { anonymiserApprenant } from "@/lib/rgpd";
 import { exigerRole } from "@/lib/session";
 
 export type EtatFormulaire = {
@@ -168,4 +169,27 @@ export async function envoyerEmailApprenant(_precedent: EtatEnvoi, donnees: Form
   revalidatePath(`/apprenants/${apprenant.id}`);
   if (email.statut === "ECHEC") return { erreur: `L'email n'est pas parti : ${email.erreur}` };
   return { succes: email.statut === "SIMULE" ? "Email enregistré (simulation)." : "Email envoyé." };
+}
+
+/// Droit à l'effacement (RGPD). Réservé aux administrateurs : irréversible,
+/// et redirige vers la liste puisque la fiche masque désormais l'apprenant.
+export async function anonymiserFicheApprenant(donnees: FormData): Promise<{ erreur?: string }> {
+  const admin = await exigerRole("ADMIN");
+  const id = String(donnees.get("id") ?? "");
+
+  const apprenant = await prisma.learner.findUnique({ where: { id } });
+  if (!apprenant) return { erreur: "Apprenant introuvable." };
+
+  const r = await anonymiserApprenant(id);
+  if (r.erreur) return r;
+
+  await journaliser({
+    action: "learner.anonymized",
+    summary: `Fiche apprenant anonymisée (droit à l'effacement RGPD), référence ${id.slice(0, 8)}`,
+    entityType: "Learner",
+    entityId: id,
+    userId: admin.id,
+  });
+
+  redirect("/apprenants");
 }

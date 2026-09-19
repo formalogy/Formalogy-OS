@@ -399,6 +399,12 @@ model Learner {
   /// de recréer un doublon à chaque facture.
   henrriCustomerId Int? @unique
 
+  /// Droit à l'effacement (RGPD) exercé : identité et coordonnées remplacées,
+  /// fiche masquée. Les enregistrements liés (sessions, évaluations, factures)
+  /// sont conservés sans donnée personnelle, pour la durée légale de
+  /// conservation (comptabilité, traçabilité Qualiopi).
+  anonymiseAt DateTime?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

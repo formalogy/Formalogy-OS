@@ -38,7 +38,11 @@ export const MENU: GroupeMenu[] = [
     entrees: [
       { libelle: "Tableau de bord", chemin: "/tableau-de-bord" },
       { libelle: "Activité", chemin: "/activite" },
-      { libelle: "Statistiques", phase: 16 },
+      // Chiffre d'affaires, taux de remplissage, assiduité, satisfaction,
+      // résultats des évaluations. Reportée le 19/09/2026 (la Phase 16
+      // initialement prévue pour ce module a servi à la facturation
+      // automatique Henrri, demandée entre-temps) ; à replanifier avec le client.
+      { libelle: "Statistiques", phase: 18 },
     ],
   },
   {
@@ -93,13 +97,13 @@ export const MENU: GroupeMenu[] = [
     entrees: [
       { libelle: "Organisme", chemin: "/parametres/organisme" },
       { libelle: "Mon compte", chemin: "/mon-compte" },
-      { libelle: "Utilisateurs", phase: 17, roles: ADMIN_SEUL },
-      { libelle: "Rôles et permissions", phase: 17, roles: ADMIN_SEUL },
+      { libelle: "Utilisateurs", chemin: "/parametres/utilisateurs", roles: ADMIN_SEUL },
+      { libelle: "Rôles et permissions", chemin: "/parametres/roles", roles: ADMIN_SEUL },
       { libelle: "Modèles d'emails", chemin: "/parametres/modeles-emails" },
       { libelle: "Automatisations", chemin: "/parametres/automatisations" },
-      { libelle: "Intégrations", phase: 17, roles: ADMIN_SEUL },
-      { libelle: "API", phase: 17, roles: ADMIN_SEUL },
-      { libelle: "Paramètres généraux", phase: 17, roles: ADMIN_SEUL },
+      { libelle: "Intégrations", chemin: "/parametres/integrations", roles: ADMIN_SEUL },
+      { libelle: "API", chemin: "/parametres/api", roles: ADMIN_SEUL },
+      { libelle: "Paramètres généraux", chemin: "/parametres/general", roles: ADMIN_SEUL },
     ],
   },
 ];
