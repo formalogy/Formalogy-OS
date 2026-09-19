@@ -30,7 +30,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 | Stockage documents | Supabase Storage, derrière une abstraction |
 | Emails | Compte Gmail dédié, en SMTP avec mot de passe d'application (nodemailer) |
 | Signature électronique | BoldSign, région Europe, formule **sans API** (envoi depuis le site BoldSign, retour par email) |
-| Facturation externe | Henrri : numéro et PDF saisis à la main tant que la clé API n'est pas fournie (API Henrri existante, bac à sable gratuit) |
+| Facturation externe | Henrri : émission automatique via API (clientId/clientSecret) dès qu'une session se termine ; saisie à la main tant que ces identifiants ne sont pas fournis |
 | Automatisations | Moteur interne (`lib/automatisations`) + réveil quotidien `POST /api/automatisations/executer` |
 | Hébergement | À trancher (Phase 18) |
 
@@ -121,8 +121,65 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Une facture émise ne se modifie plus ; son annulation (admin) suppose un
   avoir dans Henrri. Montants calculés en centimes entiers ; les paiements ne
   peuvent pas dépasser le reste dû (transaction sérialisable).
-- Connexion API Henrri à brancher dès que le client aura créé sa clé Sandbox
-  (avatar → API & Intégrations) : documentation accessible une fois connecté.
+- Connexion API Henrri branchée et testée en réel le 19/09/2026 (Phase 16) :
+  `lib/henrri/client.ts` (jeton clientId/clientSecret, cache mémoire 10 min) et
+  `lib/henrri/facturation.ts` (logique métier). Authentification par
+  `clientId`/`clientSecret` (`POST /v1/users/authenticate`), jamais par une
+  simple clé — `HENRRI_API_KEY` n'est pas utilisée par le code. **Sur la page
+  Henrri « API & Intégrations », le Client ID est le « Clé publique de l'API »
+  affiché en GUID sous la clé de test ; le Client Secret ne s'affiche qu'une
+  fois, à la génération (icône 🔄 pour le regénérer s'il est perdu) — à ne pas
+  confondre avec le login/mot de passe du site Sandbox, affichés juste
+  au-dessus et sans rapport avec l'API.**
+- **La documentation Scalar/OpenAPI de Henrri (consultée le 18/09/2026) est
+  par endroits inexacte** par rapport au comportement réel du bac à sable,
+  vérifié en conditions réelles le 19/09/2026 :
+  - `documentKind` et les autres valeurs d'énumération sont renvoyées en
+    minuscules (`"invoice"`) et non en PascalCase (`"Invoice"`) comme annoncé
+    → comparaisons insensibles à la casse dans le code.
+  - `GET /v1/documentlinetypes` ne renvoie **pas** le champ `type` documenté
+    (Item/Text/…) : seul le libellé français (« Article ») distingue une ligne
+    facturable des titres, totaux, textes, etc.
+  - Une ligne facturable (`POST /v1/documents/{id}/lines`) **exige** un article
+    (`item` en ligne, avec son `itemCategoryId` — catégorie « Services (Forfait) »
+    utilisée ici) : la documentation suggérait qu'une simple `description`
+    suffisait pour ce type de ligne, ce qui est refusé (HTTP 400).
+  - `POST /v1/documents/{id}/finalize` fonctionne de façon fiable et rapide.
+  - **`POST /v1/documents/{id}/pdf/url` (et `GET /v1/documents/{id}/pdf`) se
+    sont révélés systématiquement en échec sur le bac à sable au moment du
+    test** (délai d'environ 30 s puis « The document HTML could not be
+    retrieved. The document may not have been rendered yet. »), y compris sur
+    des factures finalisées depuis plusieurs minutes — probablement un incident
+    ponctuel côté Henrri. Sans conséquence sur la facture elle-même (déjà
+    enregistrée, avec son numéro officiel) : seul le PDF manque, à retester
+    plus tard ou à récupérer à la main depuis le site Henrri en attendant.
+
+## Facturation automatique en fin de session (Phase 16)
+
+- Nouvelle action d'automatisation `FACTURE_HENRRI`, déclenchée par
+  `SESSION_TERMINEE` (même mécanisme que les autres automatisations : réservée
+  par un `AutomationRun` à clé unique, ne s'exécute jamais deux fois pour la
+  même session). **Livrée désactivée**, comme toutes les automatisations.
+- **Une facture par session**, adressée à l'entreprise cliente si la session
+  en a une, sinon à l'unique apprenant inscrit. Une session sans entreprise et
+  avec zéro ou plusieurs apprenants n'a pas de payeur évident : échec clair
+  plutôt que de deviner (visible dans Paramètres → Automatisations et dans le
+  journal d'activité).
+- Le client Henrri (entreprise ou apprenant) est créé une seule fois : son
+  identifiant est mis en cache sur `companies.henrriCustomerId` /
+  `learners.henrriCustomerId` et réutilisé ensuite.
+- Contenu de la facture : thème (titre = intitulé de la formation), sous-titre
+  récapitulant session, dates, modalité (présentiel/distanciel/e-learning/
+  hybride), lieu et formateur, ligne unique au prix de la session (TVA 0 %,
+  article 261-4-4° du CGI, seul taux utilisé par Formalogy), mention
+  d'exonération en pied de page.
+- Le document est **finalisé** (numéro définitif, verrouillé côté Henrri) dès
+  la création : irréversible. Le PDF est ensuite récupéré et rangé comme
+  document (catégorie FINANCE, type FACTURE, rattaché à la session et à
+  l'entreprise/l'apprenant) — un échec de cette seule étape n'invalide pas la
+  facture, déjà enregistrée avec son numéro.
+- Une facture déjà existante pour la session (manuelle ou automatique, hors
+  annulée) bloque une nouvelle émission automatique.
 
 ## Prises en charge (OPCO, France Travail)
 

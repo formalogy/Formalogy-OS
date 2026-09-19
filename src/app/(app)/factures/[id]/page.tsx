@@ -91,6 +91,9 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
           <h2 className="mb-3 text-[14.5px] font-bold">Détail</h2>
           <dl>
             <Ligne libelle="Payeur" valeur={`${f.payeurNom} (${LIBELLE_PAYEUR[f.payeurType]})`} />
+            {f.origine === "AUTO" && (
+              <Ligne libelle="Origine" valeur={<span className="text-texte-doux">Émise automatiquement via Henrri</span>} />
+            )}
             <Ligne libelle="Montant HT" valeur={<span className="font-mono">{formaterMontant(f.montantHT)}</span>} />
             <Ligne libelle="TVA" valeur={`${Number(f.tauxTva).toLocaleString("fr-FR")} %`} />
             <Ligne libelle="Montant TTC" valeur={<span className="font-mono font-semibold">{formaterMontant(f.montantTTC)}</span>} />

@@ -241,6 +241,10 @@ model Company {
   siteWeb       String?
   notes         String?
 
+  /// Identifiant du client correspondant chez Henrri, une fois créé : évite
+  /// de recréer un doublon à chaque facture.
+  henrriCustomerId Int? @unique
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -390,6 +394,10 @@ model Learner {
   financement TypeFinancement @default(ENTREPRISE)
 
   notes String?
+
+  /// Identifiant du client correspondant chez Henrri, une fois créé : évite
+  /// de recréer un doublon à chaque facture.
+  henrriCustomerId Int? @unique
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1224,6 +1232,14 @@ enum StatutFacture {
   ANNULEE
 }
 
+/// Comment la facture a été émise dans Henrri.
+enum OrigineFacture {
+  /// Numéro et PDF reportés à la main (Phase 13)
+  MANUEL
+  /// Créée, finalisée et récupérée automatiquement via l'API Henrri (Phase 16)
+  AUTO
+}
+
 model Facture {
   id String @id @default(uuid(7))
 
@@ -1252,6 +1268,7 @@ model Facture {
   montantTTC Decimal @db.Decimal(10, 2)
 
   statut        StatutFacture @default(A_EMETTRE)
+  origine       OrigineFacture @default(MANUEL)
   dateEmission  DateTime?
   dateEcheance  DateTime?
   annuleeAt     DateTime?

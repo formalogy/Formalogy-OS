@@ -72,5 +72,8 @@ export function decrireAction(action: unknown): string {
     const quand = a.delaiJours ? `à échéance de ${a.delaiJours} jour${a.delaiJours > 1 ? "s" : ""}` : "pour le jour même";
     return `Créer la tâche « ${a.titre} » ${quand}`;
   }
+  if (a.type === "FACTURE_HENRRI") {
+    return "Émettre automatiquement la facture dans Henrri (entreprise cliente, ou apprenant unique à défaut) et en récupérer le PDF";
+  }
   return "Action inconnue";
 }

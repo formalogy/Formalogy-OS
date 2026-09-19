@@ -7,6 +7,7 @@ import { z } from "zod";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
+import { genererFactureHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
@@ -31,6 +32,11 @@ const schemaAction = z.discriminatedUnion("type", [
     titre: z.string().min(1),
     delaiJours: z.number().int().min(0).max(365),
     priorite: z.enum(["BASSE", "NORMALE", "HAUTE"]),
+  }),
+  z.object({
+    /// Émet automatiquement la facture Henrri de la session (Phase 16).
+    /// Sans paramètre : le payeur et le montant se déduisent de la session.
+    type: z.literal("FACTURE_HENRRI"),
   }),
 ]);
 export type ActionAutomatisation = z.infer<typeof schemaAction>;
@@ -90,7 +96,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     throw erreur;
   }
 
-  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, taches: 0 };
+  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, taches: 0, factures: 0 };
   try {
     const { actions, conditions } = lireRegle(automation);
     const accepte = (financement: TypeFinancement) =>
@@ -177,16 +183,27 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         });
         comptes.taches++;
       }
+
+      if (action.type === "FACTURE_HENRRI") {
+        if (!cas.sessionId) throw new Error("Facturation Henrri : aucune session associée à ce cas.");
+        // Une erreur ici (Henrri injoignable, payeur ambigu, prix manquant…)
+        // remonte telle quelle : message clair dans l'historique de
+        // l'automatisation, et dans le journal d'activité (catch global
+        // ci-dessous). La facture reste alors « à préparer » à la main.
+        await genererFactureHenrriPourSession(cas.sessionId, undefined);
+        comptes.factures++;
+      }
     }
 
     const parties = [
       comptes.emails && `${comptes.emails} email(s) envoyé(s)`,
       comptes.simules && `${comptes.simules} email(s) simulé(s)`,
       comptes.taches && `${comptes.taches} tâche(s) créée(s)`,
+      comptes.factures && `${comptes.factures} facture(s) émise(s) via Henrri`,
       comptes.sansAdresse && `${comptes.sansAdresse} apprenant(s) sans adresse email`,
       comptes.ignores && `${comptes.ignores} apprenant(s) hors conditions`,
     ].filter(Boolean);
-    const rienFait = comptes.emails + comptes.simules + comptes.taches === 0;
+    const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures === 0;
 
     await prisma.automationRun.update({
       where: { id: executionId },
