@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type { Automation, DeclencheurAutomatisation, TypeFinancement } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -88,6 +90,20 @@ type Cas = {
   dossierId?: string;
 };
 
+/// Empreinte de la liste des inscrits d'une session. Elle entre dans la clé
+/// d'unicité des automatisations de session : tant que la liste ne bouge pas,
+/// le cas reste traité une fois pour toutes ; dès qu'un apprenant s'inscrit ou
+/// se retire, le cas est réexaminé. Sans cela, un apprenant inscrit après le
+/// premier envoi ne recevait jamais rien — ni questionnaire, ni convention.
+async function empreinteInscrits(sessionId: string): Promise<string> {
+  const inscriptions = await prisma.sessionLearner.findMany({
+    where: { sessionId, learner: { deletedAt: null } },
+    select: { learnerId: true },
+  });
+  const ids = inscriptions.map((i) => i.learnerId).sort().join(",");
+  return createHash("sha256").update(ids).digest("hex").slice(0, 10);
+}
+
 /// Traite un cas une seule fois. La réservation se fait par l'insertion de la
 /// trace d'exécution, dont la clé est unique en base : si deux exécutions
 /// concurrentes visent le même cas, la seconde échoue à l'insertion et s'arrête.
@@ -110,7 +126,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     throw erreur;
   }
 
-  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, taches: 0, factures: 0, documents: 0, conventions: 0 };
+  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, dejaServis: 0, taches: 0, factures: 0, documents: 0, conventions: 0 };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
   const conventionsEchouees = new Set<string>();
@@ -133,7 +149,33 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
                 where: { deletedAt: null, inscriptions: { some: { sessionId: cas.sessionId } } },
               });
 
+        // Un cas de session peut être rouvert par une inscription tardive.
+        // Ceux qui ont déjà reçu ce modèle pour cette session sont alors
+        // laissés de côté : c'est ici que se joue l'absence de doublon, et
+        // non plus dans la clé du cas. Un envoi en échec ne compte pas : il
+        // doit pouvoir être retenté.
+        const dejaServis = cas.sessionId
+          ? new Set(
+              (
+                await prisma.email.findMany({
+                  where: {
+                    templateId: modele.id,
+                    sessionId: cas.sessionId,
+                    statut: { not: "ECHEC" },
+                    automationRunId: { not: null },
+                    learnerId: { not: null },
+                  },
+                  select: { learnerId: true },
+                })
+              ).map((e) => e.learnerId as string),
+            )
+          : new Set<string>();
+
         for (const apprenant of destinataires) {
+          if (dejaServis.has(apprenant.id)) {
+            comptes.dejaServis++;
+            continue;
+          }
           if (!accepte(apprenant.financement)) {
             comptes.ignores++;
             continue;
@@ -271,6 +313,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.documents && `${comptes.documents} document(s) généré(s)`,
       comptes.conventions && `${comptes.conventions} convention(s) jointe(s)`,
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
+      comptes.dejaServis && `${comptes.dejaServis} apprenant(s) déjà destinataires`,
       comptes.sansAdresse && `${comptes.sansAdresse} apprenant(s) sans adresse email`,
       comptes.ignores && `${comptes.ignores} apprenant(s) hors conditions`,
     ].filter(Boolean);
@@ -373,9 +416,11 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     for (const session of sessions) {
       compter(
         await traiterCas(automation, {
-          // La date fait partie de la clé : une session reportée déclenche un
-          // nouveau rappel pour ses nouvelles dates.
-          cle: `${automation.id}:session:${session.id}:${session.dateDebut.toISOString().slice(0, 10)}`,
+          // La date et la liste des inscrits font partie de la clé : une
+          // session reportée déclenche un nouveau rappel pour ses nouvelles
+          // dates, et une inscription tardive rouvre le cas pour le nouvel
+          // arrivant (les autres sont protégés du doublon, voir plus bas).
+          cle: `${automation.id}:session:${session.id}:${session.dateDebut.toISOString().slice(0, 10)}:${await empreinteInscrits(session.id)}`,
           entityType: "TrainingSession",
           entityId: session.id,
           sessionId: session.id,
@@ -398,7 +443,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     for (const session of sessions) {
       compter(
         await traiterCas(automation, {
-          cle: `${automation.id}:session:${session.id}:${session.dateFin.toISOString().slice(0, 10)}`,
+          cle: `${automation.id}:session:${session.id}:${session.dateFin.toISOString().slice(0, 10)}:${await empreinteInscrits(session.id)}`,
           entityType: "TrainingSession",
           entityId: session.id,
           sessionId: session.id,
@@ -422,7 +467,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     for (const session of sessions) {
       compter(
         await traiterCas(automation, {
-          cle: `${automation.id}:session:${session.id}`,
+          cle: `${automation.id}:session:${session.id}:${await empreinteInscrits(session.id)}`,
           entityType: "TrainingSession",
           entityId: session.id,
           sessionId: session.id,
