@@ -2,7 +2,7 @@ import "server-only";
 
 import { PDFDocument, rgb, StandardFonts, type PDFPage } from "pdf-lib";
 
-import { joursDeSession } from "@/lib/emargement";
+import { demiJourneesJusqua, horairesDemiJournees, LIBELLE_CRENEAU } from "@/lib/emargement";
 import type { sessionPourEmargement } from "@/lib/emargement-acces";
 import { tronquer } from "@/lib/pdf-outils";
 
@@ -22,17 +22,23 @@ const TRAIT = rgb(0.75, 0.77, 0.8);
 const COLONNES = [
   { titre: "Apprenant", largeur: 230 },
   { titre: "Entreprise", largeur: 190 },
-  { titre: "Matin — signature", largeur: 175 },
-  { titre: "Après-midi — signature", largeur: 174.89 },
+  { titre: "Signature", largeur: 349.89 },
 ];
 
 const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-/// Feuilles d'émargement pré-remplies : une page par jour de session (plus
-/// des pages de suite si les apprenants ne tiennent pas sur une page), avec
-/// une case de signature par apprenant et par demi-journée, et les cases du
-/// formateur en bas de chaque jour.
-export async function genererFeuillesEmargement(session: Session, organisme: string): Promise<Uint8Array> {
+/// Feuilles d'émargement pré-remplies : une page par demi-journée (plus des
+/// pages de suite si les apprenants ne tiennent pas sur une page), avec
+/// l'horaire réel du créneau, une case de signature par apprenant et celle du
+/// formateur en bas.
+///
+/// Seules les demi-journées déjà commencées sont produites : une feuille ne
+/// se fait signer que le jour même, jamais à l'avance.
+export async function genererFeuillesEmargement(
+  session: Session,
+  organisme: string,
+  aujourdhui: Date,
+): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Émargement ${session.numero}`);
   pdf.setCreator("Formalogy OS");
@@ -44,9 +50,10 @@ export async function genererFeuillesEmargement(session: Session, organisme: str
 
   const apprenants = session.inscriptions.map((i) => i.learner);
   const formateur = session.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : "non renseigné";
-  const jours = joursDeSession(session.dateDebut, session.dateFin);
+  const horaires = horairesDemiJournees(session.horaires);
+  const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui);
 
-  for (const jour of jours) {
+  for (const { jour, creneau } of demiJournees) {
     // Au moins une page par jour, même sans inscrit (feuille vierge à compléter).
     const paquets: (typeof apprenants)[] = [];
     for (let i = 0; i < Math.max(apprenants.length, 1); i += LIGNES_PAR_PAGE) {
@@ -60,13 +67,20 @@ export async function genererFeuillesEmargement(session: Session, organisme: str
       ecrire(page, organisme, MARGE, y, 10, gras, GRIS);
       ecrire(page, `Session ${session.numero}`, LARGEUR - MARGE - 150, y, 10, normal, GRIS, 150);
       y -= 24;
-      ecrire(page, `Feuille d'émargement — ${dateLongue.format(jour)}${rangPage > 0 ? " (suite)" : ""}`, MARGE, y, 16, gras);
+      ecrire(
+        page,
+        `Émargement — ${LIBELLE_CRENEAU[creneau].toLowerCase()} du ${dateLongue.format(jour)}${rangPage > 0 ? " (suite)" : ""}`,
+        MARGE,
+        y,
+        16,
+        gras,
+      );
       y -= 20;
       ecrire(page, session.formation.titre, MARGE, y, 11.5, gras);
       y -= 16;
       const infos = [
         `Formateur : ${formateur}`,
-        session.horaires ? `Horaires : ${session.horaires}` : null,
+        horaires[creneau] ? `Horaire : ${horaires[creneau]}` : null,
         session.lieu ? `Lieu : ${session.lieu}` : null,
         session.company ? `Client : ${session.company.raisonSociale}` : null,
       ].filter(Boolean).join("   ·   ");
@@ -95,22 +109,18 @@ export async function genererFeuillesEmargement(session: Session, organisme: str
         });
       }
 
-      // Cases du formateur, en bas de la dernière page du jour
+      // Case du formateur, en bas de la dernière page de la demi-journée
       if (rangPage === paquets.length - 1) {
         y -= 30;
         ecrire(page, `Signature du formateur (${formateur})`, MARGE, y, 9.5, gras);
         y -= 8;
-        const debutCases = MARGE + COLONNES[0].largeur + COLONNES[1].largeur;
-        ["Matin", "Après-midi"].forEach((libelle, i) => {
-          const xc = debutCases + i * COLONNES[2].largeur;
-          page.drawRectangle({ x: xc, y: y - 44, width: COLONNES[2 + i].largeur, height: 44, borderColor: TRAIT, borderWidth: 0.6 });
-          ecrire(page, libelle, xc + 6, y - 12, 8.5, normal, GRIS);
-        });
+        const xc = MARGE + COLONNES[0].largeur + COLONNES[1].largeur;
+        page.drawRectangle({ x: xc, y: y - 44, width: COLONNES[2].largeur, height: 44, borderColor: TRAIT, borderWidth: 0.6 });
       }
 
       ecrire(
         page,
-        "Chaque apprenant signe au début de chaque demi-journée. En cas d'absence, laisser la case vide et l'indiquer au formateur.",
+        "Chaque apprenant signe au début de la demi-journée. En cas d'absence, laisser la case vide et l'indiquer au formateur.",
         MARGE,
         MARGE - 12,
         8,

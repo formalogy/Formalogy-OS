@@ -58,3 +58,24 @@ export function presencesCompletes(params: {
   const attendues = passes.length * CRENEAUX.length * params.idsApprenants.length;
   return { attendues, saisies, complet: attendues > 0 && saisies === attendues };
 }
+
+/// Horaires réels de chaque demi-journée, lus dans le champ libre de la
+/// session (« 9h00–12h30 / 13h30–17h00 »). Le séparateur attendu est une
+/// barre oblique ; à défaut, le texte entier sert aux deux demi-journées.
+/// Sans horaires saisis, la feuille n'en affiche simplement aucun.
+export function horairesDemiJournees(horaires: string | null): Record<Creneau, string | null> {
+  const texte = horaires?.trim();
+  if (!texte) return { MATIN: null, APRES_MIDI: null };
+  const parties = texte.split("/").map((p) => p.trim()).filter(Boolean);
+  if (parties.length >= 2) return { MATIN: parties[0], APRES_MIDI: parties[1] };
+  return { MATIN: texte, APRES_MIDI: texte };
+}
+
+/// Demi-journées d'une session déjà commencées à la date donnée. La feuille
+/// d'émargement se fait signer le jour même : aucune raison d'en produire une
+/// pour une demi-journée à venir, et un risque de la faire signer à l'avance.
+export function demiJourneesJusqua(debut: Date, fin: Date, aujourdhui: Date): { jour: Date; creneau: Creneau }[] {
+  return joursDeSession(debut, fin)
+    .filter((jour) => jour <= aujourdhui)
+    .flatMap((jour) => CRENEAUX.map((creneau) => ({ jour, creneau })));
+}

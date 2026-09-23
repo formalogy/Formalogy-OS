@@ -1,5 +1,6 @@
 import { sessionPourEmargement } from "@/lib/emargement-acces";
 import { genererFeuillesEmargement } from "@/lib/emargement-pdf";
+import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 import { lireOrganisme } from "@/lib/organisme";
 import { lireUtilisateur } from "@/lib/session";
 
@@ -13,7 +14,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/sessions/[i
   const session = await sessionPourEmargement(utilisateur, id);
   if (!session) return new Response("Session introuvable.", { status: 404 });
 
-  const pdf = await genererFeuillesEmargement(session, (await lireOrganisme()).raisonSociale);
+  const pdf = await genererFeuillesEmargement(session, (await lireOrganisme()).raisonSociale, aujourdhuiUTC());
   const nom = `Emargement-${session.numero}.pdf`;
 
   return new Response(Buffer.from(pdf), {
