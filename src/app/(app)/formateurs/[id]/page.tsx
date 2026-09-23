@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
+import { ReponsesQuestionnaires, SELECTION_REPONSES } from "@/app/(app)/_composants/reponses-questionnaires";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { basculerActifFormateur } from "@/app/(app)/formateurs/actions";
 import { AccesFormateur } from "@/app/(app)/formateurs/[id]/acces";
@@ -43,6 +44,7 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
         include: { formation: { select: { titre: true } }, company: { select: { raisonSociale: true } } },
       },
       documents: SELECTION_DOCUMENT_RESUME,
+      questionnaires: SELECTION_REPONSES,
     },
   });
   if (!f) notFound();
@@ -147,6 +149,7 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
               { libelle: "Ajouter le programme", type: "PROGRAMME" },
             ]}
           />
+          <ReponsesQuestionnaires questionnaires={f.questionnaires} />
         </div>
       </div>
     </>

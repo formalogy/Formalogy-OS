@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
+import { ReponsesQuestionnaires, SELECTION_REPONSES } from "@/app/(app)/_composants/reponses-questionnaires";
 import { supprimerDossier } from "@/app/(app)/financements/actions";
 import { formaterMontant } from "@/lib/factures";
 import { LIBELLE_FINANCEUR } from "@/lib/financements";
@@ -32,6 +33,7 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
       learner: { select: { id: true, prenom: true, nom: true } },
       company: { select: { id: true, raisonSociale: true } },
       facture: { select: { id: true, numero: true, statut: true } },
+      questionnaires: SELECTION_REPONSES,
     },
   });
   if (!d) notFound();
@@ -98,6 +100,8 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
           </div>
         )}
       </div>
+
+      <ReponsesQuestionnaires questionnaires={d.questionnaires} />
     </>
   );
 }
