@@ -67,7 +67,9 @@ export default async function PageAutomatisations() {
                   {DECLENCHEURS_PLANIFIES.includes(a.declencheur) && (
                     <span className="ml-2 rounded-full bg-surface-creuse px-2 py-0.5 text-[11px] text-texte-tenu">vérifié chaque jour</span>
                   )}
-                  {a.declencheur === "SESSION_AVANT_DEBUT" && (
+                  {(a.declencheur === "SESSION_AVANT_DEBUT" ||
+                    a.declencheur === "SESSION_AVANT_FIN" ||
+                    a.declencheur === "SESSION_APRES_FIN") && (
                     <form action={modifierDelai} className="mt-2 flex items-center gap-2">
                       <input type="hidden" name="id" value={a.id} />
                       <input
@@ -77,10 +79,12 @@ export default async function PageAutomatisations() {
                         max={60}
                         defaultValue={jours ?? 2}
                         disabled={!admin}
-                        aria-label="Nombre de jours avant la session"
+                        aria-label="Nombre de jours"
                         className="w-16 rounded-lg border border-bordure bg-surface px-2 py-1 text-[13px] disabled:bg-surface-creuse"
                       />
-                      <span className="text-texte-doux">jours avant</span>
+                      <span className="text-texte-doux">
+                        {a.declencheur === "SESSION_APRES_FIN" ? "jours après la fin" : a.declencheur === "SESSION_AVANT_FIN" ? "jours avant la fin" : "jours avant"}
+                      </span>
                       {admin && (
                         <button type="submit" className="rounded-lg border border-bordure px-2 py-1 text-[12px] font-semibold">
                           Enregistrer

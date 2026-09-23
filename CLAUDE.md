@@ -242,10 +242,15 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Le champ `User.lastLoginAt`, présent depuis le début mais jamais renseigné,
   est maintenant mis à jour à chaque connexion réussie (hook `after` dans
   `lib/auth.ts`).
-- La Statistiques (chiffre d'affaires, remplissage, assiduité, satisfaction,
-  résultats) restait prévue pour cette phase mais n'a pas été construite : le
-  numéro qui lui était réservé a servi entre-temps à la facturation
-  automatique Henrri (Phase 16), à la demande du client. À reprogrammer.
+- **Statistiques** (`/statistiques`, admin et gestionnaire) : chiffre
+  d'affaires facturé et encaissé, remplissage, assiduité, satisfaction et
+  résultats des évaluations, pour une année choisie. Page de lecture seule,
+  calculée à la demande (`lib/statistiques.ts`) : aucun chiffre n'est stocké,
+  rien n'est à recalculer. Sessions en brouillon et annulées exclues ;
+  chiffre d'affaires = factures portant un numéro Henrri, les factures
+  « à émettre » n'en font pas partie. Construite le 23/09/2026, après la
+  Phase 17 : le numéro qui lui était réservé avait servi entre-temps à la
+  facturation automatique Henrri (Phase 16), à la demande du client.
 
 ## Méthode de travail
 

@@ -107,12 +107,20 @@ async function clientHenrriApprenant(learner: Learner): Promise<number> {
 // qui pourrait devenir périmé sans qu'on s'en aperçoive).
 // ---------------------------------------------------------------------------
 
+/// Compare un champ d'énumération Henrri à la valeur attendue, sans casse.
+/// Ces champs ne sont pas fiables : selon la ligne, Henrri renvoie soit son
+/// nom (« item »), soit l'entier brut de l'énumération (1, 2, 7…). Tout ce
+/// qui n'est pas une chaîne ne correspond donc simplement à rien.
+function memeValeur(champ: unknown, attendu: string): boolean {
+  return typeof champ === "string" && champ.toLowerCase() === attendu;
+}
+
 async function idTypeDocumentFacture(): Promise<number> {
-  const { elements } = await henrriFetch<{ elements: { id: number; documentKind: string }[] }>("/v1/documenttypes");
+  const { elements } = await henrriFetch<{ elements: { id: number; documentKind?: unknown }[] }>("/v1/documenttypes");
   // La documentation Henrri annonce un « documentKind » en PascalCase
   // (« Invoice ») ; le compte réel le renvoie en minuscules (« invoice ») —
   // comparaison insensible à la casse par prudence.
-  const type = elements.find((t) => t.documentKind?.toLowerCase() === "invoice");
+  const type = elements.find((t) => memeValeur(t.documentKind, "invoice"));
   if (!type) throw new HenrriError("Aucun type de document « facture » trouvé chez Henrri.");
   return type.id;
 }
@@ -120,18 +128,21 @@ async function idTypeDocumentFacture(): Promise<number> {
 /// Un article transmis en ligne exige une catégorie (`itemCategoryId`) :
 /// « Services » convient à une formation, vendue au forfait et non stockée.
 async function idCategorieArticleService(): Promise<number> {
-  const { elements } = await henrriFetch<{ elements: { id: number; itemCategoryKind: string }[] }>("/v1/itemcategories");
-  const categorie = elements.find((c) => c.itemCategoryKind === "service") ?? elements[0];
-  if (!categorie) throw new HenrriError("Aucune catégorie d'article trouvée chez Henrri.");
+  const { elements } = await henrriFetch<{ elements: { id: number; itemCategoryKind?: unknown }[] }>("/v1/itemcategories");
+  // Pas de repli sur la première catégorie venue : la première est « Produits »,
+  // à 20 % de TVA. Mieux vaut une facturation qui échoue et se voit qu'une
+  // facture partie chez le client avec la mauvaise TVA.
+  const categorie = elements.find((c) => memeValeur(c.itemCategoryKind, "service"));
+  if (!categorie) throw new HenrriError("Aucune catégorie d'article « Services » trouvée chez Henrri.");
   return categorie.id;
 }
 
 async function idTypeLigneArticle(): Promise<number> {
-  const { elements } = await henrriFetch<{ elements: { id: number; label: string; type?: string }[] }>("/v1/documentlinetypes");
-  // Le champ « type » (Item/Text/…) documenté par Henrri n'est en réalité pas
-  // renvoyé par ce compte : seul le libellé français distingue les lignes
-  // facturables (« Article ») des titres, totaux, textes, etc.
-  const type = elements.find((t) => t.type?.toLowerCase() === "item" || t.label === "Article");
+  const { elements } = await henrriFetch<{ elements: { id: number; label: string; type?: unknown }[] }>("/v1/documentlinetypes");
+  // Le champ « type » est renvoyé tantôt en toutes lettres (« item »), tantôt
+  // comme l'entier brut de l'énumération (« Titre » vaut 1) : le libellé
+  // français reste le repère sûr pour distinguer une ligne facturable.
+  const type = elements.find((t) => memeValeur(t.type, "item") || t.label === "Article");
   if (!type) throw new HenrriError("Aucun type de ligne « Article » trouvé chez Henrri.");
   return type.id;
 }

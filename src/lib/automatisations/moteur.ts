@@ -4,11 +4,14 @@ import type { Automation, DeclencheurAutomatisation, TypeFinancement } from "@pr
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { genererConvention } from "@/lib/conventions";
 import { construireContexte } from "@/lib/emails/contexte";
-import { envoyerEmail } from "@/lib/emails/envoi";
+import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
+import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
 import { genererFactureHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
+import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
@@ -26,6 +29,10 @@ const schemaAction = z.discriminatedUnion("type", [
     modele: z.string().min(1),
     /// APPRENANT : l'apprenant concerné ; APPRENANTS_SESSION : tous les inscrits
     destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION"]),
+    /// Documents générés puis joints à l'email. CONVENTION fabrique la
+    /// convention de l'apprenant à partir du modèle déposé, la range dans les
+    /// documents de la session, et l'attache au message.
+    joindre: z.array(z.enum(["CONVENTION"])).optional(),
   }),
   z.object({
     type: z.literal("TACHE"),
@@ -38,6 +45,12 @@ const schemaAction = z.discriminatedUnion("type", [
     /// Sans paramètre : le payeur et le montant se déduisent de la session.
     type: z.literal("FACTURE_HENRRI"),
   }),
+  z.object({
+    /// Génère l'attestation et le certificat de réalisation des apprenants
+    /// prêts (mêmes règles que le bouton manuel « Fin de formation ») : les
+    /// apprenants dont les présences ou l'évaluation manquent sont ignorés.
+    type: z.literal("DOCUMENTS_FIN_FORMATION"),
+  }),
 ]);
 export type ActionAutomatisation = z.infer<typeof schemaAction>;
 
@@ -47,7 +60,8 @@ const schemaConditions = z.object({
 });
 
 const schemaParametres = z.object({
-  /// SESSION_AVANT_DEBUT : nombre de jours avant le début
+  /// SESSION_AVANT_DEBUT : jours avant le début ; SESSION_AVANT_FIN : jours
+  /// avant la fin ; SESSION_APRES_FIN : jours après la fin.
   jours: z.number().int().min(0).max(60).optional(),
 });
 
@@ -96,7 +110,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     throw erreur;
   }
 
-  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, taches: 0, factures: 0 };
+  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, taches: 0, factures: 0, documents: 0, conventions: 0 };
+  // Motifs distincts d'échec de génération d'une convention, signalés dans le
+  // bilan sans faire échouer l'envoi lui-même.
+  const conventionsEchouees = new Set<string>();
   try {
     const { actions, conditions } = lireRegle(automation);
     const accepte = (financement: TypeFinancement) =>
@@ -125,35 +142,76 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             comptes.sansAdresse++;
             continue;
           }
-          // Modèle avec lien personnel vers le questionnaire : un lien par
-          // apprenant, et rien à envoyer à qui a déjà répondu.
+          // Modèle avec lien personnel vers un questionnaire : un lien par
+          // apprenant, et rien à envoyer à qui a déjà répondu. La recherche
+          // porte sur la variable complète (avec ses accolades) : un modèle
+          // « lienPositionnement » ne doit pas déclencher le lien « lien ».
+          const texteModele = `${modele.sujet}${modele.corps}`;
           let lienQuestionnaire: string | undefined;
-          if (cas.sessionId && `${modele.sujet}${modele.corps}`.includes("questionnaire.lien")) {
+          let lienPositionnement: string | undefined;
+          let lienFroid: string | undefined;
+          let questionnaireIgnore = false;
+
+          if (cas.sessionId && texteModele.includes("{{questionnaire.lien}}")) {
             const lien = await preparerLienQuestionnaire(cas.sessionId, apprenant.id);
-            if (!lien) {
-              comptes.ignores++;
-              continue;
-            }
-            lienQuestionnaire = lien;
+            if (!lien) questionnaireIgnore = true;
+            else lienQuestionnaire = lien;
           }
+          if (!questionnaireIgnore && cas.sessionId && texteModele.includes("{{questionnaire.lienPositionnement}}")) {
+            const lien = await preparerLienQuestionnaireQualite({ type: "POSITIONNEMENT", sessionId: cas.sessionId, learnerId: apprenant.id });
+            if (!lien) questionnaireIgnore = true;
+            else lienPositionnement = lien;
+          }
+          if (!questionnaireIgnore && cas.sessionId && texteModele.includes("{{questionnaire.lienFroid}}")) {
+            const lien = await preparerLienQuestionnaireQualite({ type: "FROID", sessionId: cas.sessionId, learnerId: apprenant.id });
+            if (!lien) questionnaireIgnore = true;
+            else lienFroid = lien;
+          }
+          if (questionnaireIgnore) {
+            comptes.ignores++;
+            continue;
+          }
+
+          // Pièces jointes demandées par l'action. Une convention qui ne peut
+          // pas être fabriquée (modèle absent) n'empêche pas l'email de
+          // partir : le message reste utile, le document se dépose à la main.
+          const piecesJointes: PieceJointe[] = [];
+          if (action.joindre?.includes("CONVENTION") && cas.sessionId) {
+            const convention = await genererConvention({ sessionId: cas.sessionId, learnerId: apprenant.id });
+            if ("erreur" in convention) conventionsEchouees.add(convention.erreur);
+            else {
+              piecesJointes.push({ nom: convention.fichier.nom, contenu: convention.fichier.octets, typeMime: convention.fichier.typeMime });
+              comptes.conventions++;
+            }
+          }
+
           const contexte = await construireContexte({
             learnerId: apprenant.id,
             sessionId: cas.sessionId,
             companyId: apprenant.companyId ?? cas.companyId,
             lienQuestionnaire,
+            lienPositionnement,
+            lienFroid,
           });
           const email = await envoyerEmail({
             destinataire: apprenant.email,
             sujet: rendre(modele.sujet, contexte).resultat,
             corps: rendre(modele.corps, contexte).resultat,
-            corpsJournal: lienQuestionnaire
-              ? rendre(modele.corps, { ...contexte, "questionnaire.lien": "[lien personnel masqué]" }).resultat
-              : undefined,
+            corpsJournal:
+              lienQuestionnaire || lienPositionnement || lienFroid
+                ? rendre(modele.corps, {
+                    ...contexte,
+                    "questionnaire.lien": lienQuestionnaire && "[lien personnel masqué]",
+                    "questionnaire.lienPositionnement": lienPositionnement && "[lien personnel masqué]",
+                    "questionnaire.lienFroid": lienFroid && "[lien personnel masqué]",
+                  }).resultat
+                : undefined,
             templateId: modele.id,
             learnerId: apprenant.id,
             sessionId: cas.sessionId,
             companyId: apprenant.companyId ?? undefined,
             automationRunId: executionId,
+            piecesJointes: piecesJointes.length > 0 ? piecesJointes : undefined,
           });
           if (email.statut === "SIMULE") comptes.simules++;
           else if (email.statut === "ECHEC") throw new Error(`Email à ${apprenant.email} : ${email.erreur}`);
@@ -193,6 +251,16 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         await genererFactureHenrriPourSession(cas.sessionId, undefined);
         comptes.factures++;
       }
+
+      if (action.type === "DOCUMENTS_FIN_FORMATION") {
+        if (!cas.sessionId) throw new Error("Documents de fin de formation : aucune session associée à ce cas.");
+        // Les apprenants dont les présences ou l'évaluation manquent sont
+        // simplement ignorés (bilan retourné par la fonction) : ce n'est pas
+        // une erreur, ils recevront leurs documents à une exécution future.
+        const r = await genererDocumentsFinDeFormation(cas.sessionId, undefined);
+        if ("erreur" in r) throw new Error(r.erreur);
+        comptes.documents += r.resultats.crees + r.resultats.misAJour;
+      }
     }
 
     const parties = [
@@ -200,10 +268,13 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.simules && `${comptes.simules} email(s) simulé(s)`,
       comptes.taches && `${comptes.taches} tâche(s) créée(s)`,
       comptes.factures && `${comptes.factures} facture(s) émise(s) via Henrri`,
+      comptes.documents && `${comptes.documents} document(s) généré(s)`,
+      comptes.conventions && `${comptes.conventions} convention(s) jointe(s)`,
+      conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
       comptes.sansAdresse && `${comptes.sansAdresse} apprenant(s) sans adresse email`,
       comptes.ignores && `${comptes.ignores} apprenant(s) hors conditions`,
     ].filter(Boolean);
-    const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures === 0;
+    const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures + comptes.documents === 0;
 
     await prisma.automationRun.update({
       where: { id: executionId },
@@ -314,23 +385,48 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     }
   }
 
-  for (const automation of await automationsActives("DOSSIER_SANS_REPONSE")) {
-    const jours = lireRegle(automation).parametres.jours ?? 15;
-    const dossiers = await prisma.dossierFinancement.findMany({
-      where: { statut: "DEPOSE", dateDepot: { lte: ajouterJours(aujourdhui, -jours) } },
+  for (const automation of await automationsActives("SESSION_AVANT_FIN")) {
+    const jours = lireRegle(automation).parametres.jours ?? 0;
+    // 0 jour = le dernier jour de la session lui-même.
+    const sessions = await prisma.trainingSession.findMany({
+      where: {
+        deletedAt: null,
+        statut: { notIn: ["ANNULEE", "BROUILLON"] },
+        dateFin: { gte: aujourdhui, lte: ajouterJours(aujourdhui, jours) },
+      },
     });
-    for (const dossier of dossiers) {
+    for (const session of sessions) {
       compter(
         await traiterCas(automation, {
-          // Une seule relance par dossier et par date de dépôt : redéposer le
-          // dossier en produit une nouvelle.
-          cle: `${automation.id}:dossier:${dossier.id}:${dossier.dateDepot!.toISOString().slice(0, 10)}`,
-          entityType: "DossierFinancement",
-          entityId: dossier.id,
-          dossierId: dossier.id,
-          learnerId: dossier.learnerId ?? undefined,
-          sessionId: dossier.sessionId ?? undefined,
-          companyId: dossier.companyId ?? undefined,
+          cle: `${automation.id}:session:${session.id}:${session.dateFin.toISOString().slice(0, 10)}`,
+          entityType: "TrainingSession",
+          entityId: session.id,
+          sessionId: session.id,
+          companyId: session.companyId ?? undefined,
+        }),
+      );
+    }
+  }
+
+  for (const automation of await automationsActives("SESSION_APRES_FIN")) {
+    const jours = lireRegle(automation).parametres.jours ?? 1;
+    // Sans borne supérieure : une automatisation activée en retard rattrape
+    // les sessions déjà passées, une seule fois chacune (clé sans « aujourd'hui »).
+    const sessions = await prisma.trainingSession.findMany({
+      where: {
+        deletedAt: null,
+        statut: { notIn: ["ANNULEE", "BROUILLON"] },
+        dateFin: { lte: ajouterJours(aujourdhui, -jours) },
+      },
+    });
+    for (const session of sessions) {
+      compter(
+        await traiterCas(automation, {
+          cle: `${automation.id}:session:${session.id}`,
+          entityType: "TrainingSession",
+          entityId: session.id,
+          sessionId: session.id,
+          companyId: session.companyId ?? undefined,
         }),
       );
     }

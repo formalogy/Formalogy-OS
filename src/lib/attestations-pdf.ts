@@ -3,6 +3,7 @@ import "server-only";
 import type { ResultatAcquis } from "@prisma/client";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
+import { texteFormationVersBrut } from "@/lib/formations-assainir";
 import type { lireOrganisme } from "@/lib/organisme";
 import { lignesDe, texteSur } from "@/lib/pdf-outils";
 
@@ -21,6 +22,9 @@ export type DonneesAttestation = {
   /// Date d'établissement : la fin de session, pour qu'un même document
   /// régénéré plus tard reste identique.
   etabliLe: Date;
+  /// Signature de l'organisme, apposée dans le cadre prévu. Absente tant
+  /// qu'aucune image n'a été déposée dans Paramètres → Organisme.
+  signature?: { octets: Uint8Array; typeMime: string } | null;
 };
 
 export const LIBELLE_RESULTAT: Record<ResultatAcquis, string> = {
@@ -106,13 +110,40 @@ function enTeteOrganisme(r: Redaction, o: Organisme) {
   r.espace(26);
 }
 
-function signature(r: Redaction, o: Organisme, etabliLe: Date) {
+async function signature(
+  pdf: PDFDocument,
+  r: Redaction,
+  o: Organisme,
+  etabliLe: Date,
+  image?: { octets: Uint8Array; typeMime: string } | null,
+) {
   r.espace(14);
   r.texte(`Fait à ${o.ville ?? "…"}, le ${date.format(etabliLe)}`);
   r.espace(10);
   r.texte(`${o.representantNom ?? ""}${o.representantFonction ? `, ${o.representantFonction}` : ""}`, { police: r.gras });
   r.texte("Cachet et signature du responsable de l'organisme de formation", { taille: 9, couleur: GRIS });
-  r.page.drawRectangle({ x: MARGE, y: r.y - 78, width: 230, height: 72, borderColor: TRAIT, borderWidth: 0.6 });
+
+  const cadre = { x: MARGE, y: r.y - 78, largeur: 230, hauteur: 72 };
+  r.page.drawRectangle({ x: cadre.x, y: cadre.y, width: cadre.largeur, height: cadre.hauteur, borderColor: TRAIT, borderWidth: 0.6 });
+  if (!image) return;
+
+  // La signature est posée dans le cadre, à l'échelle, sans jamais le
+  // déborder. Une image illisible ne fait pas échouer le document.
+  try {
+    const dessin = image.typeMime === "image/png" ? await pdf.embedPng(image.octets) : await pdf.embedJpg(image.octets);
+    const marge = 6;
+    const facteur = Math.min((cadre.largeur - 2 * marge) / dessin.width, (cadre.hauteur - 2 * marge) / dessin.height);
+    const largeur = dessin.width * facteur;
+    const hauteur = dessin.height * facteur;
+    r.page.drawImage(dessin, {
+      x: cadre.x + (cadre.largeur - largeur) / 2,
+      y: cadre.y + (cadre.hauteur - hauteur) / 2,
+      width: largeur,
+      height: hauteur,
+    });
+  } catch {
+    console.error("Signature de l'organisme illisible : document produit sans elle.");
+  }
 }
 
 /// Attestation de fin de formation (article L6353-1 du Code du travail) :
@@ -140,7 +171,7 @@ export async function genererAttestation(d: DonneesAttestation): Promise<Uint8Ar
 
   if (d.formation.objectifs) {
     r.texte("Objectifs de la formation :", { police: r.gras });
-    for (const objectif of d.formation.objectifs.split(/\r?\n/).map((o) => o.trim()).filter(Boolean)) {
+    for (const objectif of texteFormationVersBrut(d.formation.objectifs).split(/\r?\n/).map((o) => o.trim()).filter(Boolean)) {
       r.texte(`-  ${objectif.replace(/^[-•*]\s*/, "")}`, { taille: 10, retrait: 10, interligne: 1.4 });
     }
     r.espace(10);
@@ -153,7 +184,7 @@ export async function genererAttestation(d: DonneesAttestation): Promise<Uint8Ar
     r.espace(8);
   }
 
-  signature(r, d.organisme, d.etabliLe);
+  await signature(pdf, r, d.organisme, d.etabliLe, d.signature);
   r.page.drawText(texteSur(r.normal, `Session ${d.session.numero}`), { x: MARGE, y: 30, size: 8, font: r.normal, color: GRIS });
   return pdf.save();
 }
@@ -186,7 +217,7 @@ export async function genererCertificatRealisation(d: DonneesAttestation): Promi
     { taille: 9.5, couleur: GRIS },
   );
 
-  signature(r, d.organisme, d.etabliLe);
+  await signature(pdf, r, d.organisme, d.etabliLe, d.signature);
   r.page.drawText(texteSur(r.normal, `Session ${d.session.numero}`), { x: MARGE, y: 30, size: 8, font: r.normal, color: GRIS });
   return pdf.save();
 }

@@ -1,4 +1,5 @@
 import { FormulaireOrganisme } from "@/app/(app)/parametres/organisme/formulaire";
+import { SignatureOrganisme } from "@/app/(app)/parametres/organisme/signature";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
 import { exigerRole } from "@/lib/session";
 import { jourVersSaisie } from "@/lib/sessions-libelles";
@@ -32,6 +33,13 @@ export default async function PageOrganisme() {
       )}
 
       <FormulaireOrganisme initiales={initiales} lectureSeule={utilisateur.role !== "ADMIN"} />
+
+      {/* Le dépôt d'une signature engage la société : réservé aux administrateurs. */}
+      {utilisateur.role === "ADMIN" && (
+        <div className="mt-4">
+          <SignatureOrganisme presente={o.signatureCheminStockage !== null} />
+        </div>
+      )}
     </>
   );
 }

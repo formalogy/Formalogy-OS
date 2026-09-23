@@ -6,8 +6,10 @@ import { z } from "zod";
 import { executerPlanifiees, lireRegle } from "@/lib/automatisations/moteur";
 import { variablesInconnues } from "@/lib/emails/modeles";
 import { journaliser } from "@/lib/journal";
+import { cheminSignature, verifierSignature } from "@/lib/organisme-signature";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
+import { stockage } from "@/lib/stockage";
 import { jourDepuisSaisie } from "@/lib/sessions-libelles";
 
 export type EtatFormulaire = { erreur?: string; succes?: string; valeurs?: Record<string, string> };
@@ -113,8 +115,9 @@ export async function modifierDelai(donnees: FormData): Promise<void> {
     .safeParse(Object.fromEntries(donnees));
   if (!r.success) return;
 
+  const DECLENCHEURS_A_DELAI = ["SESSION_AVANT_DEBUT", "SESSION_AVANT_FIN", "SESSION_APRES_FIN"];
   const automation = await prisma.automation.findUnique({ where: { id: r.data.id } });
-  if (!automation || automation.declencheur !== "SESSION_AVANT_DEBUT") return;
+  if (!automation || !DECLENCHEURS_A_DELAI.includes(automation.declencheur)) return;
 
   await prisma.automation.update({
     where: { id: r.data.id },
@@ -208,4 +211,57 @@ export async function modifierOrganisme(_precedent: EtatFormulaire, donnees: For
 
   revalidatePath("/parametres/organisme");
   return { succes: "Informations enregistrées." };
+}
+
+/// Dépose (ou remplace) la signature de l'organisme.
+export async function deposerSignatureOrganisme(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN");
+
+  const signature = await verifierSignature(donnees.get("fichier"));
+  if (typeof signature === "string") return { erreur: signature };
+
+  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true } });
+  const chemin = cheminSignature(signature.extension);
+  try {
+    await stockage().deposer(chemin, signature.octets, signature.typeMime);
+  } catch (erreur) {
+    return { erreur: erreur instanceof Error ? erreur.message : "Dépôt impossible." };
+  }
+
+  await prisma.organisme.update({ where: { id: "organisme" }, data: { signatureCheminStockage: chemin } });
+
+  // L'ancienne image est retirée après coup : un échec ici n'annule pas le
+  // remplacement, déjà effectif en base.
+  if (organisme?.signatureCheminStockage) {
+    await stockage().supprimer([organisme.signatureCheminStockage]).catch(() => undefined);
+  }
+
+  await journaliser({
+    action: "organisation.signature_updated",
+    summary: "Signature de l'organisme mise à jour",
+    entityType: "Organisme",
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/parametres/organisme");
+  return { succes: "Signature enregistrée." };
+}
+
+/// Retire la signature, sans remplacement.
+export async function retirerSignatureOrganisme(): Promise<void> {
+  const utilisateur = await exigerRole("ADMIN");
+  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true } });
+  if (!organisme?.signatureCheminStockage) return;
+
+  await prisma.organisme.update({ where: { id: "organisme" }, data: { signatureCheminStockage: null } });
+  await stockage().supprimer([organisme.signatureCheminStockage]).catch(() => undefined);
+
+  await journaliser({
+    action: "organisation.signature_removed",
+    summary: "Signature de l'organisme retirée",
+    entityType: "Organisme",
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/parametres/organisme");
 }

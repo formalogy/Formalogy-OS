@@ -7,6 +7,7 @@ import { CRENEAUX, clePresence, joursDeSession } from "@/lib/emargement";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
+import { lireSignatureOrganisme } from "@/lib/organisme-signature";
 import { prisma } from "@/lib/prisma";
 import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 import { stockage } from "@/lib/stockage";
@@ -119,7 +120,7 @@ async function enregistrerDocumentGenere(p: {
   learnerId: string;
   sessionId: string;
   companyId: string | null;
-  userId: string;
+  userId?: string;
 }): Promise<"cree" | "nouvelle_version" | "inchange"> {
   const empreinte = createHash("sha256").update(p.octets).digest("hex");
   const type = await prisma.documentType.findUniqueOrThrow({ where: { code: p.typeCode } });
@@ -177,8 +178,14 @@ const nomFichier = (prefixe: string, numero: string, nom: string) =>
 
 /// Génère l'attestation de fin de formation et le certificat de réalisation
 /// des apprenants prêts. Les apprenants incomplets sont ignorés et signalés.
-export async function genererDocumentsFinDeFormation(sessionId: string, userId: string) {
-  const [session, organisme] = await Promise.all([chargerFinDeFormation(sessionId), lireOrganisme()]);
+/// `userId` absent lors d'un déclenchement automatique (aucun utilisateur
+/// derrière l'action).
+export async function genererDocumentsFinDeFormation(sessionId: string, userId?: string) {
+  const [session, organisme, signature] = await Promise.all([
+    chargerFinDeFormation(sessionId),
+    lireOrganisme(),
+    lireSignatureOrganisme(),
+  ]);
   if (!session) return { erreur: "Session introuvable." };
 
   const bilan = bilanFinDeFormation(session, manquesOrganisme(organisme));
@@ -208,6 +215,7 @@ export async function genererDocumentsFinDeFormation(sessionId: string, userId: 
       resultat: a.evaluation.resultat,
       commentaire: a.evaluation.commentaire,
       etabliLe: session.dateFin,
+      signature,
     };
 
     for (const [typeCode, generer, libelle, prefixe] of [

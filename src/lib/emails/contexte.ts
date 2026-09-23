@@ -10,15 +10,22 @@ import { formaterPeriode } from "@/lib/sessions-libelles";
 /// Rassemble les valeurs des variables à partir des fiches concernées.
 export async function construireContexte(ids: {
   learnerId?: string;
+  trainerId?: string;
   sessionId?: string;
   companyId?: string;
   prospectId?: string;
   dossierId?: string;
   lienQuestionnaire?: string;
+  lienPositionnement?: string;
+  lienFroid?: string;
+  lienChaudFormateur?: string;
+  lienFinanceur?: string;
+  lienSatisfactionFormateur?: string;
 }): Promise<Contexte> {
-  const [organisme, apprenant, session, entreprise, prospect, dossier] = await Promise.all([
+  const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier] = await Promise.all([
     lireOrganisme(),
     ids.learnerId ? prisma.learner.findUnique({ where: { id: ids.learnerId } }) : null,
+    ids.trainerId ? prisma.trainer.findUnique({ where: { id: ids.trainerId } }) : null,
     ids.sessionId
       ? prisma.trainingSession.findUnique({
           where: { id: ids.sessionId },
@@ -38,6 +45,8 @@ export async function construireContexte(ids: {
     "organisme.nom": organisme.raisonSociale,
     "apprenant.prenom": apprenant?.prenom,
     "apprenant.nom": apprenant?.nom,
+    "formateur.prenom": formateurDestinataire?.prenom,
+    "formateur.nom": formateurDestinataire?.nom,
     "session.numero": session?.numero,
     "session.formation": session?.formation.titre,
     "session.dates": session ? formaterPeriode(session.dateDebut, session.dateFin) : undefined,
@@ -50,5 +59,10 @@ export async function construireContexte(ids: {
     "dossier.financeur": dossier?.financeurNom,
     "dossier.reference": dossier?.reference,
     "questionnaire.lien": ids.lienQuestionnaire,
+    "questionnaire.lienPositionnement": ids.lienPositionnement,
+    "questionnaire.lienFroid": ids.lienFroid,
+    "questionnaire.lienChaudFormateur": ids.lienChaudFormateur,
+    "questionnaire.lienFinanceur": ids.lienFinanceur,
+    "questionnaire.lienSatisfactionFormateur": ids.lienSatisfactionFormateur,
   };
 }

@@ -1,8 +1,10 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import nodemailer, { type Transporter } from "nodemailer";
 
-import { texteVersHtml } from "@/lib/emails/modeles";
+import { pixelSuivi, texteVersHtml } from "@/lib/emails/modeles";
 import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
 
@@ -41,7 +43,12 @@ export type MessageAEnvoyer = {
   prospectId?: string;
   automationRunId?: string;
   createdById?: string;
+  /// Fichiers joints. Ils ne sont pas recopiés en base : l'historique garde
+  /// seulement leur nom, dans le corps journalisé.
+  piecesJointes?: PieceJointe[];
 };
+
+export type PieceJointe = { nom: string; contenu: Uint8Array; typeMime: string };
 
 const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -82,10 +89,12 @@ function motifLisible(erreur: unknown): string {
 /// Ne lève jamais d'exception : un échec est enregistré avec son motif, pour
 /// qu'une action métier ne soit pas annulée parce qu'un email n'est pas parti.
 export async function envoyerEmail(message: MessageAEnvoyer) {
+  const jointes = message.piecesJointes ?? [];
+  const mentionJointes = jointes.length > 0 ? `\n\n— Pièce(s) jointe(s) : ${jointes.map((j) => j.nom).join(", ")}` : "";
   const base = {
     destinataire: message.destinataire,
     sujet: message.sujet,
-    corps: message.corpsJournal ?? message.corps,
+    corps: (message.corpsJournal ?? message.corps) + mentionJointes,
     templateId: message.templateId,
     learnerId: message.learnerId,
     companyId: message.companyId,
@@ -119,13 +128,17 @@ export async function envoyerEmail(message: MessageAEnvoyer) {
       });
     }
 
+    // Identifiant généré avant l'envoi pour pouvoir l'intégrer au pixel de
+    // suivi d'ouverture : il devient l'id de la ligne créée ci-dessous.
+    const id = randomUUID();
     const expediteur = process.env.GMAIL_NOM_EXPEDITEUR || (await lireOrganisme()).raisonSociale;
     const info = await gmail().sendMail({
       from: { name: expediteur, address: process.env.GMAIL_ADRESSE ?? "" },
       to: message.destinataire,
       subject: message.sujet,
       text: message.corps,
-      html: texteVersHtml(message.corps),
+      html: texteVersHtml(message.corps) + pixelSuivi(id),
+      attachments: jointes.map((j) => ({ filename: j.nom, content: Buffer.from(j.contenu), contentType: j.typeMime })),
     });
 
     if ((info.rejected ?? []).length > 0) {
@@ -135,7 +148,7 @@ export async function envoyerEmail(message: MessageAEnvoyer) {
     }
 
     return prisma.email.create({
-      data: { ...base, statut: "ENVOYE", fournisseurId: info.messageId },
+      data: { id, ...base, statut: "ENVOYE", fournisseurId: info.messageId },
     });
   } catch (erreur) {
     console.error("Envoi d'email impossible :", erreur);

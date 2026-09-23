@@ -8,17 +8,19 @@ import type {
 export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   APPRENANT_CREE: "Quand un apprenant est créé",
   INSCRIPTION_SESSION: "Quand un apprenant est inscrit à une session",
-  SESSION_AVANT_DEBUT: "Quelques jours avant le début d'une session",
+  SESSION_AVANT_DEBUT: "Quelques jours avant le début d'une session (0 = le jour même)",
+  SESSION_AVANT_FIN: "Quelques jours avant la fin d'une session (0 = le dernier jour)",
+  SESSION_APRES_FIN: "Quelques jours après la fin d'une session",
   SESSION_TERMINEE: "Quand une session passe à « Terminée » ou « Clôturée »",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
-  DOSSIER_SANS_REPONSE: "Quand un dossier de financement déposé reste sans réponse",
 };
 
 /// Déclencheurs traités par le réveil quotidien plutôt qu'au moment d'une action.
 export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "SESSION_AVANT_DEBUT",
+  "SESSION_AVANT_FIN",
+  "SESSION_APRES_FIN",
   "RELANCE_PROSPECT_DUE",
-  "DOSSIER_SANS_REPONSE",
 ];
 
 export const LIBELLE_STATUT_EMAIL: Record<StatutEmail, string> = {
@@ -63,10 +65,15 @@ export const TON_PRIORITE: Record<PrioriteTache, string> = {
 
 /// Décrit une action en français, pour l'écran des automatisations.
 export function decrireAction(action: unknown): string {
-  const a = action as { type?: string; modele?: string; destinataires?: string; titre?: string; delaiJours?: number };
+  const a = action as {
+    type?: string; modele?: string; destinataires?: string; titre?: string; delaiJours?: number; joindre?: string[];
+  };
   if (a.type === "EMAIL") {
     const qui = a.destinataires === "APPRENANTS_SESSION" ? "à tous les inscrits de la session" : "à l'apprenant";
-    return `Envoyer le modèle « ${a.modele} » ${qui}`;
+    const jointes = a.joindre?.includes("CONVENTION")
+      ? ", avec sa convention de formation générée depuis le modèle déposé"
+      : "";
+    return `Envoyer le modèle « ${a.modele} » ${qui}${jointes}`;
   }
   if (a.type === "TACHE") {
     const quand = a.delaiJours ? `à échéance de ${a.delaiJours} jour${a.delaiJours > 1 ? "s" : ""}` : "pour le jour même";
@@ -74,6 +81,9 @@ export function decrireAction(action: unknown): string {
   }
   if (a.type === "FACTURE_HENRRI") {
     return "Émettre automatiquement la facture dans Henrri (entreprise cliente, ou apprenant unique à défaut) et en récupérer le PDF";
+  }
+  if (a.type === "DOCUMENTS_FIN_FORMATION") {
+    return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";
   }
   return "Action inconnue";
 }
