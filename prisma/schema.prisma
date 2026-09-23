@@ -898,6 +898,12 @@ model Automation {
   actions     Json
   actif       Boolean                   @default(false)
 
+  /// Date de la dernière activation. Elle borne les déclencheurs « après la
+  /// fin », seuls à n'avoir aucune limite dans le passé : sans elle, activer
+  /// une automatisation après avoir importé un historique déclencherait une
+  /// rafale d'envois sur des sessions terminées depuis des mois.
+  activeeAt DateTime?
+
   executions AutomationRun[]
 
   createdAt DateTime @default(now())

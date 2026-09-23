@@ -96,7 +96,12 @@ export async function basculerAutomatisation(_precedent: EtatFormulaire, donnees
     }
   }
 
-  const misAJour = await prisma.automation.update({ where: { id }, data: { actif: !automation.actif } });
+  // Chaque allumage réhorodate l'automatisation : elle ne vaut que pour la
+  // suite, jamais pour des sessions dont l'échéance est déjà passée.
+  const misAJour = await prisma.automation.update({
+    where: { id },
+    data: { actif: !automation.actif, ...(automation.actif ? {} : { activeeAt: new Date() }) },
+  });
   await journaliser({
     action: misAJour.actif ? "automation.enabled" : "automation.disabled",
     summary: `Automatisation « ${misAJour.nom} » ${misAJour.actif ? "activée" : "désactivée"}`,

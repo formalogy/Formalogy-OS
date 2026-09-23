@@ -455,13 +455,19 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
 
   for (const automation of await automationsActives("SESSION_APRES_FIN")) {
     const jours = lireRegle(automation).parametres.jours ?? 1;
-    // Sans borne supérieure : une automatisation activée en retard rattrape
-    // les sessions déjà passées, une seule fois chacune (clé sans « aujourd'hui »).
+    // Pas de borne dans le passé, mais une borne à l'activation : le moment
+    // du déclenchement (fin de session + N jours) doit tomber après
+    // l'allumage de l'automatisation. Une session dont l'échéance est déjà
+    // passée quand on active n'est donc jamais rattrapée — c'est ce qui
+    // évite une rafale d'envois le jour où un historique est importé. Une
+    // session terminée récemment, dont l'échéance est encore à venir, reste
+    // servie au bon moment.
+    const finMinimale = automation.activeeAt ? ajouterJours(automation.activeeAt, -jours) : null;
     const sessions = await prisma.trainingSession.findMany({
       where: {
         deletedAt: null,
         statut: { notIn: ["ANNULEE", "BROUILLON"] },
-        dateFin: { lte: ajouterJours(aujourdhui, -jours) },
+        dateFin: { lte: ajouterJours(aujourdhui, -jours), ...(finMinimale ? { gte: finMinimale } : {}) },
       },
     });
     for (const session of sessions) {

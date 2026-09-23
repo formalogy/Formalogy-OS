@@ -93,6 +93,22 @@ export default async function PageAutomatisations() {
                     </form>
                   )}
                 </dd>
+                {a.declencheur === "SESSION_APRES_FIN" && (
+                  <>
+                    <dt className="font-semibold text-texte-tenu">Portée</dt>
+                    <dd>
+                      {a.activeeAt ? (
+                        <>
+                          Sessions dont l&apos;échéance tombe après le{" "}
+                          <span className="font-semibold">{horodatage.format(a.activeeAt)}</span>, date de la dernière
+                          activation. Les sessions dont l&apos;échéance était déjà passée ne sont jamais rattrapées.
+                        </>
+                      ) : (
+                        "Toutes les sessions terminées, y compris les anciennes."
+                      )}
+                    </dd>
+                  </>
+                )}
                 <dt className="font-semibold text-texte-tenu">Actions</dt>
                 <dd>
                   <ol className="list-decimal pl-4">
