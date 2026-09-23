@@ -70,9 +70,13 @@ export function decrireAction(action: unknown): string {
   };
   if (a.type === "EMAIL") {
     const qui = a.destinataires === "APPRENANTS_SESSION" ? "à tous les inscrits de la session" : "à l'apprenant";
-    const jointes = a.joindre?.includes("CONVENTION")
-      ? ", avec sa convention de formation générée depuis le modèle déposé"
-      : "";
+    const noms: Record<string, string> = {
+      CONVENTION: "sa convention de formation, générée depuis le modèle déposé",
+      ATTESTATION: "son attestation de fin de formation",
+      CERTIFICAT: "son certificat de réalisation",
+    };
+    const pieces = (a.joindre ?? []).map((j) => noms[j] ?? j);
+    const jointes = pieces.length > 0 ? `, avec ${pieces.join(" et ")}` : "";
     return `Envoyer le modèle « ${a.modele} » ${qui}${jointes}`;
   }
   if (a.type === "TACHE") {

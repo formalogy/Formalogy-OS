@@ -17,6 +17,7 @@ import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
+import { stockage } from "@/lib/stockage";
 
 // ---------------------------------------------------------------------------
 // Forme des règles
@@ -31,10 +32,12 @@ const schemaAction = z.discriminatedUnion("type", [
     modele: z.string().min(1),
     /// APPRENANT : l'apprenant concerné ; APPRENANTS_SESSION : tous les inscrits
     destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION"]),
-    /// Documents générés puis joints à l'email. CONVENTION fabrique la
-    /// convention de l'apprenant à partir du modèle déposé, la range dans les
-    /// documents de la session, et l'attache au message.
-    joindre: z.array(z.enum(["CONVENTION"])).optional(),
+    /// Documents joints à l'email. CONVENTION fabrique la convention de
+    /// l'apprenant à partir du modèle déposé, la range dans les documents de
+    /// la session et l'attache. ATTESTATION et CERTIFICAT reprennent les
+    /// documents déjà produits pour cet apprenant : si l'un manque — présences
+    /// ou évaluation incomplètes — il est simplement omis.
+    joindre: z.array(z.enum(["CONVENTION", "ATTESTATION", "CERTIFICAT"])).optional(),
   }),
   z.object({
     type: z.literal("TACHE"),
@@ -90,6 +93,29 @@ type Cas = {
   dossierId?: string;
 };
 
+/// Reprend un document déjà produit pour un apprenant, afin de le joindre à
+/// un email. Un document absent n'est jamais une erreur : il signifie que cet
+/// apprenant n'était pas prêt (présences ou évaluation incomplètes).
+async function pieceJointeDocument(
+  typeCode: string,
+  sessionId: string,
+  learnerId: string,
+): Promise<PieceJointe | null> {
+  const document = await prisma.document.findFirst({
+    where: { deletedAt: null, type: { code: typeCode }, sessionId, learnerId },
+    include: { versions: { orderBy: { numero: "desc" }, take: 1 } },
+  });
+  const version = document?.versions[0];
+  if (!version) return null;
+  try {
+    const blob = await stockage().lire(version.cheminStockage);
+    return { nom: version.nomFichier, contenu: new Uint8Array(await blob.arrayBuffer()), typeMime: version.typeMime };
+  } catch {
+    console.error(`Document ${typeCode} introuvable dans le stockage : email envoyé sans lui.`);
+    return null;
+  }
+}
+
 /// Empreinte de la liste des inscrits d'une session. Elle entre dans la clé
 /// d'unicité des automatisations de session : tant que la liste ne bouge pas,
 /// le cas reste traité une fois pour toutes ; dès qu'un apprenant s'inscrit ou
@@ -126,7 +152,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     throw erreur;
   }
 
-  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, dejaServis: 0, taches: 0, factures: 0, documents: 0, conventions: 0 };
+  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, dejaServis: 0, taches: 0, factures: 0, documents: 0, conventions: 0, documentsAbsents: 0 };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
   const conventionsEchouees = new Set<string>();
@@ -218,6 +244,12 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
           // pas être fabriquée (modèle absent) n'empêche pas l'email de
           // partir : le message reste utile, le document se dépose à la main.
           const piecesJointes: PieceJointe[] = [];
+          for (const typeCode of ["ATTESTATION", "CERTIFICAT"] as const) {
+            if (!action.joindre?.includes(typeCode) || !cas.sessionId) continue;
+            const piece = await pieceJointeDocument(typeCode, cas.sessionId, apprenant.id);
+            if (piece) piecesJointes.push(piece);
+            else comptes.documentsAbsents++;
+          }
           if (action.joindre?.includes("CONVENTION") && cas.sessionId) {
             const convention = await genererConvention({ sessionId: cas.sessionId, learnerId: apprenant.id });
             if ("erreur" in convention) conventionsEchouees.add(convention.erreur);
@@ -312,6 +344,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.factures && `${comptes.factures} facture(s) émise(s) via Henrri`,
       comptes.documents && `${comptes.documents} document(s) généré(s)`,
       comptes.conventions && `${comptes.conventions} convention(s) jointe(s)`,
+      comptes.documentsAbsents && `${comptes.documentsAbsents} document(s) attendu(s) mais absent(s)`,
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
       comptes.dejaServis && `${comptes.dejaServis} apprenant(s) déjà destinataires`,
       comptes.sansAdresse && `${comptes.sansAdresse} apprenant(s) sans adresse email`,
