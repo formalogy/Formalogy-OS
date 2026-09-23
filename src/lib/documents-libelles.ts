@@ -40,11 +40,15 @@ export const TAILLE_MAX_OCTETS = 15 * 1024 * 1024;
 /// Formats acceptés. Tout le reste est refusé : un organisme de formation n'a
 /// pas besoin de déposer d'exécutables ou d'archives, et les refuser ferme une
 /// porte à des fichiers malveillants.
+export const TYPE_MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export const FORMATS_ACCEPTES: Record<string, { extensions: string[]; apercu: boolean }> = {
   "application/pdf": { extensions: ["pdf"], apercu: true },
   "image/png": { extensions: ["png"], apercu: true },
   "image/jpeg": { extensions: ["jpg", "jpeg"], apercu: true },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { extensions: ["docx"], apercu: false },
+  // apercu: false — un .docx ne s'affiche pas tel quel ; l'écran du document
+  // en propose une vue convertie en PDF à la volée.
+  [TYPE_MIME_DOCX]: { extensions: ["docx"], apercu: false },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { extensions: ["xlsx"], apercu: false },
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": { extensions: ["pptx"], apercu: false },
   "application/vnd.oasis.opendocument.text": { extensions: ["odt"], apercu: false },

@@ -6,6 +6,11 @@ import { unzipSync, zipSync } from "fflate";
 /// Les guillemets français font partie du marqueur.
 const MARQUEUR = /«([A-Z_0-9]+)»/g;
 
+/// Marqueurs de mise en page, interprétés au moment du rendu PDF et non
+/// remplacés par une donnée : «TRAIT» dessine un filet horizontal. Ils ne
+/// comptent donc jamais comme un marqueur laissé vide.
+const MARQUEURS_MISE_EN_PAGE = new Set(["TRAIT"]);
+
 /// Parties d'un .docx où du texte visible peut se trouver : le corps, mais
 /// aussi les en-têtes et pieds de page, où l'on met souvent la référence du
 /// programme ou le nom de l'organisme.
@@ -51,6 +56,7 @@ export function remplirModeleDocx(modele: Uint8Array, valeurs: Record<string, st
     if (!PARTIES_TEXTE.test(nom)) continue;
     const xml = recollerFragments(decodeur.decode(fichiers[nom]));
     const rempli = xml.replace(MARQUEUR, (marqueur, cle: string) => {
+      if (MARQUEURS_MISE_EN_PAGE.has(cle)) return marqueur;
       const valeur = valeurs[cle];
       if (valeur === undefined || valeur === "") {
         nonRemplis.add(cle);

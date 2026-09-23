@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
-import { FORMATS_ACCEPTES } from "@/lib/documents-libelles";
+import { docxVersPdf } from "@/lib/docx-vers-pdf";
+import { FORMATS_ACCEPTES, TYPE_MIME_DOCX } from "@/lib/documents-libelles";
 import { documentsVisiblesPourFormateur, formateurDuCompte } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { lireUtilisateur } from "@/lib/session";
@@ -42,9 +43,31 @@ export async function GET(request: Request, ctx: RouteContext<"/api/documents/ve
     return new Response("Le fichier est momentanément indisponible.", { status: 503 });
   }
 
+  // Un document Word ne s'affiche pas dans un navigateur. Plutôt que de
+  // l'envoyer chez un service de conversion, on le rend en PDF avec le moteur
+  // qui sert déjà aux conventions : le fichier d'origine n'est pas modifié,
+  // c'est une vue jetable, recalculée à chaque demande.
+  const parametres = new URL(request.url).searchParams;
+  if (parametres.has("apercu") && version.typeMime === TYPE_MIME_DOCX) {
+    try {
+      const pdf = await docxVersPdf(new Uint8Array(await fichier.arrayBuffer()), version.nomFichier);
+      return new Response(Buffer.from(pdf), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "inline",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+        },
+      });
+    } catch (erreur) {
+      console.error("Aperçu du document Word impossible :", erreur);
+      return new Response("Aperçu impossible pour ce document.", { status: 422 });
+    }
+  }
+
   // Aperçu dans le navigateur uniquement pour les formats sûrs (PDF, images) ;
   // tout le reste est proposé au téléchargement.
-  const telechargement = new URL(request.url).searchParams.has("telecharger");
+  const telechargement = parametres.has("telecharger");
   const apercuPossible = FORMATS_ACCEPTES[version.typeMime]?.apercu ?? false;
   const disposition = telechargement || !apercuPossible ? "attachment" : "inline";
 

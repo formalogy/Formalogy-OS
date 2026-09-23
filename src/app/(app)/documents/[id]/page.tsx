@@ -6,6 +6,7 @@ import { FormulaireVersion } from "@/app/(app)/documents/[id]/formulaire-version
 import { ActionsSignature, BoutonCopier, PreparationSignature } from "@/app/(app)/documents/[id]/signature";
 import {
   FORMATS_ACCEPTES,
+  TYPE_MIME_DOCX,
   formaterTaille,
   LIBELLE_CATEGORIE_DOCUMENT,
   TON_STATUT_DOCUMENT,
@@ -61,6 +62,9 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
 
   const courante = document.versions[0];
   const apercu = courante && FORMATS_ACCEPTES[courante.typeMime]?.apercu;
+  // Un .docx se lit dans l'application, converti en PDF à la volée. Le
+  // téléchargement, lui, reste le fichier Word d'origine, modifiable.
+  const apercuWord = courante?.typeMime === TYPE_MIME_DOCX;
   const lienFichier = (versionId: string) => `/api/documents/versions/${versionId}`;
 
   const rattachements = [
@@ -107,8 +111,13 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
             </h2>
             {courante && (
               <div className="flex gap-2">
-                {apercu && (
-                  <a href={lienFichier(courante.id)} target="_blank" rel="noopener" className="rounded-lg border border-bordure px-3 py-1.5 text-[12.5px] font-semibold">
+                {(apercu || apercuWord) && (
+                  <a
+                    href={`${lienFichier(courante.id)}${apercuWord ? "?apercu" : ""}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="rounded-lg border border-bordure px-3 py-1.5 text-[12.5px] font-semibold"
+                  >
                     Ouvrir
                   </a>
                 )}
@@ -123,6 +132,17 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
             <p className="px-4 py-8 text-[13px] text-texte-doux">Ce document n&apos;a aucun fichier.</p>
           ) : apercu && courante.typeMime === "application/pdf" ? (
             <iframe src={lienFichier(courante.id)} title={`Aperçu de ${document.nom}`} className="h-[70vh] w-full bg-surface-creuse" />
+          ) : apercuWord ? (
+            <>
+              <iframe
+                src={`${lienFichier(courante.id)}?apercu`}
+                title={`Aperçu de ${document.nom}`}
+                className="h-[70vh] w-full bg-surface-creuse"
+              />
+              <p className="border-t border-bordure-douce px-4 py-2 text-[11.5px] text-texte-tenu">
+                Aperçu du document Word, mis en page par Formalogy OS. Téléchargez le fichier pour le modifier dans Word.
+              </p>
+            </>
           ) : apercu ? (
             // eslint-disable-next-line @next/next/no-img-element -- fichier privé servi par notre route, hors optimiseur d'images
             <img src={lienFichier(courante.id)} alt={`Aperçu de ${document.nom}`} className="mx-auto max-h-[70vh] w-auto p-4" />
