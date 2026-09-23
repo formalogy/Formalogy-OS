@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { declencher } from "@/lib/automatisations/moteur";
+import { genererConvention } from "@/lib/conventions";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -16,6 +17,8 @@ import {
   LIBELLE_STATUT_SESSION,
   STATUTS_SESSION,
 } from "@/lib/sessions-libelles";
+
+export type EtatConventions = { erreur?: string; succes?: string; manquants?: string[] };
 
 export type EtatFormulaire = {
   erreur?: string;
@@ -442,4 +445,57 @@ export async function desinscrireApprenant(donnees: FormData): Promise<void> {
 
   revalidatePath(`/sessions/${r.data.sessionId}`);
   revalidatePath(`/apprenants/${r.data.learnerId}`);
+}
+
+/// Génère (ou régénère) la convention de chaque apprenant inscrit, à partir
+/// du modèle déposé dans la bibliothèque. Même moteur que l'automatisation de
+/// J-15 : ce bouton sert quand la session est créée trop tard pour elle, ou
+/// quand une donnée a changé depuis.
+export async function genererConventionsSession(
+  _precedent: EtatConventions,
+  donnees: FormData,
+): Promise<EtatConventions> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const sessionId = String(donnees.get("sessionId") ?? "");
+
+  const inscriptions = await prisma.sessionLearner.findMany({
+    where: { sessionId, learner: { deletedAt: null } },
+    include: { learner: { select: { id: true, prenom: true, nom: true } } },
+  });
+  if (inscriptions.length === 0) return { erreur: "Aucun apprenant inscrit à cette session." };
+
+  const comptes = { crees: 0, misAJour: 0, inchanges: 0 };
+  const manquants = new Set<string>();
+  let erreur: string | undefined;
+
+  for (const { learner } of inscriptions) {
+    const r = await genererConvention({ sessionId, learnerId: learner.id, userId: utilisateur.id });
+    if ("erreur" in r) {
+      // Un modèle absent concerne toute la session : inutile d'insister.
+      erreur = r.erreur;
+      break;
+    }
+    if (r.etat === "cree") comptes.crees++;
+    else if (r.etat === "nouvelle_version") comptes.misAJour++;
+    else comptes.inchanges++;
+    for (const m of r.nonRemplis) manquants.add(m);
+  }
+
+  if (erreur) return { erreur };
+
+  await journaliser({
+    action: "session.conventions_generated",
+    summary: `Conventions générées pour la session : ${comptes.crees} créée(s), ${comptes.misAJour} mise(s) à jour`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+    userId: utilisateur.id,
+  });
+
+  revalidatePath(`/sessions/${sessionId}`);
+  const parties = [
+    comptes.crees && `${comptes.crees} créée(s)`,
+    comptes.misAJour && `${comptes.misAJour} mise(s) à jour`,
+    comptes.inchanges && `${comptes.inchanges} inchangée(s)`,
+  ].filter(Boolean);
+  return { succes: `Conventions : ${parties.join(", ")}.`, manquants: [...manquants].sort() };
 }

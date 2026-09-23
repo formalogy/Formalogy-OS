@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
+import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
@@ -300,6 +301,18 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           </section>
 
           <ListeDocuments documents={session.documents} lienAjout={`session=${session.id}`} />
+
+          {session.inscriptions.length > 0 && (
+            <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+              <h2 className="text-[14.5px] font-bold">Conventions de formation</h2>
+              <p className="mb-3 mt-1 text-[12.5px] text-texte-doux">
+                Une convention par apprenant, remplie depuis le modèle déposé dans la bibliothèque. L&apos;envoi
+                automatique d&apos;avant-formation les produit déjà : ce bouton sert si la session a été créée trop tard
+                pour lui, ou si une information a changé depuis.
+              </p>
+              <GenerationConventions sessionId={session.id} />
+            </section>
+          )}
         </div>
 
         <section className="self-start rounded-xl border border-bordure bg-surface p-5 shadow-sm">
