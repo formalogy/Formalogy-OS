@@ -6,7 +6,7 @@ import { lireUtilisateur } from "@/lib/session";
 
 /// Feuilles d'émargement pré-remplies d'une session, générées à la demande.
 /// Équipe : toutes les sessions ; formateur : les siennes uniquement.
-export async function GET(_request: Request, ctx: RouteContext<"/api/sessions/[id]/feuille-emargement">) {
+export async function GET(request: Request, ctx: RouteContext<"/api/sessions/[id]/feuille-emargement">) {
   const utilisateur = await lireUtilisateur();
   if (!utilisateur) return new Response("Connexion requise.", { status: 401 });
 
@@ -16,11 +16,14 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/sessions/[i
 
   const pdf = await genererFeuillesEmargement(session, (await lireOrganisme()).raisonSociale, aujourdhuiUTC());
   const nom = `Emargement-${session.numero}.pdf`;
+  // Par défaut la feuille s'affiche : on la regarde avant de l'imprimer.
+  // « ?telecharger » force l'enregistrement du fichier.
+  const telechargement = new URL(request.url).searchParams.has("telecharger");
 
   return new Response(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${nom}"`,
+      "Content-Disposition": `${telechargement ? "attachment" : "inline"}; filename="${nom}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },

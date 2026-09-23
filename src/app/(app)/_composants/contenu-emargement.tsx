@@ -40,6 +40,8 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
         </div>
         <a
           href={`/api/sessions/${session.id}/feuille-emargement`}
+          target="_blank"
+          rel="noopener"
           className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
         >
           Feuilles d&apos;émargement (PDF)
@@ -48,8 +50,8 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
 
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
         <p className="rounded-xl border border-bordure bg-surface px-4 py-3 text-[12.5px] text-texte-doux shadow-sm">
-          <strong className="text-texte">1. Faire signer.</strong> Imprimez les feuilles pré-remplies (une par jour) pour une
-          signature sur place, ou faites-les signer via BoldSign.
+          <strong className="text-texte">1. Faire signer.</strong> Imprimez les feuilles pré-remplies (une par demi-journée,
+          produites le jour même) pour une signature sur place, ou faites-les signer via BoldSign.
           {lienDepot && (
             <>
               {" "}
