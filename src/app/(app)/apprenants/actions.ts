@@ -105,7 +105,7 @@ export async function creerApprenant(
   after(() => declencher({ type: "APPRENANT_CREE", learnerId: apprenant.id }));
 
   revalidatePath("/apprenants");
-  redirect(`/apprenants/${apprenant.id}/inscrire-session`);
+  redirect(`/apprenants/${apprenant.id}/inscrire-session?nouveau`);
 }
 
 export async function modifierApprenant(

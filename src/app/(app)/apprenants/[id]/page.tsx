@@ -139,6 +139,14 @@ export default async function PageApprenant({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* L'inscription était jusqu'ici réservée à la création d'un
+              apprenant : depuis sa fiche, il fallait passer par la session. */}
+          <Link
+            href={`/apprenants/${apprenant.id}/inscrire-session`}
+            className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
+          >
+            Inscrire à une session
+          </Link>
           <Link
             href={`/apprenants/${apprenant.id}/modifier`}
             className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
@@ -260,7 +268,7 @@ export default async function PageApprenant({
       <div className="mt-4">
         <ListeSessions
           titre="Sessions suivies"
-          messageVide="Cet apprenant n'est inscrit à aucune session. L'inscription se fait depuis la fiche d'une session."
+          messageVide="Cet apprenant n'est inscrit à aucune session. Utilisez « Inscrire à une session » en haut de cette fiche."
           sessions={apprenant.inscriptions.map(({ session }) => ({
             id: session.id,
             numero: session.numero,

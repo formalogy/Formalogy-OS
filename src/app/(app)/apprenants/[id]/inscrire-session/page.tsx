@@ -8,9 +8,18 @@ import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
-export default async function PageInscrireSession({ params }: { params: Promise<{ id: string }> }) {
+export default async function PageInscrireSession({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ nouveau?: string }>;
+}) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
   const { id } = await params;
+  // Cet écran sert à deux moments : juste après la création d'un apprenant,
+  // et depuis sa fiche plus tard. Le texte d'accueil s'adapte.
+  const vientDEtreCree = (await searchParams).nouveau !== undefined;
 
   const apprenant = await prisma.learner.findFirst({ where: { id, deletedAt: null } });
   if (!apprenant) notFound();
@@ -42,7 +51,17 @@ export default async function PageInscrireSession({ params }: { params: Promise<
         </Link>
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Inscrire à une session</h1>
         <p className="mt-1 text-[12.8px] text-texte-doux">
-          {apprenant.prenom} {apprenant.nom} a été créé{apprenant.email ? "" : " sans adresse email"}. Choisissez une session en cours ou à venir, ou passez cette étape.
+          {vientDEtreCree ? (
+            <>
+              {apprenant.prenom} {apprenant.nom} a été créé{apprenant.email ? "" : " sans adresse email"}. Choisissez une
+              session en cours ou à venir, ou passez cette étape.
+            </>
+          ) : (
+            <>
+              Choisissez une session en cours ou à venir pour y inscrire {apprenant.prenom} {apprenant.nom}.
+              {!apprenant.email && " Cet apprenant n'a pas d'adresse email : il ne recevra aucun envoi automatique."}
+            </>
+          )}
         </p>
       </header>
 
