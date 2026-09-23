@@ -37,7 +37,7 @@ export function Coque({ utilisateur, groupes, children }: Props) {
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
 
   return (
-    <div className="min-h-screen lg:pl-64">
+    <div className="min-h-screen lg:pl-[calc(16rem+1.5rem)]">
       <BarreLaterale
         groupes={groupes}
         ouverte={menuOuvert}
@@ -85,7 +85,7 @@ export function Coque({ utilisateur, groupes, children }: Props) {
               {LIBELLE_ROLE[utilisateur.role]}
             </div>
           </div>
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-fort font-titre text-[12.5px] font-bold text-white">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent font-titre text-[12.5px] font-semibold text-white">
             {initiales(utilisateur.name)}
           </div>
           <button
@@ -97,7 +97,7 @@ export function Coque({ utilisateur, groupes, children }: Props) {
               router.push("/connexion");
               router.refresh();
             }}
-            className="rounded-lg border border-bordure bg-surface px-3 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60"
+            className="rounded-full px-4 py-2 text-[12.5px] font-semibold text-texte-doux transition hover:bg-surface-creuse hover:text-texte disabled:opacity-60"
           >
             {deconnexionEnCours ? "…" : "Quitter"}
           </button>

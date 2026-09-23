@@ -57,6 +57,7 @@ export default async function PageTableauDeBord() {
   if (utilisateur.role === "FORMATEUR") redirect("/mes-sessions");
   const aujourdhui = aujourdhuiUTC();
   const debutMois = new Date(Date.UTC(aujourdhui.getUTCFullYear(), aujourdhui.getUTCMonth(), 1));
+  const debutAnnee = new Date(Date.UTC(aujourdhui.getUTCFullYear(), 0, 1));
 
   const [
     nombreApprenants,
@@ -72,6 +73,9 @@ export default async function PageTableauDeBord() {
     facturesMois,
     paiementsMois,
     facturesOuvertes,
+    facturesAnnee,
+    entrantsAujourdhui,
+    sortantsAujourdhui,
   ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
@@ -164,8 +168,35 @@ export default async function PageTableauDeBord() {
         where: { statut: "EMISE" },
         select: { statut: true, montantTTC: true, dateEcheance: true, paiements: { select: { montant: true } } },
       }),
+      prisma.facture.findMany({
+        where: { statut: { in: ["EMISE", "PAYEE"] }, dateEmission: { gte: debutAnnee } },
+        select: { montantHT: true },
+      }),
+      // Apprenants dont une session démarre aujourd'hui.
+      prisma.sessionLearner.findMany({
+        where: {
+          session: { deletedAt: null, statut: { not: "ANNULEE" }, dateDebut: aujourdhui },
+          learner: { deletedAt: null },
+        },
+        select: {
+          learner: { select: { id: true, prenom: true, nom: true } },
+          session: { select: { id: true, numero: true, formation: { select: { titre: true } } } },
+        },
+      }),
+      // Apprenants dont une session se termine aujourd'hui.
+      prisma.sessionLearner.findMany({
+        where: {
+          session: { deletedAt: null, statut: { not: "ANNULEE" }, dateFin: aujourdhui },
+          learner: { deletedAt: null },
+        },
+        select: {
+          learner: { select: { id: true, prenom: true, nom: true } },
+          session: { select: { id: true, numero: true, formation: { select: { titre: true } } } },
+        },
+      }),
     ]);
 
+  const caAnnee = facturesAnnee.reduce((t, f) => t + enCentimes(f.montantHT), 0);
   const caMois = facturesMois.reduce((t, f) => t + enCentimes(f.montantHT), 0);
   const encaisseMois = paiementsMois.reduce((t, p) => t + enCentimes(p.montant), 0);
   const situations = facturesOuvertes.map((f) => situationFacture(f, f.paiements, aujourdhui));
@@ -186,9 +217,15 @@ export default async function PageTableauDeBord() {
         </p>
       </header>
 
-      <section aria-label="Indicateurs financiers" className="grid gap-3.5 sm:grid-cols-3">
+      <section aria-label="Indicateurs financiers" className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <Indicateur libelle="Facturé ce mois" valeur={formaterMontant(caMois / 100)} precision="hors taxes, factures émises" href="/factures?filtre=toutes" />
         <Indicateur libelle="Encaissé ce mois" valeur={formaterMontant(encaisseMois / 100)} precision="paiements reçus" href="/paiements" />
+        <Indicateur
+          libelle="CA annuel"
+          valeur={formaterMontant(caAnnee / 100)}
+          precision={`hors taxes, depuis le 1ᵉʳ janvier ${aujourdhui.getUTCFullYear()}`}
+          href="/factures?filtre=toutes"
+        />
         <Indicateur
           libelle="Reste à encaisser"
           valeur={formaterMontant(resteAEncaisser / 100)}
@@ -218,6 +255,48 @@ export default async function PageTableauDeBord() {
           href="/formations"
         />
       </section>
+
+      <div className="mt-4 flex flex-col gap-4">
+        <section className="overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+          <div className="border-b border-bordure-douce px-4 py-3">
+            <h2 className="text-[14.5px] font-bold">Entrées en formation aujourd&apos;hui</h2>
+          </div>
+          {entrantsAujourdhui.length === 0 ? (
+            <p className="px-4 py-4 text-[12.8px] text-texte-doux">Aucune entrée en formation aujourd&apos;hui.</p>
+          ) : (
+            <ul>
+              {entrantsAujourdhui.map((i) => (
+                <li key={`${i.session.id}-${i.learner.id}`} className="border-t border-bordure-douce first:border-t-0">
+                  <Link href={`/apprenants/${i.learner.id}`} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-surface-creuse">
+                    <span className="min-w-0 truncate text-[12.8px] font-semibold">{i.learner.prenom} {i.learner.nom}</span>
+                    <span className="shrink-0 truncate text-[11.5px] text-texte-tenu">{i.session.formation.titre} · {i.session.numero}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+          <div className="border-b border-bordure-douce px-4 py-3">
+            <h2 className="text-[14.5px] font-bold">Sorties de formation aujourd&apos;hui</h2>
+          </div>
+          {sortantsAujourdhui.length === 0 ? (
+            <p className="px-4 py-4 text-[12.8px] text-texte-doux">Aucune sortie de formation aujourd&apos;hui.</p>
+          ) : (
+            <ul>
+              {sortantsAujourdhui.map((i) => (
+                <li key={`${i.session.id}-${i.learner.id}`} className="border-t border-bordure-douce first:border-t-0">
+                  <Link href={`/apprenants/${i.learner.id}`} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-surface-creuse">
+                    <span className="min-w-0 truncate text-[12.8px] font-semibold">{i.learner.prenom} {i.learner.nom}</span>
+                    <span className="shrink-0 truncate text-[11.5px] text-texte-tenu">{i.session.formation.titre} · {i.session.numero}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
       <section className="mt-4 overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
         <div className="flex items-center justify-between border-b border-bordure-douce px-4 py-3">

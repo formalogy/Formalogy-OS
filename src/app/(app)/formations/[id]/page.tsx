@@ -10,20 +10,32 @@ import {
   LIBELLE_STATUT_FORMATION,
   TON_STATUT_FORMATION,
 } from "@/lib/formations-libelles";
+import { texteFormationVersHtml } from "@/lib/formations-texte";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-function Bloc({ titre, texte }: { titre: string; texte: string | null }) {
+/// `riche` : le texte vient de l'éditeur enrichi (gras, italique, police) et
+/// est déjà nettoyé à l'enregistrement (voir lib/formations-assainir) — les
+/// fiches créées avant cet éditeur restent du texte brut, converti à
+/// l'affichage sans rien perdre de leurs sauts de ligne.
+function Bloc({ titre, texte, riche = false }: { titre: string; texte: string | null; riche?: boolean }) {
   return (
     <div className="border-t border-bordure-douce py-3 first:border-t-0 first:pt-0">
       <h3 className="text-[12px] font-semibold uppercase tracking-wider text-texte-tenu">
         {titre}
       </h3>
-      <p className="mt-1.5 whitespace-pre-line text-[13px] leading-relaxed">
-        {texte?.trim() ? texte : <span className="text-texte-tenu">Non renseigné</span>}
-      </p>
+      {!texte?.trim() ? (
+        <p className="mt-1.5 text-[13px] text-texte-tenu">Non renseigné</p>
+      ) : riche ? (
+        <div
+          className="mt-1.5 text-[13px] leading-relaxed [&_p]:my-1.5 first:[&_p]:mt-0 last:[&_p]:mb-0"
+          dangerouslySetInnerHTML={{ __html: texteFormationVersHtml(texte) }}
+        />
+      ) : (
+        <p className="mt-1.5 whitespace-pre-line text-[13px] leading-relaxed">{texte}</p>
+      )}
     </div>
   );
 }
@@ -99,16 +111,16 @@ export default async function PageFormation({
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-          <Bloc titre="Description" texte={formation.description} />
-          <Bloc titre="Objectifs" texte={formation.objectifs} />
-          <Bloc titre="Programme" texte={formation.programme} />
-          <Bloc titre="Compétences visées" texte={formation.competences} />
+          <Bloc titre="Description" texte={formation.description} riche />
+          <Bloc titre="Objectifs" texte={formation.objectifs} riche />
+          <Bloc titre="Programme" texte={formation.programme} riche />
+          <Bloc titre="Compétences visées" texte={formation.competences} riche />
         </section>
 
         <div className="flex flex-col gap-4">
           <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-            <Bloc titre="Prérequis" texte={formation.prerequis} />
-            <Bloc titre="Public visé" texte={formation.publicVise} />
+            <Bloc titre="Prérequis" texte={formation.prerequis} riche />
+            <Bloc titre="Public visé" texte={formation.publicVise} riche />
             <Bloc titre="Certification" texte={formation.certification} />
           </section>
 

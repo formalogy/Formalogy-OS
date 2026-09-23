@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { EnvoiEmail } from "@/app/(app)/apprenants/[id]/envoi-email";
+import { PhotoApprenant } from "@/app/(app)/apprenants/[id]/photo";
 import { ActionsRgpd } from "@/app/(app)/apprenants/[id]/rgpd";
 import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-statut";
 import { LIBELLE_STATUT_EMAIL, TON_STATUT_EMAIL } from "@/lib/automatisations/libelles";
@@ -117,22 +118,39 @@ export default async function PageApprenant({
   return (
     <>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href="/apprenants"
-            className="text-[12.5px] font-semibold text-accent-fort hover:underline"
-          >
-            ← Apprenants
-          </Link>
-          <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
-            {apprenant.prenom} {apprenant.nom}
-          </h1>
+        <div className="flex items-start gap-4">
+          <PhotoApprenant
+            id={apprenant.id}
+            prenom={apprenant.prenom}
+            nom={apprenant.nom}
+            photoUrl={apprenant.photoCheminStockage || apprenant.email ? `/api/apprenants/${apprenant.id}/photo` : null}
+            aUnePhoto={Boolean(apprenant.photoCheminStockage)}
+          />
+          <div>
+            <Link
+              href="/apprenants"
+              className="text-[12.5px] font-semibold text-accent-fort hover:underline"
+            >
+              ← Apprenants
+            </Link>
+            <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
+              {apprenant.prenom} {apprenant.nom}
+            </h1>
+          </div>
         </div>
-        <SelecteurStatutApprenant
-          id={apprenant.id}
-          statut={apprenant.statut}
-          classeTon={TON_STATUT_APPRENANT[apprenant.statut]}
-        />
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/apprenants/${apprenant.id}/modifier`}
+            className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold"
+          >
+            Modifier
+          </Link>
+          <SelecteurStatutApprenant
+            id={apprenant.id}
+            statut={apprenant.statut}
+            classeTon={TON_STATUT_APPRENANT[apprenant.statut]}
+          />
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -154,6 +172,7 @@ export default async function PageApprenant({
                 .filter(Boolean)
                 .join(", ")}
             />
+            <Ligne libelle="Niveau d'études" valeur={apprenant.niveauEtudes} />
           </dl>
 
           <div className="mt-4 border-t border-bordure-douce pt-3">
@@ -176,6 +195,7 @@ export default async function PageApprenant({
               libelle="Financement"
               valeur={LIBELLE_FINANCEMENT[apprenant.financement]}
             />
+            <Ligne libelle="Numéro de dossier CPF" valeur={apprenant.numeroDossierCpf} />
             <Ligne libelle="Notes" valeur={apprenant.notes} />
           </dl>
 

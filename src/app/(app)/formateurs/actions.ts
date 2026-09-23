@@ -51,10 +51,11 @@ const schemaFormateur = z.object({
     (v) => v === undefined || /^\d{14}$/.test(v.replace(/\s/g, "")),
     "Le SIRET doit comporter 14 chiffres.",
   ),
+  numeroDeclaration: texteFacultatif,
   specialites: texteFacultatif,
-  tarifJournalierHT: texteFacultatif.refine(
-    (v) => v === undefined || /^\d+([.,]\d{1,2})?$/.test(v),
-    "Le tarif journalier doit être un montant, ex. 450 ou 450,50.",
+  tauxCommissionnement: texteFacultatif.refine(
+    (v) => v === undefined || /^\d{1,2}([.,]\d{1,2})?$|^100([.,]0{1,2})?$/.test(v),
+    "Le taux de commissionnement doit être un pourcentage entre 0 et 100, ex. 15 ou 15,5.",
   ),
   notes: texteFacultatif,
 });
@@ -67,8 +68,9 @@ function donneesFormateur(d: z.infer<typeof schemaFormateur>) {
     telephone: d.telephone ?? null,
     statut: d.statut,
     siret: d.siret?.replace(/\s/g, "") ?? null,
+    numeroDeclaration: d.numeroDeclaration ?? null,
     specialites: d.specialites ?? null,
-    tarifJournalierHT: d.tarifJournalierHT ? d.tarifJournalierHT.replace(",", ".") : null,
+    tauxCommissionnement: d.tauxCommissionnement ? d.tauxCommissionnement.replace(",", ".") : null,
     notes: d.notes ?? null,
   };
 }

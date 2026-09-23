@@ -22,8 +22,9 @@ export default async function PageModifierFormateur({ params }: { params: Promis
     telephone: f.telephone ?? "",
     statut: f.statut,
     siret: f.siret ?? "",
+    numeroDeclaration: f.numeroDeclaration ?? "",
     specialites: f.specialites ?? "",
-    tarifJournalierHT: f.tarifJournalierHT?.toFixed(2).replace(".", ",").replace(",00", "") ?? "",
+    tauxCommissionnement: f.tauxCommissionnement?.toFixed(2).replace(".", ",").replace(",00", "") ?? "",
     notes: f.notes ?? "",
   };
 

@@ -1,6 +1,7 @@
 import type { StatutProspect } from "@prisma/client";
 import Link from "next/link";
 
+import { Avatar } from "@/app/(app)/_composants/avatar";
 import { SelecteurStatut } from "@/app/(app)/crm/selecteur-statut";
 import {
   formaterDate,
@@ -118,13 +119,22 @@ export default async function PageCrm() {
                       className="border-t border-bordure-douce hover:bg-surface-creuse"
                     >
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold">
-                          {prospect.prenom} {prospect.nom}
-                        </div>
-                        <div className="text-[11.5px] text-texte-tenu">
-                          {[prospect.entreprise, prospect.email, prospect.telephone]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            prenom={prospect.prenom}
+                            nom={prospect.nom}
+                            photoUrl={prospect.email ? `/api/crm/${prospect.id}/photo` : null}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-semibold">
+                              {prospect.prenom} {prospect.nom}
+                            </div>
+                            <div className="text-[11.5px] text-texte-tenu">
+                              {[prospect.entreprise, prospect.email, prospect.telephone]
+                                .filter(Boolean)
+                                .join(" · ") || "—"}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">

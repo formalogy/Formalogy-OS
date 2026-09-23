@@ -4,7 +4,6 @@ import { FormulaireDossier } from "@/app/(app)/financements/formulaire";
 import { optionsFacture } from "@/lib/factures-options";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import { jourVersSaisie } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +12,7 @@ export default async function PageNouveauDossier({ searchParams }: { searchParam
   const params = await searchParams;
   const options = await optionsFacture();
 
-  // Pré-remplissage depuis une session : client, montant et date limite
-  // (le dépôt se fait en général avant le début de la formation).
+  // Pré-remplissage depuis une session : client et montant de référence.
   const depart: Record<string, string> = { financeurType: "OPCO", subrogation: "on" };
   if (params.session) {
     const s = await prisma.trainingSession.findFirst({
@@ -23,8 +21,7 @@ export default async function PageNouveauDossier({ searchParams }: { searchParam
     });
     if (s) {
       depart.sessionId = s.id;
-      depart.dateLimite = jourVersSaisie(s.dateDebut);
-      if (s.prixHT) depart.montantDemande = s.prixHT.toFixed(2).replace(".", ",");
+      if (s.prixHT) depart.montant = s.prixHT.toFixed(2).replace(".", ",");
       if (s.company) depart.companyId = s.company.id;
     }
   }

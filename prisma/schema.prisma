@@ -385,6 +385,14 @@ model Learner {
   codePostal String?
   ville      String?
 
+  /// Niveau d'études ou diplôme le plus élevé (texte libre, ex. « Bac+3 —
+  /// licence de gestion »).
+  niveauEtudes String?
+
+  /// Emplacement de la photo de profil dans le stockage (bucket "documents",
+  /// chemin "apprenants/<id>/…"), remplacée entièrement à chaque nouvel envoi.
+  photoCheminStockage String?
+
   /// Entreprise qui inscrit l'apprenant. Absente pour un particulier
   /// finançant lui-même sa formation (CPF, financement personnel).
   companyId String?
@@ -392,6 +400,10 @@ model Learner {
 
   statut      StatutApprenant @default(INSCRIT)
   financement TypeFinancement @default(ENTREPRISE)
+
+  /// Numéro du dossier CPF (moncompteformation.gouv.fr), pour un financement
+  /// personnel via le compte personnel de formation.
+  numeroDossierCpf String?
 
   notes String?
 
@@ -417,6 +429,7 @@ model Learner {
   presences    Presence[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
+  questionnaires Questionnaire[]
   factures     Facture[]
   dossiers     DossierFinancement[]
 
@@ -573,6 +586,7 @@ model TrainingSession {
   presences    Presence[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
+  questionnaires Questionnaire[]
   factures     Facture[]
   dossiers     DossierFinancement[]
 
@@ -861,10 +875,12 @@ enum DeclencheurAutomatisation {
   APPRENANT_CREE
   INSCRIPTION_SESSION
   SESSION_AVANT_DEBUT
+  /// Quelques jours avant la fin d'une session (0 = le dernier jour)
+  SESSION_AVANT_FIN
+  /// Quelques jours après la fin d'une session
+  SESSION_APRES_FIN
   SESSION_TERMINEE
   RELANCE_PROSPECT_DUE
-  /// Dossier de financement déposé et sans réponse depuis N jours
-  DOSSIER_SANS_REPONSE
 }
 
 /// Règle DÉCLENCHEUR → CONDITION → ACTION.
@@ -947,11 +963,14 @@ model Trainer {
 
   statut StatutFormateur @default(INDEPENDANT)
   siret  String?
+  /// Numéro de déclaration d'activité (NDA), pour un formateur indépendant ou
+  /// sous-traitant lui-même organisme de formation déclaré.
+  numeroDeclaration String?
 
   /// Domaines d'intervention, en texte libre (ex. « Excel, Power BI »)
   specialites String?
-  /// Tarif journalier HT, information interne jamais montrée au formateur
-  tarifJournalierHT Decimal? @db.Decimal(10, 2)
+  /// Taux de commissionnement (%), information interne jamais montrée au formateur
+  tauxCommissionnement Decimal? @db.Decimal(5, 2)
 
   notes String?
   actif Boolean @default(true)
@@ -968,6 +987,7 @@ model Trainer {
 
   sessions  TrainingSession[]
   documents Document[]
+  questionnaires Questionnaire[]
 
   @@index([nom, prenom])
   @@index([deletedAt])
@@ -1143,6 +1163,10 @@ model Organisme {
   representantNom      String?
   representantFonction String?
 
+  /// Signature (ou cachet signé) de l'organisme, apposée au bas des documents
+  /// qu'il émet. Image stockée comme les autres fichiers, jamais en base.
+  signatureCheminStockage String?
+
   /// Certification Qualiopi : organisme certificateur et échéances
   qualiopiCertificateur  String?
   qualiopiObtentionAt    DateTime?
@@ -1210,6 +1234,61 @@ model QuestionnaireSatisfaction {
   @@unique([sessionId, learnerId])
   @@index([reponduAt])
   @@map("questionnaires_satisfaction")
+}
+
+/// Questionnaires « qualité », distincts du questionnaire de satisfaction
+/// apprenant ci-dessus (QuestionnaireSatisfaction, envoyé à chaud à la fin
+/// d'une session) : chacun s'adresse à un destinataire différent, avec ses
+/// propres questions (cases à cocher et commentaires), définies en code dans
+/// lib/questionnaires.ts plutôt qu'éditables depuis l'écran, pour que les
+/// réponses restent comparables d'un envoi à l'autre (même logique que les
+/// indicateurs Qualiopi).
+enum TypeQuestionnaire {
+  /// Attentes et positionnement de l'apprenant, avant la formation
+  POSITIONNEMENT
+  /// Ressenti du formateur à la fin de la session
+  CHAUD_FORMATEUR
+  /// Mise en pratique de l'apprenant, 60 jours après la fin
+  FROID
+  /// Campagne annuelle auprès des financeurs
+  FINANCEUR
+  /// Campagne annuelle auprès des formateurs
+  SATISFACTION_FORMATEUR
+}
+
+model Questionnaire {
+  id   String            @id @default(uuid(7))
+  type TypeQuestionnaire
+
+  /// Absente pour les campagnes annuelles (FINANCEUR, SATISFACTION_FORMATEUR)
+  sessionId String?
+  session   TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// Destinataire apprenant (POSITIONNEMENT, FROID)
+  learnerId String?
+  learner   Learner? @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  /// Destinataire formateur (CHAUD_FORMATEUR, SATISFACTION_FORMATEUR)
+  trainerId String?
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  /// Destinataire financeur (FINANCEUR)
+  dossierFinancementId String?
+  dossier               DossierFinancement? @relation(fields: [dossierFinancementId], references: [id], onDelete: Cascade)
+
+  /// Empreinte SHA-256 du jeton contenu dans le lien
+  jetonEmpreinte String   @unique
+  expireAt       DateTime
+
+  envoyeAt  DateTime?
+  reponduAt DateTime?
+
+  /// Réponses par code de question : { "case": true/false, "commentaire": "texte" }
+  reponses Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([sessionId])
+  @@index([reponduAt])
+  @@map("questionnaires")
 }
 
 // ===========================================================================
@@ -1346,17 +1425,8 @@ enum TypeFinanceur {
 }
 
 /// Aucun financeur n'expose d'API : le dossier se dépose sur leur portail et
-/// se suit ici, avec ses montants, ses dates et son accord en pièce jointe.
-enum StatutDossier {
-  /// Dossier à préparer et à déposer
-  A_MONTER
-  /// Déposé sur le portail du financeur, en attente de réponse
-  DEPOSE
-  ACCORDE
-  REFUSE
-  ANNULE
-}
-
+/// se suit ici. Un financement saisi est considéré acquis dès sa création,
+/// sans statut de demande à suivre.
 model DossierFinancement {
   id String @id @default(uuid(7))
 
@@ -1366,6 +1436,9 @@ model DossierFinancement {
   financeurType TypeFinanceur
   /// Nom exact du financeur, ex. « OPCO EP », « France Travail — agence de Lille »
   financeurNom  String
+  /// Adresse du contact chez le financeur, pour lui envoyer le questionnaire
+  /// annuel notamment.
+  email String?
 
   sessionId String?
   session   TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
@@ -1374,17 +1447,11 @@ model DossierFinancement {
   companyId String?
   company   Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  montantDemande Decimal? @db.Decimal(10, 2)
-  montantAccorde Decimal? @db.Decimal(10, 2)
+  montant Decimal? @db.Decimal(10, 2)
   /// Subrogation : le financeur paie directement l'organisme
-  subrogation    Boolean  @default(true)
+  subrogation Boolean @default(true)
 
-  statut StatutDossier @default(A_MONTER)
-  /// Date limite de dépôt imposée par le financeur
-  dateLimite   DateTime?
-  dateDepot    DateTime?
-  dateReponse  DateTime?
-  motifRefus   String?
+  dateDepot DateTime?
 
   /// Facture adressée au financeur, le cas échéant
   factureId String?
@@ -1398,9 +1465,9 @@ model DossierFinancement {
   createdById String?
   createdBy   User?   @relation("DossierCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@index([statut])
+  questionnaires Questionnaire[]
+
   @@index([sessionId])
-  @@index([dateLimite])
   @@map("dossiers_financement")
 }
 

@@ -125,8 +125,8 @@ export function listeDeControle(session: {
   evaluationsCompletes: boolean;
   attestationsCompletes: boolean;
   factureEmise: boolean;
-  /// null quand aucun dossier de financement n'est nécessaire
-  priseEnChargeAccordee: boolean | null;
+  /// null quand aucun dossier de financement n'est enregistré pour la session
+  financementEnregistre: boolean | null;
 }): ElementControle[] {
   return [
     { libelle: "Formation et dates définies", fait: true },
@@ -139,7 +139,7 @@ export function listeDeControle(session: {
     { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
     { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },
     { libelle: "Attestations", fait: session.attestationsCompletes },
-    ...(session.priseEnChargeAccordee === null ? [] : [{ libelle: "Prise en charge accordée", fait: session.priseEnChargeAccordee }]),
+    ...(session.financementEnregistre === null ? [] : [{ libelle: "Financement enregistré", fait: session.financementEnregistre }]),
     { libelle: "Facture émise", fait: session.factureEmise },
   ];
 }

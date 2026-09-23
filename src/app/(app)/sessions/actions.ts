@@ -324,23 +324,19 @@ export async function changerStatutSession(donnees: FormData): Promise<void> {
   revalidatePath("/planning");
 }
 
-export async function inscrireApprenant(
-  _precedent: EtatFormulaire,
-  donnees: FormData,
+/// Cœur de l'inscription, partagé entre la fiche session (reste sur place) et
+/// la fiche apprenant (repart vers la fiche une fois inscrit).
+async function inscrire(
+  sessionId: string,
+  learnerId: string,
+  utilisateur: { id: string },
 ): Promise<EtatFormulaire> {
-  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
-
-  const r = z
-    .object({ sessionId: z.string().min(1), learnerId: z.string().min(1, "Choisissez un apprenant.") })
-    .safeParse(Object.fromEntries(donnees));
-  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
-
   const [session, apprenant] = await Promise.all([
     prisma.trainingSession.findFirst({
-      where: { id: r.data.sessionId, deletedAt: null },
+      where: { id: sessionId, deletedAt: null },
       include: { _count: { select: { inscriptions: true } } },
     }),
-    prisma.learner.findFirst({ where: { id: r.data.learnerId, deletedAt: null } }),
+    prisma.learner.findFirst({ where: { id: learnerId, deletedAt: null } }),
   ]);
   if (!session) return { erreur: "Session introuvable." };
   if (!apprenant) return { erreur: "Apprenant introuvable." };
@@ -384,6 +380,37 @@ export async function inscrireApprenant(
   revalidatePath(`/sessions/${session.id}`);
   revalidatePath(`/apprenants/${apprenant.id}`);
   return {};
+}
+
+const schemaInscription = z.object({
+  sessionId: z.string().min(1),
+  learnerId: z.string().min(1, "Choisissez un apprenant."),
+});
+
+export async function inscrireApprenant(
+  _precedent: EtatFormulaire,
+  donnees: FormData,
+): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const r = schemaInscription.safeParse(Object.fromEntries(donnees));
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
+  return inscrire(r.data.sessionId, r.data.learnerId, utilisateur);
+}
+
+/// Même inscription, mais depuis la fiche d'un apprenant qui vient d'être
+/// créé : une fois inscrit, on repart directement sur sa fiche.
+export async function inscrireApprenantEtVoirFiche(
+  _precedent: EtatFormulaire,
+  donnees: FormData,
+): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const r = schemaInscription.safeParse(Object.fromEntries(donnees));
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
+
+  const resultat = await inscrire(r.data.sessionId, r.data.learnerId, utilisateur);
+  if (resultat.erreur) return resultat;
+
+  redirect(`/apprenants/${r.data.learnerId}`);
 }
 
 export async function desinscrireApprenant(donnees: FormData): Promise<void> {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { stockage } from "@/lib/stockage";
 
 /// Toutes les données personnelles détenues sur un apprenant, pour répondre à
 /// une demande d'accès ou de portabilité (RGPD). Les fichiers eux-mêmes
@@ -42,8 +43,10 @@ export async function exporterDonneesApprenant(learnerId: string) {
       adresse: apprenant.adresse,
       codePostal: apprenant.codePostal,
       ville: apprenant.ville,
+      niveauEtudes: apprenant.niveauEtudes,
       entreprise: apprenant.company?.raisonSociale ?? null,
       financement: apprenant.financement,
+      numeroDossierCpf: apprenant.numeroDossierCpf,
       creeLe: apprenant.createdAt,
     },
     sessions: apprenant.inscriptions.map((i) => i.session),
@@ -76,12 +79,21 @@ export async function anonymiserApprenant(learnerId: string) {
       adresse: null,
       codePostal: null,
       ville: null,
+      niveauEtudes: null,
+      numeroDossierCpf: null,
       notes: null,
       henrriCustomerId: null,
+      photoCheminStockage: null,
       anonymiseAt: new Date(),
       deletedAt: new Date(),
     },
   });
+
+  if (apprenant.photoCheminStockage) {
+    await stockage()
+      .supprimer([apprenant.photoCheminStockage])
+      .catch((erreur) => console.error("Suppression de la photo de profil impossible :", erreur));
+  }
 
   return {};
 }

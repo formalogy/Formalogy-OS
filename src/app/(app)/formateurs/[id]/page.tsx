@@ -5,7 +5,6 @@ import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composan
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { basculerActifFormateur } from "@/app/(app)/formateurs/actions";
 import { AccesFormateur } from "@/app/(app)/formateurs/[id]/acces";
-import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_STATUT_FORMATEUR } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -94,8 +93,9 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
               <Ligne libelle="Téléphone" valeur={f.telephone} />
               <Ligne libelle="Statut" valeur={LIBELLE_STATUT_FORMATEUR[f.statut]} />
               <Ligne libelle="SIRET" valeur={f.siret} />
+              <Ligne libelle="Numéro de déclaration d'activité" valeur={f.numeroDeclaration} />
               <Ligne libelle="Spécialités" valeur={f.specialites} />
-              <Ligne libelle="Tarif journalier HT" valeur={f.tarifJournalierHT ? formaterEuros(f.tarifJournalierHT) : null} />
+              <Ligne libelle="Taux de commissionnement" valeur={f.tauxCommissionnement !== null ? `${Number(f.tauxCommissionnement).toLocaleString("fr-FR")} %` : null} />
               <Ligne libelle="Notes" valeur={f.notes} />
             </dl>
           </section>
@@ -139,7 +139,14 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
             lienCreation={f.actif ? `/sessions/nouvelle?formateur=${f.id}` : undefined}
             messageVide="Aucune session affectée à ce formateur."
           />
-          <ListeDocuments documents={f.documents} lienAjout={`formateur=${f.id}`} />
+          <ListeDocuments
+            documents={f.documents}
+            lienAjout={`formateur=${f.id}`}
+            raccourcis={[
+              { libelle: "Ajouter le CV", type: "CV_FORMATEUR" },
+              { libelle: "Ajouter le programme", type: "PROGRAMME" },
+            ]}
+          />
         </div>
       </div>
     </>

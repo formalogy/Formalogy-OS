@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, Libre_Franklin } from "next/font/google";
+import { Outfit } from "next/font/google";
 
 import "./globals.css";
 
-const libreFranklin = Libre_Franklin({
-  variable: "--font-titre",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-});
-
-const ibmPlexSans = IBM_Plex_Sans({
-  variable: "--font-texte",
+// Une seule police pour tout le site (titres et texte) — choisie avec le
+// client le 19/09/2026 pour son rendu plus moderne.
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
@@ -24,7 +20,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${libreFranklin.variable} ${ibmPlexSans.variable} h-full antialiased`}
+      className={`${outfit.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

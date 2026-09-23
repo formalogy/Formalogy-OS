@@ -28,18 +28,32 @@ type Props = {
   documents: DocumentResume[];
   /// Paramètres de pré-remplissage du dépôt, ex. « apprenant=… »
   lienAjout: string;
+  /// Raccourcis vers des types précis (ex. « CV », « Programme »), affichés à
+  /// côté du lien général. Le type demandé y est déjà présélectionné.
+  raccourcis?: { libelle: string; type: string }[];
 };
 
-export function ListeDocuments({ documents, lienAjout }: Props) {
+export function ListeDocuments({ documents, lienAjout, raccourcis }: Props) {
   return (
     <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
         <h2 className="text-[14.5px] font-bold">
           Documents <span className="font-normal text-texte-tenu">({documents.length})</span>
         </h2>
-        <Link href={`/documents/nouveau?${lienAjout}`} className="text-[12.5px] font-semibold text-accent-fort hover:underline">
-          Ajouter un document
-        </Link>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {raccourcis?.map((r) => (
+            <Link
+              key={r.type}
+              href={`/documents/nouveau?${lienAjout}&type=${r.type}`}
+              className="text-[12.5px] font-semibold text-accent-fort hover:underline"
+            >
+              {r.libelle}
+            </Link>
+          ))}
+          <Link href={`/documents/nouveau?${lienAjout}`} className="text-[12.5px] font-semibold text-accent-fort hover:underline">
+            Ajouter un document
+          </Link>
+        </div>
       </div>
 
       {documents.length === 0 ? (

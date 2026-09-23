@@ -1,42 +1,65 @@
 @import "tailwindcss";
 
-/* Palette Formalogy : neutres légèrement froids, un seul accent pétrole.
-   Volontairement sobre — c'est un outil de travail quotidien, pas une vitrine. */
+/* Palette Formalogy V2 (19/09/2026) : neutres bleu-gris, accent bleu sarcelle
+   — même esprit colorimétrique que HubSpot, sans son orange. La barre
+   latérale reste sombre en permanence, indépendamment du thème clair/sombre
+   du reste de l'application (choix visuel validé avec le client). */
 :root {
-  --fond: #f2f4f0;
+  --fond: #f5f8fa;
   --surface: #ffffff;
-  --surface-creuse: #eaede7;
-  --bordure: #dbe0d9;
-  --bordure-douce: #e6e9e3;
-  --texte: #1b2422;
-  --texte-doux: #5c6663;
-  --texte-tenu: #8b948e;
-  --accent: #28616b;
-  --accent-fort: #1d4b54;
-  --accent-pale: #e1eeee;
+  --surface-creuse: #eaf0f6;
+  --bordure: #cbd6e2;
+  --bordure-douce: #dfe7ef;
+  --texte: #33475b;
+  --texte-doux: #516f90;
+  --texte-tenu: #8b9cab;
+  --accent: #00a4bd;
+  --accent-fort: #007a8c;
+  --accent-clair: #33d6ef;
+  --accent-pale: #e0f4f7;
   --succes: #3a7d5c;
   --alerte: #a8681f;
   --danger: #ae4638;
   --danger-pale: #f5e4e1;
+
+  /* Point médian des graphiques (entre succès et danger). Un gris franc :
+     testé colorblind-safe contre --succes et --danger, contrairement à
+     --alerte, trop proche du rouge pour être distingué à côté de lui. */
+  --graphique-neutre: #8b9cab;
+
+  /* Barre latérale : toujours sombre. */
+  --barre: #2d3e50;
+  --barre-actif: #3a4e63;
+  --barre-texte: #f5f8fa;
+  --barre-texte-doux: #cbd6e2;
+  --barre-texte-tenu: #8b9cab;
+
+  /* Police unique pour tout le site (titres et texte courant). */
+  --font-titre: var(--font-outfit);
+  --font-texte: var(--font-outfit);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fond: #121716;
-    --surface: #191f1e;
-    --surface-creuse: #0f1413;
-    --bordure: #293230;
-    --bordure-douce: #232b29;
-    --texte: #e7ece8;
-    --texte-doux: #a2aca6;
-    --texte-tenu: #6c7672;
-    --accent: #6fb6b9;
-    --accent-fort: #8fcacc;
-    --accent-pale: rgba(111, 182, 185, 0.14);
+    --fond: #141c24;
+    --surface: #1b2530;
+    --surface-creuse: #101720;
+    --bordure: #2c3b48;
+    --bordure-douce: #202b36;
+    --texte: #e7edf2;
+    --texte-doux: #a7b6c2;
+    --texte-tenu: #71828f;
+    --accent: #33d6ef;
+    --accent-fort: #6fe4f5;
+    --accent-clair: #33d6ef;
+    --accent-pale: rgba(51, 214, 239, 0.14);
     --succes: #63b187;
     --alerte: #d69a52;
     --danger: #d2806f;
     --danger-pale: rgba(210, 128, 111, 0.16);
+    /* Plus soutenu qu'en clair : sur fond sombre, un gris pâle se confond
+       avec le vert de --succes. */
+    --graphique-neutre: #5d6f7e;
   }
 }
 
@@ -51,11 +74,18 @@
   --color-texte-tenu: var(--texte-tenu);
   --color-accent: var(--accent);
   --color-accent-fort: var(--accent-fort);
+  --color-accent-clair: var(--accent-clair);
   --color-accent-pale: var(--accent-pale);
   --color-succes: var(--succes);
   --color-alerte: var(--alerte);
   --color-danger: var(--danger);
   --color-danger-pale: var(--danger-pale);
+  --color-graphique-neutre: var(--graphique-neutre);
+  --color-barre: var(--barre);
+  --color-barre-actif: var(--barre-actif);
+  --color-barre-texte: var(--barre-texte);
+  --color-barre-texte-doux: var(--barre-texte-doux);
+  --color-barre-texte-tenu: var(--barre-texte-tenu);
   --font-titre: var(--font-titre);
   --font-texte: var(--font-texte);
 }

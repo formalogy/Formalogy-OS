@@ -6,9 +6,9 @@ import {
   BoutonEnvoyer,
   Champ,
   ChampListe,
-  ChampLong,
   MessageErreur,
 } from "@/app/(app)/_composants/formulaire";
+import { EditeurRiche } from "@/app/(app)/_composants/editeur-riche";
 import {
   creerFormation,
   modifierFormation,
@@ -117,13 +117,13 @@ export function FormulaireFormation({ categories, initiales }: Props) {
         Contenu pédagogique
       </h2>
       <div className="grid gap-4">
-        <ChampLong nom="description" libelle="Description" valeurParDefaut={v("description")} />
-        <ChampLong nom="objectifs" libelle="Objectifs" valeurParDefaut={v("objectifs")} />
-        <ChampLong nom="programme" libelle="Programme" valeurParDefaut={v("programme")} />
-        <ChampLong nom="competences" libelle="Compétences visées" valeurParDefaut={v("competences")} />
+        <EditeurRiche nom="description" libelle="Description" valeurParDefaut={v("description")} />
+        <EditeurRiche nom="objectifs" libelle="Objectifs" valeurParDefaut={v("objectifs")} />
+        <EditeurRiche nom="programme" libelle="Programme" valeurParDefaut={v("programme")} />
+        <EditeurRiche nom="competences" libelle="Compétences visées" valeurParDefaut={v("competences")} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <ChampLong nom="prerequis" libelle="Prérequis" valeurParDefaut={v("prerequis")} />
-          <ChampLong nom="publicVise" libelle="Public visé" valeurParDefaut={v("publicVise")} />
+          <EditeurRiche nom="prerequis" libelle="Prérequis" valeurParDefaut={v("prerequis")} />
+          <EditeurRiche nom="publicVise" libelle="Public visé" valeurParDefaut={v("publicVise")} />
         </div>
       </div>
 

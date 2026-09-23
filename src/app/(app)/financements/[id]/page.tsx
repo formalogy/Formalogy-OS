@@ -2,13 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
-import { AvancementDossier } from "@/app/(app)/financements/[id]/avancement";
 import { supprimerDossier } from "@/app/(app)/financements/actions";
 import { formaterMontant } from "@/lib/factures";
-import { alerteDossier, LIBELLE_FINANCEUR, LIBELLE_STATUT_DOSSIER, TON_STATUT_DOSSIER } from "@/lib/financements";
+import { LIBELLE_FINANCEUR } from "@/lib/financements";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import { aujourdhuiUTC, jourVersSaisie } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +36,6 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
   });
   if (!d) notFound();
 
-  const aujourdhui = aujourdhuiUTC();
-  const alerte = alerteDossier(d, aujourdhui);
   // Accord de prise en charge et autres pièces, rattachés à la session.
   const documents = d.sessionId
     ? await prisma.document.findMany({
@@ -64,13 +60,10 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${TON_STATUT_DOSSIER[d.statut]}`}>
-            {LIBELLE_STATUT_DOSSIER[d.statut]}
-          </span>
           <Link href={`/financements/${d.id}/modifier`} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold">
             Modifier
           </Link>
-          {utilisateur.role === "ADMIN" && d.statut === "A_MONTER" && (
+          {utilisateur.role === "ADMIN" && (
             <form action={supprimerDossier}>
               <input type="hidden" name="id" value={d.id} />
               <button type="submit" className="rounded-lg px-3 py-2 text-[13px] font-semibold text-texte-tenu hover:bg-danger-pale hover:text-danger">
@@ -81,24 +74,13 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
         </div>
       </header>
 
-      {alerte && (
-        <p className="mb-4 rounded-lg bg-alerte/12 px-3 py-2 text-[12.5px] font-semibold text-alerte">À traiter : {alerte}.</p>
-      )}
-
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
           <h2 className="mb-3 text-[14.5px] font-bold">Dossier</h2>
           <dl>
-            <Ligne libelle="Montant demandé" valeur={d.montantDemande && <span className="font-mono">{formaterMontant(d.montantDemande)}</span>} />
-            <Ligne
-              libelle="Montant accordé"
-              valeur={d.montantAccorde && <span className="font-mono font-semibold text-succes">{formaterMontant(d.montantAccorde)}</span>}
-            />
+            <Ligne libelle="Montant" valeur={d.montant && <span className="font-mono font-semibold text-succes">{formaterMontant(d.montant)}</span>} />
             <Ligne libelle="Subrogation" valeur={d.subrogation ? "Oui — le financeur paie l'organisme" : "Non — l'entreprise avance les frais"} />
-            <Ligne libelle="Date limite de dépôt" valeur={d.dateLimite && jour.format(d.dateLimite)} />
-            <Ligne libelle="Déposé le" valeur={d.dateDepot && jour.format(d.dateDepot)} />
-            <Ligne libelle="Réponse le" valeur={d.dateReponse && jour.format(d.dateReponse)} />
-            <Ligne libelle="Motif du refus" valeur={d.motifRefus} />
+            <Ligne libelle="Enregistré le" valeur={d.dateDepot && jour.format(d.dateDepot)} />
             <Ligne
               libelle="Session"
               valeur={d.session && <Link href={`/sessions/${d.session.id}`} className="hover:text-accent-fort">{d.session.formation.titre} ({d.session.numero})</Link>}
@@ -110,21 +92,11 @@ export default async function PageDossier({ params }: { params: Promise<{ id: st
           </dl>
         </section>
 
-        <div className="flex flex-col gap-4">
-          <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-            <h2 className="mb-3 text-[14.5px] font-bold">Avancement</h2>
-            <AvancementDossier
-              id={d.id}
-              statut={d.statut}
-              aujourdhui={jourVersSaisie(aujourdhui)}
-              montantDemande={d.montantDemande?.toFixed(2).replace(".", ",") ?? ""}
-            />
-          </section>
-
-          {d.sessionId && (
+        {d.sessionId && (
+          <div className="flex flex-col gap-4">
             <ListeDocuments documents={documents} lienAjout={`session=${d.sessionId}&type=ACCORD_FINANCEMENT`} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </>
   );

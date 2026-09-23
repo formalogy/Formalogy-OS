@@ -49,6 +49,12 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
         <Champ nom="telephone" libelle="Téléphone" valeurParDefaut={v("telephone")} />
         <ChampListe nom="statut" libelle="Statut" options={STATUTS} valeurParDefaut={v("statut") ?? "INDEPENDANT"} />
         <Champ nom="siret" libelle="SIRET" placeholder="14 chiffres" valeurParDefaut={v("siret")} />
+        <Champ
+          nom="numeroDeclaration"
+          libelle="Numéro de déclaration d'activité"
+          placeholder="Ex. : 11 75 12345 75"
+          valeurParDefaut={v("numeroDeclaration")}
+        />
         <div className="sm:col-span-2">
           <Champ
             nom="specialites"
@@ -58,10 +64,10 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
           />
         </div>
         <Champ
-          nom="tarifJournalierHT"
-          libelle="Tarif journalier HT (€)"
-          placeholder="450"
-          valeurParDefaut={v("tarifJournalierHT")}
+          nom="tauxCommissionnement"
+          libelle="Taux de commissionnement (%)"
+          placeholder="15"
+          valeurParDefaut={v("tauxCommissionnement")}
           aide="Information interne, jamais visible par le formateur."
         />
         <div className="sm:col-span-2">

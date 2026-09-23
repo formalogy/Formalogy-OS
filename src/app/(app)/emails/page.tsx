@@ -9,7 +9,7 @@ import { exigerRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const STATUTS: StatutEmail[] = ["SIMULE", "ENVOYE", "ECHEC"];
+const STATUTS: StatutEmail[] = ["SIMULE", "ENVOYE", "OUVERT", "ECHEC"];
 
 const horodatage = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",

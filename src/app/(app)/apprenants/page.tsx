@@ -1,6 +1,7 @@
 import type { StatutApprenant } from "@prisma/client";
 import Link from "next/link";
 
+import { Avatar } from "@/app/(app)/_composants/avatar";
 import {
   LIBELLE_FINANCEMENT,
   LIBELLE_STATUT_APPRENANT,
@@ -53,12 +54,20 @@ export default async function PageApprenants({
             l&apos;application.
           </p>
         </div>
-        <Link
-          href="/apprenants/nouveau"
-          className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
-        >
-          Nouvel apprenant
-        </Link>
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            href="/apprenants/nouveau"
+            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+          >
+            Nouvel apprenant
+          </Link>
+          <Link
+            href="/entreprises/nouvelle"
+            className="rounded-lg border border-bordure bg-surface px-4 py-2 text-[13px] font-semibold text-texte-doux"
+          >
+            Nouvelle entreprise
+          </Link>
+        </div>
       </header>
 
       <form className="mb-4 flex flex-wrap items-center gap-2">
@@ -114,15 +123,24 @@ export default async function PageApprenants({
                     className="border-t border-bordure-douce hover:bg-surface-creuse"
                   >
                     <td className="px-4 py-2.5">
-                      <Link
-                        href={`/apprenants/${apprenant.id}`}
-                        className="font-semibold hover:text-accent-fort"
-                      >
-                        {apprenant.prenom} {apprenant.nom}
-                      </Link>
-                      <div className="text-[11.5px] text-texte-tenu">
-                        {[apprenant.email, apprenant.telephone].filter(Boolean).join(" · ") ||
-                          "—"}
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          prenom={apprenant.prenom}
+                          nom={apprenant.nom}
+                          photoUrl={apprenant.photoCheminStockage || apprenant.email ? `/api/apprenants/${apprenant.id}/photo` : null}
+                        />
+                        <div className="min-w-0">
+                          <Link
+                            href={`/apprenants/${apprenant.id}`}
+                            className="font-semibold hover:text-accent-fort"
+                          >
+                            {apprenant.prenom} {apprenant.nom}
+                          </Link>
+                          <div className="text-[11.5px] text-texte-tenu">
+                            {[apprenant.email, apprenant.telephone].filter(Boolean).join(" · ") ||
+                              "—"}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">

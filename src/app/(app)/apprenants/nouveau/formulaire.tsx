@@ -9,7 +9,7 @@ import {
   ChampLong,
   MessageErreur,
 } from "@/app/(app)/_composants/formulaire";
-import { creerApprenant, type EtatFormulaire } from "@/app/(app)/apprenants/actions";
+import { creerApprenant, modifierApprenant, type EtatFormulaire } from "@/app/(app)/apprenants/actions";
 import {
   FINANCEMENTS,
   LIBELLE_FINANCEMENT,
@@ -31,10 +31,14 @@ const OPTIONS_FINANCEMENT = FINANCEMENTS.map((valeur) => ({
 
 type Props = {
   entreprises: { id: string; raisonSociale: string }[];
+  /// Valeurs actuelles, en mode modification
+  initiales?: Record<string, string> & { id: string };
 };
 
-export function FormulaireApprenant({ entreprises }: Props) {
-  const [etat, envoyer] = useActionState(creerApprenant, ETAT_INITIAL);
+export function FormulaireApprenant({ entreprises, initiales }: Props) {
+  const modification = Boolean(initiales);
+  const [etat, envoyer] = useActionState(modification ? modifierApprenant : creerApprenant, ETAT_INITIAL);
+  const v = (nom: string) => etat.valeurs?.[nom] ?? initiales?.[nom];
 
   const optionsEntreprise = [
     { valeur: "", libelle: "Aucune — particulier" },
@@ -46,47 +50,38 @@ export function FormulaireApprenant({ entreprises }: Props) {
       action={envoyer}
       className="max-w-2xl rounded-xl border border-bordure bg-surface p-5 shadow-sm"
     >
+      {initiales && <input type="hidden" name="id" value={initiales.id} />}
+
       <h2 className="mb-3 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">
         Identité
       </h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Champ
-          nom="prenom"
-          libelle="Prénom"
-          obligatoire
-          valeurParDefaut={etat.valeurs?.prenom}
-        />
-        <Champ nom="nom" libelle="Nom" obligatoire valeurParDefaut={etat.valeurs?.nom} />
-        <Champ
-          nom="dateNaissance"
-          libelle="Date de naissance"
-          type="date"
-          valeurParDefaut={etat.valeurs?.dateNaissance}
-        />
-        <Champ
-          nom="telephone"
-          libelle="Téléphone"
-          type="tel"
-          valeurParDefaut={etat.valeurs?.telephone}
-        />
+        <Champ nom="prenom" libelle="Prénom" obligatoire valeurParDefaut={v("prenom")} />
+        <Champ nom="nom" libelle="Nom" obligatoire valeurParDefaut={v("nom")} />
+        <Champ nom="dateNaissance" libelle="Date de naissance" type="date" valeurParDefaut={v("dateNaissance")} />
+        <Champ nom="telephone" libelle="Téléphone" type="tel" valeurParDefaut={v("telephone")} />
         <div className="sm:col-span-2">
           <Champ
             nom="email"
             libelle="Email"
             type="email"
             aide="Sert à l'envoi des convocations, attestations et demandes de signature."
-            valeurParDefaut={etat.valeurs?.email}
+            valeurParDefaut={v("email")}
           />
         </div>
         <div className="sm:col-span-2">
-          <Champ nom="adresse" libelle="Adresse" valeurParDefaut={etat.valeurs?.adresse} />
+          <Champ nom="adresse" libelle="Adresse" valeurParDefaut={v("adresse")} />
         </div>
-        <Champ
-          nom="codePostal"
-          libelle="Code postal"
-          valeurParDefaut={etat.valeurs?.codePostal}
-        />
-        <Champ nom="ville" libelle="Ville" valeurParDefaut={etat.valeurs?.ville} />
+        <Champ nom="codePostal" libelle="Code postal" valeurParDefaut={v("codePostal")} />
+        <Champ nom="ville" libelle="Ville" valeurParDefaut={v("ville")} />
+        <div className="sm:col-span-2">
+          <Champ
+            nom="niveauEtudes"
+            libelle="Niveau d'études / diplôme"
+            placeholder="Ex. : Bac+3 — licence de gestion"
+            valeurParDefaut={v("niveauEtudes")}
+          />
+        </div>
       </div>
 
       <h2 className="mb-3 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">
@@ -98,28 +93,34 @@ export function FormulaireApprenant({ entreprises }: Props) {
             nom="companyId"
             libelle="Entreprise"
             options={optionsEntreprise}
-            valeurParDefaut={etat.valeurs?.companyId ?? ""}
+            valeurParDefaut={v("companyId") ?? ""}
           />
         </div>
         <ChampListe
           nom="financement"
           libelle="Financement"
           options={OPTIONS_FINANCEMENT}
-          valeurParDefaut={etat.valeurs?.financement ?? "ENTREPRISE"}
+          valeurParDefaut={v("financement") ?? "ENTREPRISE"}
         />
         <ChampListe
           nom="statut"
           libelle="Statut"
           options={OPTIONS_STATUT}
-          valeurParDefaut={etat.valeurs?.statut ?? "INSCRIT"}
+          valeurParDefaut={v("statut") ?? "INSCRIT"}
+        />
+        <Champ
+          nom="numeroDossierCpf"
+          libelle="Numéro de dossier CPF"
+          aide="Pour un financement personnel via moncompteformation.gouv.fr."
+          valeurParDefaut={v("numeroDossierCpf")}
         />
         <div className="sm:col-span-2">
-          <ChampLong nom="notes" libelle="Notes" valeurParDefaut={etat.valeurs?.notes} />
+          <ChampLong nom="notes" libelle="Notes" valeurParDefaut={v("notes")} />
         </div>
       </div>
 
       <div className="mt-5 flex items-center gap-3">
-        <BoutonEnvoyer libelle="Créer l'apprenant" />
+        <BoutonEnvoyer libelle={modification ? "Enregistrer les modifications" : "Créer l'apprenant"} />
         <MessageErreur message={etat.erreur} />
       </div>
     </form>

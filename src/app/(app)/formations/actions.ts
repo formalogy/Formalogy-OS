@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { assainirTexteFormation } from "@/lib/formations-assainir";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -64,6 +65,18 @@ const schemaFormation = z.object({
   certification: texteFacultatif,
 });
 
+/// Champs saisis via l'éditeur enrichi : leur HTML est nettoyé avant d'être
+/// enregistré, jamais fait confiance tel quel.
+const CHAMPS_RICHES = ["description", "objectifs", "programme", "prerequis", "publicVise", "competences"] as const;
+
+function assainirChampsRiches<T extends Record<string, unknown>>(donnees: T): T {
+  const copie: Record<string, unknown> = { ...donnees };
+  for (const champ of CHAMPS_RICHES) {
+    if (typeof copie[champ] === "string") copie[champ] = assainirTexteFormation(copie[champ]);
+  }
+  return copie as T;
+}
+
 async function referenceDejaPrise(reference: string, saufId?: string) {
   const existante = await prisma.formation.findFirst({
     where: { reference, ...(saufId ? { NOT: { id: saufId } } : {}) },
@@ -94,7 +107,7 @@ export async function creerFormation(
     };
   }
 
-  const { categoryId, ...reste } = resultat.data;
+  const { categoryId, ...reste } = assainirChampsRiches(resultat.data);
   const formation = await prisma.formation.create({
     data: { ...reste, categoryId: categoryId ?? null, createdById: utilisateur.id },
   });
@@ -139,7 +152,7 @@ export async function modifierFormation(
     };
   }
 
-  const { categoryId, ...reste } = resultat.data;
+  const { categoryId, ...reste } = assainirChampsRiches(resultat.data);
   const formation = await prisma.formation.update({
     where: { id },
     data: { ...reste, categoryId: categoryId ?? null },

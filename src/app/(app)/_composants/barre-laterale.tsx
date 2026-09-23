@@ -1,9 +1,40 @@
 "use client";
 
+import {
+  IconActivity,
+  IconAddressBook,
+  IconBook2,
+  IconBuilding,
+  IconBuildingSkyscraper,
+  IconCalendarEvent,
+  IconCalendarWeek,
+  IconCertificate,
+  IconChalkboard,
+  IconChartBar,
+  IconChecklist,
+  IconClipboardCheck,
+  IconCode,
+  IconCreditCard,
+  IconFileInvoice,
+  IconFiles,
+  IconGauge,
+  IconHome2,
+  IconListCheck,
+  IconMail,
+  IconPlug,
+  IconRobot,
+  IconSettings,
+  IconShieldLock,
+  IconSignature,
+  IconStar,
+  IconUserCircle,
+  IconUsers,
+  IconWallet,
+  type Icon,
+} from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Icone } from "@/app/(app)/_composants/icones";
 import type { GroupeMenu } from "@/lib/navigation";
 
 type Props = {
@@ -11,6 +42,45 @@ type Props = {
   ouverte: boolean;
   onFermer: () => void;
 };
+
+/// Une icône par entrée de menu (voir la clé posée dans lib/navigation.ts).
+const ICONES: Record<string, Icon> = {
+  jauge: IconGauge,
+  personnes: IconUsers,
+  livre: IconBook2,
+  document: IconFiles,
+  euro: IconWallet,
+  etoile: IconStar,
+  engrenage: IconSettings,
+  accueil: IconHome2,
+  activite: IconActivity,
+  statistiques: IconChartBar,
+  calendrier: IconCalendarEvent,
+  utilisateur: IconUserCircle,
+  entreprise: IconBuilding,
+  carnet: IconAddressBook,
+  tableau: IconChalkboard,
+  planning: IconCalendarWeek,
+  signature: IconSignature,
+  emargement: IconClipboardCheck,
+  certificat: IconCertificate,
+  facture: IconFileInvoice,
+  carte: IconCreditCard,
+  portefeuille: IconWallet,
+  liste: IconListCheck,
+  immeuble: IconBuildingSkyscraper,
+  bouclier: IconShieldLock,
+  enveloppe: IconMail,
+  robot: IconRobot,
+  prise: IconPlug,
+  code: IconCode,
+  sondage: IconChecklist,
+};
+
+function IconeMenu({ nom, className }: { nom: string; className?: string }) {
+  const Composant = ICONES[nom] ?? IconGauge;
+  return <Composant className={className} stroke={1.75} aria-hidden="true" />;
+}
 
 export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
   const cheminActuel = usePathname();
@@ -27,19 +97,19 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-bordure bg-surface-creuse transition-transform lg:translate-x-0 ${
-          ouverte ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-3 left-3 z-30 flex w-64 flex-col rounded-2xl bg-barre transition-transform lg:translate-x-0 ${
+          ouverte ? "translate-x-0" : "-translate-x-[calc(100%+0.75rem)]"
         }`}
       >
-        <div className="flex shrink-0 items-center gap-2.5 px-5 py-5">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-accent text-white">
-            <Icone nom="boussole" className="size-4" />
+        <div className="flex shrink-0 items-center gap-2.5 px-4 py-5">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-accent text-white">
+            <IconGauge className="size-5" stroke={1.75} aria-hidden="true" />
           </div>
           <div className="leading-tight">
-            <div className="font-titre text-[15px] font-extrabold tracking-tight">
+            <div className="font-titre text-[15px] font-semibold text-barre-texte">
               Formalogy OS
             </div>
-            <div className="text-[10px] font-medium uppercase tracking-wider text-texte-tenu">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-barre-texte-tenu">
               Centre de pilotage
             </div>
           </div>
@@ -47,9 +117,8 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           {groupes.map((groupe) => (
-            <div key={groupe.titre} className="mt-3.5 first:mt-0">
-              <div className="flex items-center gap-2 px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-texte-tenu">
-                <Icone nom={groupe.icone} className="size-3.5" />
+            <div key={groupe.titre} className="mt-4 first:mt-0">
+              <div className="px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-barre-texte-tenu">
                 {groupe.titre}
               </div>
 
@@ -59,10 +128,11 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
                     <div
                       key={entree.libelle}
                       title={`Module construit en Phase ${entree.phase}`}
-                      className="flex cursor-default items-center justify-between rounded-lg py-1.5 pl-7 pr-2.5 text-[13px] text-texte-tenu"
+                      className="flex cursor-default items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] text-barre-texte-tenu"
                     >
-                      {entree.libelle}
-                      <span className="rounded-full bg-bordure-douce px-1.5 py-px font-texte text-[10px] text-texte-tenu">
+                      <IconeMenu nom={entree.icone} className="size-[18px] shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
+                      <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-px font-texte text-[10px]">
                         P{entree.phase}
                       </span>
                     </div>
@@ -77,13 +147,17 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
                     href={entree.chemin}
                     onClick={onFermer}
                     aria-current={actif ? "page" : undefined}
-                    className={`flex items-center rounded-lg py-1.5 text-[13px] transition ${
+                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition ${
                       actif
-                        ? "border-l-2 border-accent bg-accent-pale pl-[26px] pr-2.5 font-semibold text-accent-fort"
-                        : "pl-7 pr-2.5 text-texte-doux hover:bg-bordure-douce hover:text-texte"
+                        ? "bg-barre-actif font-medium text-barre-texte"
+                        : "text-barre-texte-doux hover:bg-white/5 hover:text-barre-texte"
                     }`}
                   >
-                    {entree.libelle}
+                    <IconeMenu
+                      nom={entree.icone}
+                      className={`size-[18px] shrink-0 ${actif ? "text-accent-clair" : ""}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
                   </Link>
                 );
               })}
@@ -91,7 +165,7 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-bordure px-5 py-3 text-[11px] text-texte-tenu">
+        <div className="shrink-0 border-t border-white/10 px-4 py-3 text-[11px] text-barre-texte-tenu">
           Les entrées grisées seront construites lors des phases indiquées.
         </div>
       </aside>

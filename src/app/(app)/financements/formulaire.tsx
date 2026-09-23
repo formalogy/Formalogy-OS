@@ -51,14 +51,8 @@ export function FormulaireDossier({ sessions, entreprises, apprenants, initiales
           </datalist>
         </div>
         <Champ nom="reference" libelle="Numéro de dossier" placeholder="Attribué par le financeur" valeurParDefaut={v("reference")} />
-        <Champ nom="montantDemande" libelle="Montant demandé (€)" placeholder="1250" valeurParDefaut={v("montantDemande")} />
-        <Champ
-          nom="dateLimite"
-          libelle="Date limite de dépôt"
-          type="date"
-          aide="Souvent avant le début de la formation."
-          valeurParDefaut={v("dateLimite")}
-        />
+        <Champ nom="montant" libelle="Montant (€)" placeholder="1250" valeurParDefaut={v("montant")} />
+        <Champ nom="dateDepot" libelle="Déposé le" type="date" aide="Facultatif, pour votre suivi." valeurParDefaut={v("dateDepot")} />
         <label className="flex items-center gap-2 self-end pb-2 text-[12.5px] font-semibold">
           <input type="checkbox" name="subrogation" defaultChecked={(v("subrogation") ?? "on") === "on"} />
           Subrogation (le financeur paie directement l&apos;organisme)

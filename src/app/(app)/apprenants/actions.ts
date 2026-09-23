@@ -6,12 +6,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { LIBELLE_STATUT_APPRENANT } from "@/lib/apprenants-libelles";
+import { cheminPhoto, verifierPhoto } from "@/lib/apprenants-photo";
 import { declencher } from "@/lib/automatisations/moteur";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { anonymiserApprenant } from "@/lib/rgpd";
 import { exigerRole } from "@/lib/session";
+import { stockage, StockageNonConfigure } from "@/lib/stockage";
 
 export type EtatFormulaire = {
   erreur?: string;
@@ -24,6 +26,14 @@ function saisie(donnees: FormData): Record<string, string> {
     if (typeof valeur === "string") valeurs[cle] = valeur;
   }
   return valeurs;
+}
+
+function messageStockage(erreur: unknown): string {
+  if (erreur instanceof StockageNonConfigure) {
+    return "Le stockage des documents n'est pas encore configuré. Il manque la clé Supabase dans le fichier de configuration.";
+  }
+  console.error("Erreur de stockage :", erreur);
+  return "Le fichier n'a pas pu être enregistré dans l'espace de stockage. Réessayez dans un instant.";
 }
 
 const texteFacultatif = z
@@ -47,9 +57,11 @@ const schemaApprenant = z.object({
   adresse: texteFacultatif,
   codePostal: texteFacultatif,
   ville: texteFacultatif,
+  niveauEtudes: texteFacultatif,
   companyId: texteFacultatif,
   statut: z.enum(STATUTS),
   financement: z.enum(TYPES),
+  numeroDossierCpf: texteFacultatif,
   notes: texteFacultatif,
 });
 
@@ -93,6 +105,48 @@ export async function creerApprenant(
   after(() => declencher({ type: "APPRENANT_CREE", learnerId: apprenant.id }));
 
   revalidatePath("/apprenants");
+  redirect(`/apprenants/${apprenant.id}/inscrire-session`);
+}
+
+export async function modifierApprenant(
+  _precedent: EtatFormulaire,
+  donnees: FormData,
+): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+
+  const id = String(donnees.get("id") ?? "");
+  const existant = await prisma.learner.findFirst({ where: { id, deletedAt: null } });
+  if (!existant) return { erreur: "Apprenant introuvable.", valeurs: saisie(donnees) };
+
+  const resultat = schemaApprenant.safeParse(Object.fromEntries(donnees));
+  if (!resultat.success) {
+    return {
+      erreur: resultat.error.issues[0]?.message ?? "Saisie invalide.",
+      valeurs: saisie(donnees),
+    };
+  }
+
+  const { dateNaissance, companyId, ...reste } = resultat.data;
+
+  const apprenant = await prisma.learner.update({
+    where: { id },
+    data: {
+      ...reste,
+      dateNaissance: dateNaissance ? new Date(dateNaissance) : null,
+      companyId: companyId ?? null,
+    },
+  });
+
+  await journaliser({
+    action: "learner.updated",
+    summary: `Fiche apprenant modifiée : ${apprenant.prenom} ${apprenant.nom}`,
+    entityType: "Learner",
+    entityId: apprenant.id,
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/apprenants");
+  revalidatePath(`/apprenants/${apprenant.id}`);
   redirect(`/apprenants/${apprenant.id}`);
 }
 
@@ -192,4 +246,66 @@ export async function anonymiserFicheApprenant(donnees: FormData): Promise<{ err
   });
 
   redirect("/apprenants");
+}
+
+/// Dépose (ou remplace) la photo de profil d'un apprenant.
+export async function deposerPhotoApprenant(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const id = String(donnees.get("id") ?? "");
+
+  const apprenant = await prisma.learner.findFirst({ where: { id, deletedAt: null } });
+  if (!apprenant) return { erreur: "Apprenant introuvable." };
+
+  const photo = await verifierPhoto(donnees.get("fichier"));
+  if (typeof photo === "string") return { erreur: photo };
+
+  const chemin = cheminPhoto(apprenant.id, photo.extension);
+  try {
+    await stockage().deposer(chemin, photo.octets, photo.typeMime);
+  } catch (erreur) {
+    return { erreur: messageStockage(erreur) };
+  }
+
+  await prisma.learner.update({ where: { id: apprenant.id }, data: { photoCheminStockage: chemin } });
+
+  // L'ancienne photo est retirée après coup : un échec ici n'annule pas le
+  // remplacement, déjà effectif en base.
+  if (apprenant.photoCheminStockage) {
+    await stockage().supprimer([apprenant.photoCheminStockage]).catch(() => undefined);
+  }
+
+  await journaliser({
+    action: "learner.photo_updated",
+    summary: `Photo de profil mise à jour : ${apprenant.prenom} ${apprenant.nom}`,
+    entityType: "Learner",
+    entityId: apprenant.id,
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/apprenants");
+  revalidatePath(`/apprenants/${apprenant.id}`);
+  return {};
+}
+
+/// Retire la photo de profil, sans remplacement.
+export async function retirerPhotoApprenant(donnees: FormData): Promise<void> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const id = String(donnees.get("id") ?? "");
+
+  const apprenant = await prisma.learner.findFirst({ where: { id, deletedAt: null } });
+  if (!apprenant?.photoCheminStockage) return;
+
+  await prisma.learner.update({ where: { id: apprenant.id }, data: { photoCheminStockage: null } });
+  await stockage().supprimer([apprenant.photoCheminStockage]).catch(() => undefined);
+
+  await journaliser({
+    action: "learner.photo_removed",
+    summary: `Photo de profil retirée : ${apprenant.prenom} ${apprenant.nom}`,
+    entityType: "Learner",
+    entityId: apprenant.id,
+    userId: utilisateur.id,
+  });
+
+  revalidatePath("/apprenants");
+  revalidatePath(`/apprenants/${apprenant.id}`);
 }

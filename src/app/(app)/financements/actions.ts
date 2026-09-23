@@ -9,7 +9,7 @@ import { TYPES_FINANCEUR } from "@/lib/financements";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import { aujourdhuiUTC, jourDepuisSaisie } from "@/lib/sessions-libelles";
+import { jourDepuisSaisie } from "@/lib/sessions-libelles";
 
 export type EtatFormulaire = { erreur?: string; succes?: string; valeurs?: Record<string, string> };
 
@@ -36,26 +36,28 @@ const schema = z.object({
   sessionId: texteFacultatif,
   learnerId: texteFacultatif,
   companyId: texteFacultatif,
-  montantDemande: texteFacultatif,
-  dateLimite: texteFacultatif,
+  montant: texteFacultatif,
+  dateDepot: texteFacultatif,
   subrogation: z.enum(["on"]).optional(),
   notes: texteFacultatif,
 });
 
+/// Un dossier enregistré est considéré comme un financement acquis : pas de
+/// statut de demande à faire évoluer ensuite.
 async function lireDossier(donnees: FormData) {
   const r = schema.safeParse(saisie(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." } as const;
 
-  let montantDemande: string | null = null;
-  if (r.data.montantDemande) {
-    const m = lireMontant(r.data.montantDemande);
-    if (!m || enCentimes(m) <= 0) return { erreur: "Le montant demandé doit être positif, ex. 1250 ou 1250,50." } as const;
-    montantDemande = m;
+  let montant: string | null = null;
+  if (r.data.montant) {
+    const m = lireMontant(r.data.montant);
+    if (!m || enCentimes(m) <= 0) return { erreur: "Le montant doit être positif, ex. 1250 ou 1250,50." } as const;
+    montant = m;
   }
-  let dateLimite: Date | null = null;
-  if (r.data.dateLimite) {
-    dateLimite = jourDepuisSaisie(r.data.dateLimite);
-    if (!dateLimite) return { erreur: "Date limite invalide." } as const;
+  let dateDepot: Date | null = null;
+  if (r.data.dateDepot) {
+    dateDepot = jourDepuisSaisie(r.data.dateDepot);
+    if (!dateDepot) return { erreur: "Date de dépôt invalide." } as const;
   }
 
   const [session, apprenant, entreprise] = await Promise.all([
@@ -75,8 +77,8 @@ async function lireDossier(donnees: FormData) {
       sessionId: r.data.sessionId ?? null,
       learnerId: r.data.learnerId ?? null,
       companyId: r.data.companyId ?? null,
-      montantDemande,
-      dateLimite,
+      montant,
+      dateDepot,
       subrogation: r.data.subrogation === "on",
       notes: r.data.notes ?? null,
     },
@@ -91,7 +93,7 @@ export async function creerDossier(_precedent: EtatFormulaire, donnees: FormData
   const dossier = await prisma.dossierFinancement.create({ data: { ...l.data, createdById: utilisateur.id } });
   await journaliser({
     action: "funding.created",
-    summary: `Dossier de financement créé : ${dossier.financeurNom}${dossier.montantDemande ? ` — ${formaterMontant(dossier.montantDemande)} demandés` : ""}`,
+    summary: `Dossier de financement créé : ${dossier.financeurNom}${dossier.montant ? ` — ${formaterMontant(dossier.montant)}` : ""}`,
     entityType: "DossierFinancement",
     entityId: dossier.id,
     userId: utilisateur.id,
@@ -121,84 +123,11 @@ export async function modifierDossier(_precedent: EtatFormulaire, donnees: FormD
   redirect(`/financements/${id}`);
 }
 
-/// Avancement du dossier : dépôt, accord, refus, annulation. Chaque étape
-/// demande ce qui la justifie (date, montant accordé, motif de refus).
-export async function changerStatutDossier(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
-  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
-  const valeurs = saisie(donnees);
-  const id = valeurs.id ?? "";
-  const dossier = await prisma.dossierFinancement.findUnique({ where: { id } });
-  if (!dossier) return { erreur: "Dossier introuvable." };
-
-  const statut = z.enum(["DEPOSE", "ACCORDE", "REFUSE", "ANNULE", "A_MONTER"]).safeParse(valeurs.statut);
-  if (!statut.success) return { erreur: "Statut invalide.", valeurs };
-
-  const aujourdhui = aujourdhuiUTC();
-  const data: Record<string, unknown> = { statut: statut.data };
-
-  if (statut.data === "DEPOSE") {
-    const date = jourDepuisSaisie(valeurs.dateDepot ?? "");
-    if (!date) return { erreur: "Indiquez la date de dépôt.", valeurs };
-    if (date > aujourdhui) return { erreur: "La date de dépôt ne peut pas être dans le futur.", valeurs };
-    data.dateDepot = date;
-    data.dateReponse = null;
-    data.motifRefus = null;
-  }
-
-  if (statut.data === "ACCORDE" || statut.data === "REFUSE") {
-    const date = jourDepuisSaisie(valeurs.dateReponse ?? "");
-    if (!date) return { erreur: "Indiquez la date de la réponse.", valeurs };
-    if (date > aujourdhui) return { erreur: "La date de réponse ne peut pas être dans le futur.", valeurs };
-    if (dossier.dateDepot && date < dossier.dateDepot) return { erreur: "La réponse ne peut pas précéder le dépôt.", valeurs };
-    data.dateReponse = date;
-
-    if (statut.data === "ACCORDE") {
-      const montant = lireMontant(valeurs.montantAccorde ?? "");
-      if (!montant || enCentimes(montant) <= 0) return { erreur: "Indiquez le montant accordé.", valeurs };
-      data.montantAccorde = montant;
-      data.motifRefus = null;
-    } else {
-      const motif = (valeurs.motifRefus ?? "").trim();
-      if (!motif) return { erreur: "Indiquez le motif du refus : il servira pour un nouveau dossier.", valeurs };
-      data.motifRefus = motif.slice(0, 500);
-      data.montantAccorde = null;
-    }
-  }
-
-  if (statut.data === "A_MONTER") {
-    data.dateDepot = null;
-    data.dateReponse = null;
-    data.montantAccorde = null;
-    data.motifRefus = null;
-  }
-
-  await prisma.dossierFinancement.update({ where: { id }, data });
-
-  const libelle = {
-    A_MONTER: "remis à déposer",
-    DEPOSE: "déposé",
-    ACCORDE: `accordé (${data.montantAccorde ? formaterMontant(data.montantAccorde) : ""})`,
-    REFUSE: "refusé",
-    ANNULE: "annulé",
-  }[statut.data];
-  await journaliser({
-    action: "funding.status_changed",
-    summary: `Dossier ${dossier.financeurNom}${dossier.reference ? ` (${dossier.reference})` : ""} ${libelle}`,
-    entityType: "DossierFinancement",
-    entityId: id,
-    userId: utilisateur.id,
-  });
-  rafraichir(dossier);
-  return { succes: "Enregistré." };
-}
-
-/// Suppression réservée aux administrateurs, et seulement tant que le dossier
-/// n'a pas été déposé : ensuite il fait partie de l'historique.
 export async function supprimerDossier(donnees: FormData): Promise<void> {
   const utilisateur = await exigerRole("ADMIN");
   const id = String(donnees.get("id") ?? "");
   const dossier = await prisma.dossierFinancement.findUnique({ where: { id } });
-  if (!dossier || dossier.statut !== "A_MONTER") return;
+  if (!dossier) return;
 
   await prisma.dossierFinancement.delete({ where: { id } });
   await journaliser({
