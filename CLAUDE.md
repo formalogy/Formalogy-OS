@@ -311,6 +311,11 @@ et que le projet peut migrer ailleurs en quelques heures.
   main depuis `/questionnaires`.
 - Les réponses s'affichent dans `/questionnaires` et sur les fiches
   apprenant, formateur et dossier de financement.
+- Bibliothèque : six types de documents `QUESTIONNAIRE_*` (positionnement,
+  à chaud apprenant, à chaud formateur, à froid, financeur, annuel
+  formateurs) pour ranger les modèles de l'organisme ou des exemplaires
+  papier remplis. Ils sont indépendants des questionnaires en ligne, dont les
+  questions restent dans `lib/questionnaires-questions.ts`.
 
 ## Sécurité
 
