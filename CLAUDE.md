@@ -201,8 +201,10 @@ et que le projet peut migrer ailleurs en quelques heures.
     retrieved. The document may not have been rendered yet. »), y compris sur
     des factures finalisées depuis plusieurs minutes — probablement un incident
     ponctuel côté Henrri. Sans conséquence sur la facture elle-même (déjà
-    enregistrée, avec son numéro officiel) : seul le PDF manque, à retester
-    plus tard ou à récupérer à la main depuis le site Henrri en attendant.
+    enregistrée, avec son numéro officiel) : seul le PDF manquait.
+    **Retesté le 23/09/2026 : le PDF est de nouveau récupéré et rangé**
+    (facture n° 26-10-4 du bac à sable). Si l'incident revient, le PDF se
+    récupère à la main depuis le site Henrri.
 
 ## Facturation automatique en fin de session (Phase 16)
 
@@ -270,8 +272,10 @@ et que le projet peut migrer ailleurs en quelques heures.
 - **Conventions** : modèles Word déposés dans Documents, types
   `MODELE_CONVENTION_PARTICULIER` et `MODELE_CONVENTION_ENTREPRISE` (session
   avec ou sans entreprise). Marqueurs `«NOM»` remplis par
-  `lib/conventions-docx.ts` (valeurs dans `lib/conventions.ts`, y compris
-  `MARQUEURS_SANS_SOURCE` laissés vides faute de donnée en base) ; `«TRAIT»`
+  `lib/conventions-docx.ts` (valeurs dans `lib/conventions.ts`). Les
+  `MARQUEURS_SANS_SOURCE` (civilité, moyens pédagogiques, code APE,
+  représentant légal…) n'ont aucune donnée en base : ils restent visibles
+  tels quels (`«CIVILITE»`) dans la convention, à compléter à la main ; `«TRAIT»`
   est un marqueur de mise en page (filet). Le Word rempli est converti en PDF
   par un moteur maison (`lib/docx-vers-pdf.ts`, sans LibreOffice : aucune
   contrainte d'hébergement), la signature de l'organisme apposée, puis rangé
