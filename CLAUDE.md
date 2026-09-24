@@ -28,7 +28,7 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 | Accès base | Prisma 7.10.0 (versions figées, pas de bêta ni de RC) |
 | Authentification | better-auth (sessions en base) — **jamais** Supabase Auth |
 | Stockage documents | Supabase Storage, derrière une abstraction |
-| Emails | Compte Gmail dédié, en SMTP avec mot de passe d'application (nodemailer) |
+| Emails | Compte Gmail dédié `formalogy.pro@gmail.com`, en SMTP avec mot de passe d'application (nodemailer) |
 | Signature électronique | BoldSign, région Europe, formule **sans API** (envoi depuis le site BoldSign, retour par email) |
 | Facturation externe | Henrri : émission automatique via API (clientId/clientSecret) dès qu'une session se termine ; saisie à la main tant que ces identifiants ne sont pas fournis |
 | Automatisations | Moteur interne (`lib/automatisations`) + réveil quotidien `POST /api/automatisations/executer` |
@@ -53,14 +53,51 @@ et que le projet peut migrer ailleurs en quelques heures.
   ne vaut pas exactement `true` (et que `GMAIL_ADRESSE` et `GMAIL_MOT_DE_PASSE_APPLI`
   sont renseignés). Sinon, les envois sont enregistrés avec le statut `SIMULE`.
   Ne jamais contourner ce verrou pendant des tests : les apprenants sont réels.
-- Gmail ne fournit ni accusé de délivrance ni suivi d'ouverture : les statuts
-  utiles sont SIMULE, ENVOYE, ECHEC. Plafond interne de 400 envois / 24 h
-  (Gmail bloque le compte vers 500).
+- Gmail ne fournit aucun accusé de délivrance. L'ouverture est suivie par
+  l'application elle-même : chaque email réellement envoyé porte un pixel
+  (`pixelSuivi`, route publique `/api/emails/[id]/pixel`) qui le fait passer
+  de ENVOYE à OUVERT. Statuts : SIMULE, ENVOYE, OUVERT, ECHEC. Plafond interne
+  de 400 envois / 24 h (Gmail bloque le compte vers 500). *À vérifier :
+  conformité CNIL de ce pixel (consentement), non tranchée.*
+- Compte d'envoi : `formalogy.pro@gmail.com` (remplace
+  `formalogy.formation@gmail.com`), connecté le 24/09/2026, SMTP et IMAP
+  vérifiés. `npm run tester-gmail` contrôle la connexion **sans envoyer
+  aucun email** ; `npm run configurer-gmail` saisit le mot de passe
+  d'application en masqué dans `.env`. Ce mot de passe (16 lettres, espaces
+  indifférents) exige la validation en deux étapes du compte Google ; ce
+  n'est jamais le mot de passe du compte.
+- Pièces jointes : l'action EMAIL accepte `joindre` (CONVENTION, CONVOCATION,
+  ATTESTATION, CERTIFICAT) ; le document PDF rangé pour la session et
+  l'apprenant est joint, l'email part sans lui s'il manque. Tous les
+  documents envoyés sont des PDF.
 - Inngest a été écarté au profit d'un moteur interne, jugé suffisant pour le
   volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
 - Les automatisations livrées sont **désactivées** : leur activation est une
-  décision du client.
+  décision du client. Au 24/09/2026 il en a activé 12 sur 14 ; les deux
+  campagnes annuelles restent éteintes.
+- Destinataires d'une action EMAIL : `APPRENANT`, `APPRENANTS_SESSION`,
+  `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
+  financement des 365 derniers jours, dédoublonnés par adresse).
+- **Un envoi par apprenant** : la clé d'un cas de session contient une
+  empreinte de la liste des inscrits (`empreinteInscrits`). Une inscription
+  tardive rouvre le cas ; ceux qui ont déjà reçu le même modèle pour la même
+  session sont écartés (`dejaServis`), un envoi en ECHEC restant retentable.
+  Conséquence : deux automatisations qui utilisent le même modèle d'email
+  pour une session ne servent un apprenant qu'une fois.
+- **Pas de rattrapage à l'activation** : `automations.activeeAt` (date de la
+  dernière activation) borne les déclencheurs « après la fin » et les
+  campagnes, pour qu'activer une automatisation ne déclenche pas une rafale
+  sur l'historique.
+- Déclencheur `CAMPAGNE_ANNUELLE` (jour, mois, heure de Paris) : une fois par
+  an, jamais avant l'heure dite. Livrées : questionnaire des formateurs le
+  15/12 et des financeurs le 25/01, à 10 h.
+- Les sessions en brouillon (et annulées) sont ignorées par les déclencheurs
+  datés : c'est le bouton « Lancer le déroulement automatique » de la fiche
+  session qui les fait passer à « À préparer » et exécute aussitôt les
+  automatisations planifiées. Attention : cette exécution porte sur **toutes**
+  les sessions, pas seulement celle qu'on lance. Le déclencheur
+  `INSCRIPTION_SESSION`, lui, part à l'inscription quel que soit le statut.
 - Le réveil quotidien exige `Authorization: Bearer <CRON_SECRET>` ; le
   planificateur sera configuré à la mise en ligne (Phase 18).
 
@@ -96,9 +133,13 @@ et que le projet peut migrer ailleurs en quelques heures.
 
 ## Émargement
 
-- Feuilles d'émargement PDF générées à la demande (une page par jour,
-  `lib/emargement-pdf.ts`), à imprimer ou à faire signer via BoldSign ; la
-  feuille signée est déposée comme document de type `EMARGEMENT`.
+- Feuilles d'émargement PDF générées à la demande (une page par
+  demi-journée, une seule colonne « Signature », `lib/emargement-pdf.ts`),
+  affichées avant impression, à imprimer ou à faire signer via BoldSign ; la
+  feuille signée est déposée comme document de type `EMARGEMENT`. Seuls les
+  jours déjà arrivés sont produits (jamais à l'avance). Les
+  horaires de la session se saisissent « matin / après-midi », séparés par
+  une barre oblique.
 - Les présences (`presences`, une ligne par apprenant et demi-journée) sont
   saisies par l'équipe ou par le formateur de la session, jamais pour un jour
   à venir. Elles serviront aux attestations (Phase 12).
@@ -112,6 +153,9 @@ et que le projet peut migrer ailleurs en quelques heures.
   (Paramètres → Organisme), durée en heures de la formation, présences
   complètes et évaluation des acquis de l'apprenant.
 - Heures suivies = durée × demi-journées présentes / demi-journées de la session.
+- L'automatisation « Documents de fin de formation » (J+1 après la fin)
+  génère attestation et certificat (action `DOCUMENTS_FIN_FORMATION`) puis
+  les envoie en pièces jointes (modèle `DOCUMENTS_FIN`).
 
 ## Factures et paiements
 
@@ -137,9 +181,13 @@ et que le projet peut migrer ailleurs en quelques heures.
   - `documentKind` et les autres valeurs d'énumération sont renvoyées en
     minuscules (`"invoice"`) et non en PascalCase (`"Invoice"`) comme annoncé
     → comparaisons insensibles à la casse dans le code.
-  - `GET /v1/documentlinetypes` ne renvoie **pas** le champ `type` documenté
-    (Item/Text/…) : seul le libellé français (« Article ») distingue une ligne
-    facturable des titres, totaux, textes, etc.
+  - Les champs d'énumération (`type` de `GET /v1/documentlinetypes`,
+    `itemCategoryKind`, `documentKind`) reviennent tantôt en texte
+    (`"item"`), tantôt en entier brut (`1`, `7`…) : `memeValeur` n'accepte
+    que le texte, et le libellé français (« Article ») sert de repli pour
+    reconnaître une ligne facturable. Aucune catégorie n'est choisie par
+    défaut : sans catégorie « service », l'émission échoue clairement (le
+    repli silencieux choisissait « Produits » à 20 % de TVA).
   - Une ligne facturable (`POST /v1/documents/{id}/lines`) **exige** un article
     (`item` en ligne, avec son `itemCategoryId` — catégorie « Services (Forfait) »
     utilisée ici) : la documentation suggérait qu'une simple `description`
@@ -201,6 +249,62 @@ et que le projet peut migrer ailleurs en quelques heures.
   et améliorations : c'est la trace de l'amélioration continue (indicateur 32).
 - À la prochaine version du référentiel : ajouter une migration qui met à jour
   les intitulés, sans toucher au suivi saisi par le client.
+
+## Sessions
+
+- Statuts proposés à l'écran (`STATUTS_PROPOSES`, `lib/sessions-libelles.ts`) :
+  brouillon, à préparer, en cours, terminée, clôturée, annulée.
+  `DOCUMENTS_EN_ATTENTE` et `PRETE` restent dans l'énumération (données
+  existantes) mais ne se choisissent plus.
+- Une session se crée en brouillon, sans choix de statut ; le statut ne se
+  modifie qu'ensuite. Le bouton « Lancer le déroulement automatique » la met
+  en route (voir Emails et automatisations).
+- Tableau de bord : « Entrées / Sorties de formation aujourd'hui » listent
+  chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
+  session annulée).
+
+## Documents générés
+
+- **Conventions** : modèles Word déposés dans Documents, types
+  `MODELE_CONVENTION_PARTICULIER` et `MODELE_CONVENTION_ENTREPRISE` (session
+  avec ou sans entreprise). Marqueurs `«NOM»` remplis par
+  `lib/conventions-docx.ts` (valeurs dans `lib/conventions.ts`, y compris
+  `MARQUEURS_SANS_SOURCE` laissés vides faute de donnée en base) ; `«TRAIT»`
+  est un marqueur de mise en page (filet). Le Word rempli est converti en PDF
+  par un moteur maison (`lib/docx-vers-pdf.ts`, sans LibreOffice : aucune
+  contrainte d'hébergement), la signature de l'organisme apposée, puis rangé
+  comme document de type `CONVENTION`. Génération manuelle depuis la fiche
+  session, ou jointe au questionnaire de positionnement à J-15. Un modèle
+  Word s'affiche en aperçu PDF dans l'application
+  (`/api/documents/versions/[id]?apercu`).
+- **Convocation** : PDF construit par `lib/convocation-pdf.ts` sur le modèle
+  fourni par le client (en-tête avec logo, tableau des séances par
+  demi-journée, lieu, formateur, référents), rangé comme document de type
+  `CONVOCATION` et joint à l'email de J-7.
+- **Logo et signature** de l'organisme : Paramètres → Organisme, stockés dans
+  Supabase Storage (`lib/organisme-signature.ts`), servis aux seuls
+  administrateurs et gestionnaires (`/api/organisme/image`). Le fond clair
+  d'une image peut être retiré dans le navigateur au dépôt. Logo en tête de
+  la convocation, de l'attestation et du certificat ; signature sur ces trois
+  documents et sur la convention.
+- **Référents** (handicap, administratif, données personnelles) : saisis dans
+  Paramètres → Organisme ; une rubrique de la convocation n'apparaît que si
+  son référent est renseigné.
+
+## Questionnaires qualité
+
+- Cinq types (`TypeQuestionnaire`) à côté du questionnaire de satisfaction
+  apprenant, inchangé : `POSITIONNEMENT` (attentes et positionnement, avant
+  la formation), `FROID` (à 60 jours), `CHAUD_FORMATEUR`,
+  `SATISFACTION_FORMATEUR`, `FINANCEUR`. Même mécanique de lien à usage
+  unique que la satisfaction (`lib/questionnaires.ts`, questions dans
+  `lib/questionnaires-questions.ts`, remplissage public
+  `/questionnaires/[jeton]`).
+- Envoi : POSITIONNEMENT à J-15 (avec la convention), FROID à J+60,
+  campagnes annuelles pour formateurs et financeurs ; CHAUD_FORMATEUR à la
+  main depuis `/questionnaires`.
+- Les réponses s'affichent dans `/questionnaires` et sur les fiches
+  apprenant, formateur et dossier de financement.
 
 ## Sécurité
 
@@ -268,6 +372,8 @@ npm run dev     # démarre en local sur http://localhost:3000
 npm run build   # vérifie que le projet compile
 npm run lint    # analyse du code
 npm run creer-admin -- <email> "<Prénom Nom>" [ADMIN|GESTIONNAIRE|FORMATEUR]
+npm run tester-gmail      # vérifie SMTP et IMAP, sans rien envoyer
+npm run configurer-gmail  # saisit le mot de passe d'application (masqué)
 ```
 
 Node.js est installé dans `~/.local/node` (ajouté au PATH via `~/.zshrc`).
