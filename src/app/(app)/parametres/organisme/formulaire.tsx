@@ -46,6 +46,22 @@ export function FormulaireOrganisme({ initiales, lectureSeule }: { initiales: Re
           <Champ nom="representantFonction" libelle="Fonction" placeholder="Dirigeant" valeurParDefaut={v("representantFonction")} />
         </div>
 
+        <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Référents</h2>
+        <p className="mb-3 text-[12px] text-texte-tenu">
+          Nommés sur la convocation envoyée aux apprenants. Le référent handicap est attendu par Qualiopi
+          (indicateur 26) ; les deux autres répondent aux questions pratiques avant la formation.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Champ nom="referentHandicapNom" libelle="Handicap — prénom et nom" valeurParDefaut={v("referentHandicapNom")} />
+          <Champ nom="referentHandicapEmail" libelle="Handicap — email" type="email" valeurParDefaut={v("referentHandicapEmail")} />
+          <Champ nom="referentHandicapTelephone" libelle="Handicap — téléphone" valeurParDefaut={v("referentHandicapTelephone")} />
+          <Champ nom="referentAdministratifNom" libelle="Administratif — prénom et nom" valeurParDefaut={v("referentAdministratifNom")} />
+          <Champ nom="referentAdministratifEmail" libelle="Administratif — email" type="email" valeurParDefaut={v("referentAdministratifEmail")} />
+          <Champ nom="referentAdministratifTelephone" libelle="Administratif — téléphone" valeurParDefaut={v("referentAdministratifTelephone")} />
+          <Champ nom="referentRgpdNom" libelle="RGPD — prénom et nom" valeurParDefaut={v("referentRgpdNom")} />
+          <Champ nom="referentRgpdEmail" libelle="RGPD — email" type="email" valeurParDefaut={v("referentRgpdEmail")} />
+        </div>
+
         <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Certification Qualiopi</h2>
         <p className="mb-3 text-[12px] text-texte-tenu">Rappelées sur l&apos;écran Qualiopi, pour ne pas manquer l&apos;audit de surveillance.</p>
         <div className="grid gap-4 sm:grid-cols-2">

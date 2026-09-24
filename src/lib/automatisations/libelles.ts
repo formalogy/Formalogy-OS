@@ -80,6 +80,7 @@ export function decrireAction(action: unknown): string {
     const qui = destinataires[a.destinataires ?? ""] ?? "au destinataire";
     const noms: Record<string, string> = {
       CONVENTION: "sa convention de formation, générée depuis le modèle déposé",
+      CONVOCATION: "sa convocation",
       ATTESTATION: "son attestation de fin de formation",
       CERTIFICAT: "son certificat de réalisation",
     };

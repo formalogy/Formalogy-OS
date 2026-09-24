@@ -6,7 +6,7 @@ import type { Automation, DeclencheurAutomatisation, TypeFinancement } from "@pr
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-import { genererConvention } from "@/lib/conventions";
+import { genererConvention, genererConvocationApprenant } from "@/lib/conventions";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
@@ -36,10 +36,11 @@ const schemaAction = z.discriminatedUnion("type", [
     destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE"]),
     /// Documents joints à l'email. CONVENTION fabrique la convention de
     /// l'apprenant à partir du modèle déposé, la range dans les documents de
-    /// la session et l'attache. ATTESTATION et CERTIFICAT reprennent les
+    /// la session et l'attache. CONVOCATION produit le document de
+    /// convocation. ATTESTATION et CERTIFICAT reprennent les
     /// documents déjà produits pour cet apprenant : si l'un manque — présences
     /// ou évaluation incomplètes — il est simplement omis.
-    joindre: z.array(z.enum(["CONVENTION", "ATTESTATION", "CERTIFICAT"])).optional(),
+    joindre: z.array(z.enum(["CONVENTION", "CONVOCATION", "ATTESTATION", "CERTIFICAT"])).optional(),
   }),
   z.object({
     type: z.literal("TACHE"),
@@ -374,11 +375,19 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             if (piece) piecesJointes.push(piece);
             else comptes.documentsAbsents++;
           }
-          if (action.joindre?.includes("CONVENTION") && cas.sessionId) {
-            const convention = await genererConvention({ sessionId: cas.sessionId, learnerId: apprenant.id });
-            if ("erreur" in convention) conventionsEchouees.add(convention.erreur);
+          for (const [type, produire] of [
+            ["CONVENTION", genererConvention],
+            ["CONVOCATION", genererConvocationApprenant],
+          ] as const) {
+            if (!action.joindre?.includes(type) || !cas.sessionId) continue;
+            const produit = await produire({ sessionId: cas.sessionId, learnerId: apprenant.id });
+            if ("erreur" in produit) conventionsEchouees.add(produit.erreur);
             else {
-              piecesJointes.push({ nom: convention.fichier.nom, contenu: convention.fichier.octets, typeMime: convention.fichier.typeMime });
+              piecesJointes.push({
+                nom: produit.fichier.nom,
+                contenu: produit.fichier.octets,
+                typeMime: produit.fichier.typeMime,
+              });
               comptes.conventions++;
             }
           }

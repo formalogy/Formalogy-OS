@@ -1172,6 +1172,18 @@ model Organisme {
   representantNom      String?
   representantFonction String?
 
+  /// Référents nommés sur la convocation. Le référent handicap est une
+  /// exigence Qualiopi (indicateur 26) ; les deux autres répondent aux
+  /// questions pratiques de l'apprenant avant la formation.
+  referentHandicapNom       String?
+  referentHandicapEmail     String?
+  referentHandicapTelephone String?
+  referentAdministratifNom       String?
+  referentAdministratifEmail     String?
+  referentAdministratifTelephone String?
+  referentRgpdNom   String?
+  referentRgpdEmail String?
+
   /// Signature (ou cachet signé) de l'organisme, apposée au bas des documents
   /// qu'il émet. Image stockée comme les autres fichiers, jamais en base.
   signatureCheminStockage String?

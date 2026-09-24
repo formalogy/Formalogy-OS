@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
 import { marqueursDuModele, remplirModeleDocx } from "@/lib/conventions-docx";
+import { genererConvocation } from "@/lib/convocation-pdf";
 import { docxVersPdf } from "@/lib/docx-vers-pdf";
 import { lireSignatureOrganisme } from "@/lib/organisme-signature";
 import { formaterMontant } from "@/lib/factures";
@@ -131,6 +132,64 @@ export function valeursConvention(d: DonneesConvention): Record<string, string |
   };
 }
 
+/// Produit la convocation d'un apprenant et la range dans les documents de
+/// la session. Même principe que la convention : régénérer une convocation
+/// identique ne crée pas de version de plus.
+export async function genererConvocationApprenant(params: {
+  sessionId: string;
+  learnerId: string;
+  userId?: string;
+}): Promise<ResultatConvention> {
+  const donnees = await lireDonnees(params.sessionId, params.learnerId);
+  if (!donnees) return { erreur: "Session ou apprenant introuvable." };
+
+  const { session, apprenant, organisme } = donnees;
+  const octets = await genererConvocation({
+    organisme,
+    apprenant: { prenom: apprenant.prenom, nom: apprenant.nom },
+    formation: { titre: session.formation.titre, dureeHeures: session.formation.dureeHeures },
+    session: {
+      numero: session.numero,
+      dateDebut: session.dateDebut,
+      dateFin: session.dateFin,
+      horaires: session.horaires,
+      lieu: session.lieu,
+      modaliteLibelle: LIBELLE_MODALITE[session.modalite],
+    },
+    formateur: session.trainer
+      ? {
+          nom: `${session.trainer.prenom} ${session.trainer.nom}`,
+          email: session.trainer.email,
+          telephone: session.trainer.telephone,
+        }
+      : null,
+    // Date d'établissement fixée au début de la session : une convocation
+    // régénérée plus tard reste identique à l'octet près.
+    etabliLe: session.dateDebut,
+    signature: await lireSignatureOrganisme(),
+  });
+
+  const nomApprenant = `${apprenant.prenom} ${apprenant.nom}`;
+  const nomFichier = nomFichierDocument("Convocation", session.numero, nomApprenant);
+  const etat = await rangerDocumentGenere({
+    typeCode: "CONVOCATION",
+    octets,
+    nom: `Convocation — ${nomApprenant} (${session.numero})`,
+    nomFichier,
+    sessionId: session.id,
+    learnerId: apprenant.id,
+    companyId: entrepriseSignataire(donnees)?.id ?? null,
+    userId: params.userId,
+  });
+
+  return {
+    document: etat.document,
+    nonRemplis: [],
+    etat: etat.etat,
+    fichier: { nom: nomFichier, octets, typeMime: TYPE_MIME_PDF },
+  };
+}
+
 /// Marqueurs qu'aucune donnée de Formalogy OS ne peut alimenter aujourd'hui.
 /// Ils restent visibles dans la convention, à compléter à la main.
 export const MARQUEURS_SANS_SOURCE: Record<string, string> = {
@@ -198,8 +257,9 @@ export async function genererConvention(params: {
   const nomApprenant = `${donnees.apprenant.prenom} ${donnees.apprenant.nom}`;
   const titre = `Convention de formation — ${donnees.session.numero}`;
   const octets = await docxVersPdf(docxRempli, titre, await lireSignatureOrganisme());
-  const nomFichier = nomFichierConvention(donnees.session.numero, entreprise ? entreprise.raisonSociale : nomApprenant);
-  const etat = await rangerConvention({
+  const nomFichier = nomFichierDocument("Convention", donnees.session.numero, entreprise ? entreprise.raisonSociale : nomApprenant);
+  const etat = await rangerDocumentGenere({
+    typeCode: "CONVENTION",
     octets,
     nom: `Convention de formation — ${entreprise ? entreprise.raisonSociale : nomApprenant} (${donnees.session.numero})`,
     nomFichier,
@@ -217,10 +277,14 @@ export async function genererConvention(params: {
   };
 }
 
-const nomFichierConvention = (numero: string, nom: string) =>
-  `Convention-${numero}-${nom}`.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z0-9-]+/g, "-").replace(/-+/g, "-") + ".pdf";
+const nomFichierDocument = (prefixe: string, numero: string, nom: string) =>
+  `${prefixe}-${numero}-${nom}`.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z0-9-]+/g, "-").replace(/-+/g, "-") + ".pdf";
 
-async function rangerConvention(p: {
+/// Range un document généré (convention, convocation) dans les documents de
+/// la session : nouveau document la première fois, nouvelle version si le
+/// contenu a changé, rien s'il est identique.
+async function rangerDocumentGenere(p: {
+  typeCode: string;
   octets: Uint8Array;
   nom: string;
   nomFichier: string;
@@ -230,7 +294,7 @@ async function rangerConvention(p: {
   userId?: string;
 }) {
   const empreinte = createHash("sha256").update(p.octets).digest("hex");
-  const type = await prisma.documentType.findUniqueOrThrow({ where: { code: "CONVENTION" } });
+  const type = await prisma.documentType.findUniqueOrThrow({ where: { code: p.typeCode } });
   const existant = await prisma.document.findFirst({
     where: { deletedAt: null, typeId: type.id, sessionId: p.sessionId, learnerId: p.learnerId },
     include: { versions: { orderBy: { numero: "desc" }, take: 1 } },
