@@ -7,7 +7,7 @@ import { CRENEAUX, clePresence, joursDeSession } from "@/lib/emargement";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
-import { lireSignatureOrganisme } from "@/lib/organisme-signature";
+import { lireLogoOrganisme, lireSignatureOrganisme } from "@/lib/organisme-signature";
 import { prisma } from "@/lib/prisma";
 import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 import { stockage } from "@/lib/stockage";
@@ -181,10 +181,11 @@ const nomFichier = (prefixe: string, numero: string, nom: string) =>
 /// `userId` absent lors d'un déclenchement automatique (aucun utilisateur
 /// derrière l'action).
 export async function genererDocumentsFinDeFormation(sessionId: string, userId?: string) {
-  const [session, organisme, signature] = await Promise.all([
+  const [session, organisme, signature, logo] = await Promise.all([
     chargerFinDeFormation(sessionId),
     lireOrganisme(),
     lireSignatureOrganisme(),
+    lireLogoOrganisme(),
   ]);
   if (!session) return { erreur: "Session introuvable." };
 
@@ -216,6 +217,7 @@ export async function genererDocumentsFinDeFormation(sessionId: string, userId?:
       commentaire: a.evaluation.commentaire,
       etabliLe: session.dateFin,
       signature,
+      logo,
     };
 
     for (const [typeCode, generer, libelle, prefixe] of [

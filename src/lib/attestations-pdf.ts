@@ -25,6 +25,8 @@ export type DonneesAttestation = {
   /// Signature de l'organisme, apposée dans le cadre prévu. Absente tant
   /// qu'aucune image n'a été déposée dans Paramètres → Organisme.
   signature?: { octets: Uint8Array; typeMime: string } | null;
+  /// Logo repris en tête du document.
+  logo?: { octets: Uint8Array; typeMime: string } | null;
 };
 
 export const LIBELLE_RESULTAT: Record<ResultatAcquis, string> = {
@@ -98,8 +100,33 @@ async function nouveauDocument(titre: string, etabliLe: Date) {
   return { pdf, r: new Redaction(page, normal, gras) };
 }
 
-function enTeteOrganisme(r: Redaction, o: Organisme) {
-  r.texte(o.raisonSociale, { taille: 12, police: r.gras });
+/// Le logo s'il est déposé, le nom de l'organisme sinon. Un logo illisible
+/// ne fait jamais échouer le document.
+async function enTeteOrganisme(
+  pdf: PDFDocument,
+  r: Redaction,
+  o: Organisme,
+  logo?: { octets: Uint8Array; typeMime: string } | null,
+) {
+  let pose = false;
+  if (logo) {
+    try {
+      const dessin = logo.typeMime === "image/png" ? await pdf.embedPng(logo.octets) : await pdf.embedJpg(logo.octets);
+      const facteur = Math.min(170 / dessin.width, 44 / dessin.height);
+      const hauteur = dessin.height * facteur;
+      r.page.drawImage(dessin, {
+        x: MARGE,
+        y: r.y - hauteur,
+        width: dessin.width * facteur,
+        height: hauteur,
+      });
+      r.espace(hauteur + 8);
+      pose = true;
+    } catch {
+      console.error("Logo de l'organisme illisible : document produit sans lui.");
+    }
+  }
+  if (!pose) r.texte(o.raisonSociale, { taille: 12, police: r.gras });
   const lignes = [
     [o.adresse, [o.codePostal, o.ville].filter(Boolean).join(" ")].filter(Boolean).join(", "),
     o.siret ? `SIRET ${o.siret}` : null,
@@ -150,7 +177,7 @@ async function signature(
 /// objectifs, nature, durée et résultats de l'évaluation des acquis.
 export async function genererAttestation(d: DonneesAttestation): Promise<Uint8Array> {
   const { pdf, r } = await nouveauDocument(`Attestation de fin de formation — ${d.apprenant.prenom} ${d.apprenant.nom}`, d.etabliLe);
-  enTeteOrganisme(r, d.organisme);
+  await enTeteOrganisme(pdf, r, d.organisme, d.logo);
 
   r.texte("ATTESTATION DE FIN DE FORMATION", { taille: 17, police: r.gras, interligne: 1.2 });
   r.texte("Article L6353-1 du Code du travail", { taille: 9, couleur: GRIS });
@@ -193,7 +220,7 @@ export async function genererAttestation(d: DonneesAttestation): Promise<Uint8Ar
 /// ministère du Travail et exigé par les financeurs (OPCO, CPF, France Travail).
 export async function genererCertificatRealisation(d: DonneesAttestation): Promise<Uint8Array> {
   const { pdf, r } = await nouveauDocument(`Certificat de réalisation — ${d.apprenant.prenom} ${d.apprenant.nom}`, d.etabliLe);
-  enTeteOrganisme(r, d.organisme);
+  await enTeteOrganisme(pdf, r, d.organisme, d.logo);
 
   r.texte("CERTIFICAT DE RÉALISATION", { taille: 17, police: r.gras, interligne: 1.2 });
   r.espace(18);
