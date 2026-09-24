@@ -74,8 +74,10 @@ et que le projet peut migrer ailleurs en quelques heures.
   volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
 - Les automatisations livrées sont **désactivées** : leur activation est une
-  décision du client. Au 24/09/2026 il en a activé 12 sur 14 ; les deux
-  campagnes annuelles restent éteintes.
+  décision du client. Au 24/09/2026 il en a activé 11 sur 14 ; restent
+  éteintes les deux campagnes annuelles et « Convocation à l'inscription »
+  (même modèle d'email que la convocation de J-7 mais sans le PDF : active,
+  elle partait la première et bloquait l'envoi de la vraie convocation).
 - Destinataires d'une action EMAIL : `APPRENANT`, `APPRENANTS_SESSION`,
   `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
   financement des 365 derniers jours, dédoublonnés par adresse).
