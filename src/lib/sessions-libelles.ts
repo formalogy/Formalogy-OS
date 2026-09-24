@@ -11,6 +11,19 @@ export const STATUTS_SESSION: StatutSession[] = [
   "ANNULEE",
 ];
 
+/// Statuts proposés à la saisie et dans les filtres. « Documents en attente »
+/// et « Prête » en sont retirés : ils ne pilotaient rien — ni automatisation,
+/// ni calcul, ni affichage — et n'étaient qu'un clic de plus. Ils restent
+/// dans la liste complète ci-dessus, pour les sessions qui les portent encore.
+export const STATUTS_PROPOSES: StatutSession[] = [
+  "BROUILLON",
+  "A_PREPARER",
+  "EN_COURS",
+  "TERMINEE",
+  "CLOTUREE",
+  "ANNULEE",
+];
+
 export const LIBELLE_STATUT_SESSION: Record<StatutSession, string> = {
   BROUILLON: "Brouillon",
   A_PREPARER: "À préparer",

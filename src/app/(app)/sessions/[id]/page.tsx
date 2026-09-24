@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
+import { LancementSession } from "@/app/(app)/sessions/[id]/lancement";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
@@ -195,6 +196,10 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           .
         </p>
       )}
+
+      <div className="mb-4 empty:mb-0">
+        <LancementSession sessionId={session.id} brouillon={session.statut === "BROUILLON"} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-4">

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "creer-admin": "node --env-file=.env scripts/creer-admin.ts",
-    "tester-gmail": "node --env-file=.env scripts/tester-gmail.ts"
+    "tester-gmail": "node --env-file=.env scripts/tester-gmail.ts",
+    "configurer-gmail": "node scripts/configurer-gmail.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

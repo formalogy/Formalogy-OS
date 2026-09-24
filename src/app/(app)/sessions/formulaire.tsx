@@ -15,7 +15,7 @@ import {
   type EtatFormulaire,
 } from "@/app/(app)/sessions/actions";
 import { LIBELLE_MODALITE, MODALITES } from "@/lib/formations-libelles";
-import { LIBELLE_STATUT_SESSION, STATUTS_SESSION } from "@/lib/sessions-libelles";
+import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = {
   formations: { id: string; titre: string; reference: string; modalite: string }[];
@@ -87,12 +87,17 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           options={MODALITES.map((m) => ({ valeur: m, libelle: LIBELLE_MODALITE[m] }))}
           valeurParDefaut={v("modalite") ?? "PRESENTIEL"}
         />
-        <ChampListe
-          nom="statut"
-          libelle="Statut"
-          options={STATUTS_SESSION.map((s) => ({ valeur: s, libelle: LIBELLE_STATUT_SESSION[s] }))}
-          valeurParDefaut={v("statut") ?? "BROUILLON"}
-        />
+        {/* Le statut ne se choisit pas à la création : une nouvelle session
+            est un brouillon, qui ne déclenche rien. Le bouton « Lancer le
+            déroulement automatique », sur la fiche, la met en route. */}
+        {modification && (
+          <ChampListe
+            nom="statut"
+            libelle="Statut"
+            options={STATUTS_PROPOSES.map((s) => ({ valeur: s, libelle: LIBELLE_STATUT_SESSION[s] }))}
+            valeurParDefaut={v("statut") ?? "BROUILLON"}
+          />
+        )}
         <ChampListe
           nom="trainerId"
           libelle="Formateur"

@@ -4,7 +4,7 @@ import type { StatutSession } from "@prisma/client";
 import { useRef } from "react";
 
 import { changerStatutSession } from "@/app/(app)/sessions/actions";
-import { LIBELLE_STATUT_SESSION, STATUTS_SESSION } from "@/lib/sessions-libelles";
+import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = { id: string; statut: StatutSession; classeTon: string };
 
@@ -24,7 +24,7 @@ export function SelecteurStatutSession({ id, statut, classeTon }: Props) {
         onChange={() => formulaire.current?.requestSubmit()}
         className={`cursor-pointer rounded-full border-0 px-3 py-2 text-[12.5px] font-semibold outline-none focus:ring-2 focus:ring-accent-pale ${classeTon}`}
       >
-        {STATUTS_SESSION.map((valeur) => (
+        {STATUTS_PROPOSES.map((valeur) => (
           <option key={valeur} value={valeur}>
             {LIBELLE_STATUT_SESSION[valeur]}
           </option>

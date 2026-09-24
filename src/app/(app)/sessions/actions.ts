@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { declencher } from "@/lib/automatisations/moteur";
+import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -56,7 +56,10 @@ const schemaSession = z
     horaires: texteFacultatif,
     lieu: texteFacultatif,
     modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
-    statut: z.enum(STATUTS_SESSION as [string, ...string[]]),
+    /// Absent du formulaire de création : une nouvelle session est un
+    /// brouillon, qui ne déclenche aucune automatisation tant qu'on ne l'a
+    /// pas mise en route.
+    statut: z.enum(STATUTS_SESSION as [string, ...string[]]).optional().default("BROUILLON"),
     trainerId: texteFacultatif,
     placesMax: texteFacultatif.refine(
       (v) => v === undefined || (/^\d+$/.test(v) && Number(v) > 0),
@@ -498,4 +501,52 @@ export async function genererConventionsSession(
     comptes.inchanges && `${comptes.inchanges} inchangée(s)`,
   ].filter(Boolean);
   return { succes: `Conventions : ${parties.join(", ")}.`, manquants: [...manquants].sort() };
+}
+
+export type EtatDeroulement = { erreur?: string; succes?: string };
+
+/// Met une session en route : elle quitte le brouillon, et ce qui lui est
+/// déjà dû part sans attendre le réveil du lendemain.
+///
+/// C'est le geste unique attendu après la création : tant qu'une session est
+/// un brouillon, aucune automatisation ne la regarde.
+export async function lancerDeroulementSession(
+  _precedent: EtatDeroulement,
+  donnees: FormData,
+): Promise<EtatDeroulement> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const id = String(donnees.get("id") ?? "");
+
+  const session = await prisma.trainingSession.findFirst({
+    where: { id, deletedAt: null },
+    include: { _count: { select: { inscriptions: true } } },
+  });
+  if (!session) return { erreur: "Session introuvable." };
+  if (session.statut === "ANNULEE") return { erreur: "Cette session est annulée." };
+
+  if (session.statut === "BROUILLON") {
+    await prisma.trainingSession.update({ where: { id }, data: { statut: "A_PREPARER" } });
+    await journaliser({
+      action: "session.started",
+      summary: `Déroulement automatique lancé pour la session ${session.numero}`,
+      entityType: "TrainingSession",
+      entityId: id,
+      userId: utilisateur.id,
+    });
+  }
+
+  // Le moteur reprend tous les cas dus, cette session comprise. Chaque cas
+  // étant réservé par une clé unique, relancer n'envoie jamais deux fois.
+  const bilan = await executerPlanifiees();
+
+  revalidatePath(`/sessions/${id}`);
+  revalidatePath("/sessions");
+
+  const sansInscrit = session._count.inscriptions === 0;
+  const traites = bilan.traites > 0 ? `${bilan.traites} envoi(s) ou document(s) déclenché(s).` : "Rien à envoyer pour l'instant.";
+  return {
+    succes: sansInscrit
+      ? `Session en route. ${traites} Attention : personne n'est encore inscrit, les envois aux apprenants ne partiront qu'une fois les inscriptions faites.`
+      : `Session en route. ${traites}`,
+  };
 }
