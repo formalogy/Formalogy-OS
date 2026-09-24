@@ -13,6 +13,7 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   SESSION_APRES_FIN: "Quelques jours après la fin d'une session",
   SESSION_TERMINEE: "Quand une session passe à « Terminée » ou « Clôturée »",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
+  CAMPAGNE_ANNUELLE: "Chaque année à date fixe",
 };
 
 /// Déclencheurs traités par le réveil quotidien plutôt qu'au moment d'une action.
@@ -21,6 +22,7 @@ export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "SESSION_AVANT_FIN",
   "SESSION_APRES_FIN",
   "RELANCE_PROSPECT_DUE",
+  "CAMPAGNE_ANNUELLE",
 ];
 
 export const LIBELLE_STATUT_EMAIL: Record<StatutEmail, string> = {
@@ -69,7 +71,13 @@ export function decrireAction(action: unknown): string {
     type?: string; modele?: string; destinataires?: string; titre?: string; delaiJours?: number; joindre?: string[];
   };
   if (a.type === "EMAIL") {
-    const qui = a.destinataires === "APPRENANTS_SESSION" ? "à tous les inscrits de la session" : "à l'apprenant";
+    const destinataires: Record<string, string> = {
+      APPRENANT: "à l'apprenant",
+      APPRENANTS_SESSION: "à tous les inscrits de la session",
+      FORMATEURS_ACTIFS: "à tous les formateurs actifs",
+      FINANCEURS_ANNEE: "à tous les financeurs de l'année écoulée",
+    };
+    const qui = destinataires[a.destinataires ?? ""] ?? "au destinataire";
     const noms: Record<string, string> = {
       CONVENTION: "sa convention de formation, générée depuis le modèle déposé",
       ATTESTATION: "son attestation de fin de formation",

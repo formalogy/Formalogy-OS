@@ -30,8 +30,10 @@ const schemaAction = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("EMAIL"),
     modele: z.string().min(1),
-    /// APPRENANT : l'apprenant concerné ; APPRENANTS_SESSION : tous les inscrits
-    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION"]),
+    /// APPRENANT : l'apprenant concerné ; APPRENANTS_SESSION : tous les
+    /// inscrits de la session ; FORMATEURS_ACTIFS et FINANCEURS_ANNEE : les
+    /// destinataires des campagnes annuelles, sans lien avec une session.
+    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE"]),
     /// Documents joints à l'email. CONVENTION fabrique la convention de
     /// l'apprenant à partir du modèle déposé, la range dans les documents de
     /// la session et l'attache. ATTESTATION et CERTIFICAT reprennent les
@@ -68,6 +70,11 @@ const schemaParametres = z.object({
   /// SESSION_AVANT_DEBUT : jours avant le début ; SESSION_AVANT_FIN : jours
   /// avant la fin ; SESSION_APRES_FIN : jours après la fin.
   jours: z.number().int().min(0).max(60).optional(),
+  /// CAMPAGNE_ANNUELLE : date fixe dans l'année, et heure à partir de
+  /// laquelle l'envoi est autorisé.
+  jour: z.number().int().min(1).max(31).optional(),
+  mois: z.number().int().min(1).max(12).optional(),
+  heure: z.number().int().min(0).max(23).optional(),
 });
 
 export function lireRegle(automation: Automation) {
@@ -92,6 +99,109 @@ type Cas = {
   companyId?: string;
   dossierId?: string;
 };
+
+/// Heure locale française, quelle que soit l'heure du serveur. On lit la
+/// partie « heure » du format plutôt que la chaîne entière : en français,
+/// celle-ci vaut « 10 h », dont la conversion en nombre échouerait.
+const FORMAT_HEURE = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", hour12: false, timeZone: "Europe/Paris" });
+
+function heureDeParis(instant: Date): number {
+  const partie = FORMAT_HEURE.formatToParts(instant).find((p) => p.type === "hour");
+  return partie ? Number(partie.value) : instant.getUTCHours();
+}
+
+type ComptesEnvoi = { emails: number; simules: number; sansAdresse: number; ignores: number };
+
+/// Envoi d'une campagne annuelle : à tous les formateurs actifs, ou à tous
+/// les financeurs de l'année écoulée. Un destinataire sans adresse est
+/// compté et passé ; un lien de questionnaire déjà utilisé fait sauter le
+/// destinataire, comme pour les apprenants.
+async function envoyerCampagne(params: {
+  cible: "FORMATEURS_ACTIFS" | "FINANCEURS_ANNEE";
+  modele: { id: string; sujet: string; corps: string };
+  executionId: string;
+  comptes: ComptesEnvoi;
+}) {
+  const { cible, modele, executionId, comptes } = params;
+  const texteModele = `${modele.sujet}${modele.corps}`;
+
+  const destinataires =
+    cible === "FORMATEURS_ACTIFS"
+      ? (await prisma.trainer.findMany({ where: { deletedAt: null, actif: true }, orderBy: { nom: "asc" } })).map((f) => ({
+          email: f.email,
+          trainerId: f.id as string | undefined,
+          dossierId: undefined as string | undefined,
+        }))
+      : await financeursDeLAnnee();
+
+  for (const destinataire of destinataires) {
+    if (!destinataire.email) {
+      comptes.sansAdresse++;
+      continue;
+    }
+
+    let lienSatisfactionFormateur: string | undefined;
+    let lienFinanceur: string | undefined;
+    if (destinataire.trainerId && texteModele.includes("{{questionnaire.lienSatisfactionFormateur}}")) {
+      const lien = await preparerLienQuestionnaireQualite({ type: "SATISFACTION_FORMATEUR", trainerId: destinataire.trainerId });
+      if (!lien) {
+        comptes.ignores++;
+        continue;
+      }
+      lienSatisfactionFormateur = lien;
+    }
+    if (destinataire.dossierId && texteModele.includes("{{questionnaire.lienFinanceur}}")) {
+      const lien = await preparerLienQuestionnaireQualite({ type: "FINANCEUR", dossierFinancementId: destinataire.dossierId });
+      if (!lien) {
+        comptes.ignores++;
+        continue;
+      }
+      lienFinanceur = lien;
+    }
+
+    const contexte = await construireContexte({
+      trainerId: destinataire.trainerId,
+      dossierId: destinataire.dossierId,
+      lienSatisfactionFormateur,
+      lienFinanceur,
+    });
+    const email = await envoyerEmail({
+      destinataire: destinataire.email,
+      sujet: rendre(modele.sujet, contexte).resultat,
+      corps: rendre(modele.corps, contexte).resultat,
+      corpsJournal:
+        lienSatisfactionFormateur || lienFinanceur
+          ? rendre(modele.corps, {
+              ...contexte,
+              "questionnaire.lienSatisfactionFormateur": lienSatisfactionFormateur && "[lien personnel masqué]",
+              "questionnaire.lienFinanceur": lienFinanceur && "[lien personnel masqué]",
+            }).resultat
+          : undefined,
+      templateId: modele.id,
+      automationRunId: executionId,
+    });
+    if (email.statut === "SIMULE") comptes.simules++;
+    else if (email.statut === "ECHEC") comptes.ignores++;
+    else comptes.emails++;
+  }
+}
+
+/// Financeurs sollicités sur les douze derniers mois, une fois chacun :
+/// plusieurs dossiers partagent souvent la même adresse, et personne ne doit
+/// recevoir le questionnaire en double.
+async function financeursDeLAnnee() {
+  const debut = ajouterJours(aujourdhuiUTC(), -365);
+  const dossiers = await prisma.dossierFinancement.findMany({
+    where: { createdAt: { gte: debut }, email: { not: null } },
+    orderBy: { createdAt: "desc" },
+  });
+  const parAdresse = new Map<string, { email: string | null; trainerId: string | undefined; dossierId: string | undefined }>();
+  for (const d of dossiers) {
+    const cle = (d.email ?? "").toLowerCase();
+    if (!parAdresse.has(cle)) parAdresse.set(cle, { email: d.email, trainerId: undefined, dossierId: d.id });
+  }
+  return [...parAdresse.values()];
+}
 
 /// Reprend un document déjà produit pour un apprenant, afin de le joindre à
 /// un email. Un document absent n'est jamais une erreur : il signifie que cet
@@ -165,6 +275,20 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       if (action.type === "EMAIL") {
         const modele = await prisma.emailTemplate.findUnique({ where: { code: action.modele } });
         if (!modele || !modele.actif) throw new Error(`Modèle d'email « ${action.modele} » introuvable ou désactivé.`);
+
+        // Campagnes annuelles : destinataires sans lien avec une session, et
+        // donc sans aucune des règles de session ci-dessous (conditions de
+        // financement, questionnaires liés, pièces jointes). Branche à part,
+        // pour ne rien changer au parcours apprenant.
+        if (action.destinataires === "FORMATEURS_ACTIFS" || action.destinataires === "FINANCEURS_ANNEE") {
+          await envoyerCampagne({
+            cible: action.destinataires,
+            modele,
+            executionId,
+            comptes,
+          });
+          continue;
+        }
 
         const destinataires =
           action.destinataires === "APPRENANT"
@@ -484,6 +608,35 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
         }),
       );
     }
+  }
+
+  // Campagnes annuelles : une date fixe dans l'année, et une heure à partir
+  // de laquelle l'envoi est autorisé. Le réveil quotidien ne connaît que le
+  // jour ; cette heure garantit qu'une campagne ne part pas au milieu de la
+  // nuit si le réveil tourne plusieurs fois par jour.
+  for (const automation of await automationsActives("CAMPAGNE_ANNUELLE")) {
+    const { jour, mois, heure } = lireRegle(automation).parametres;
+    if (!jour || !mois) continue;
+
+    const maintenant = new Date();
+    const annee = maintenant.getUTCFullYear();
+    const dateCampagne = new Date(Date.UTC(annee, mois - 1, jour));
+    // Pas encore la date de cette année : rien à faire.
+    if (aujourdhui < dateCampagne) continue;
+    // Le jour même, on attend l'heure dite (heure de Paris, celle du client).
+    if (aujourdhui.getTime() === dateCampagne.getTime() && heureDeParis(maintenant) < (heure ?? 0)) continue;
+    // Une campagne dont la date est passée avant l'activation n'est pas
+    // rattrapée : même règle que pour les déclencheurs « après la fin ».
+    if (automation.activeeAt && dateCampagne < automation.activeeAt) continue;
+
+    compter(
+      await traiterCas(automation, {
+        // Une campagne par an : la clé porte l'année, rien d'autre.
+        cle: `${automation.id}:campagne:${annee}`,
+        entityType: "Automation",
+        entityId: automation.id,
+      }),
+    );
   }
 
   for (const automation of await automationsActives("SESSION_APRES_FIN")) {

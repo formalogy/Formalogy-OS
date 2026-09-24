@@ -14,6 +14,11 @@ import { exigerRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+const MOIS = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+];
+
 const horodatage = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
   month: "2-digit",
@@ -50,6 +55,7 @@ export default async function PageAutomatisations() {
         {automatisations.map((a) => {
           const actions = Array.isArray(a.actions) ? a.actions : [];
           const jours = (a.parametres as { jours?: number })?.jours;
+          const parametres = (a.parametres ?? {}) as { jour?: number; mois?: number; heure?: number };
           return (
             <section key={a.id} className={`rounded-xl border bg-surface p-5 shadow-sm ${a.actif ? "border-accent" : "border-bordure"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -93,6 +99,24 @@ export default async function PageAutomatisations() {
                     </form>
                   )}
                 </dd>
+                {a.declencheur === "CAMPAGNE_ANNUELLE" && (
+                  <>
+                    <dt className="font-semibold text-texte-tenu">Date</dt>
+                    <dd>
+                      {parametres.jour && parametres.mois ? (
+                        <>
+                          Chaque <span className="font-semibold">{parametres.jour} {MOIS[parametres.mois - 1]}</span>, à
+                          partir de <span className="font-semibold">{parametres.heure ?? 0} h</span>.{" "}
+                          <span className="text-texte-tenu">
+                            L&apos;envoi part au premier réveil suivant cette heure.
+                          </span>
+                        </>
+                      ) : (
+                        "Date non renseignée : cette campagne ne se déclenchera pas."
+                      )}
+                    </dd>
+                  </>
+                )}
                 {a.declencheur === "SESSION_APRES_FIN" && (
                   <>
                     <dt className="font-semibold text-texte-tenu">Portée</dt>

@@ -881,6 +881,9 @@ enum DeclencheurAutomatisation {
   SESSION_APRES_FIN
   SESSION_TERMINEE
   RELANCE_PROSPECT_DUE
+  /// Campagne annuelle à date fixe (jour et mois en paramètres), sans lien
+  /// avec une session : questionnaires annuels aux formateurs et financeurs.
+  CAMPAGNE_ANNUELLE
 }
 
 /// Règle DÉCLENCHEUR → CONDITION → ACTION.
