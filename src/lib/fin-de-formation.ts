@@ -40,7 +40,7 @@ export async function chargerFinDeFormation(sessionId: string) {
       },
       presences: { select: { learnerId: true, jour: true, creneau: true, statut: true } },
       evaluations: { select: { learnerId: true, resultat: true, commentaire: true } },
-      satisfactions: { select: { learnerId: true, envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true } },
+      satisfactions: { select: { learnerId: true, envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true, questions: true } },
       documents: {
         where: { deletedAt: null, type: { code: { in: ["ATTESTATION", "CERTIFICAT"] } } },
         select: { id: true, learnerId: true, type: { select: { code: true } } },

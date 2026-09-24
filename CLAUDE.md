@@ -303,9 +303,29 @@ et que le projet peut migrer ailleurs en quelques heures.
   apprenant, inchangé : `POSITIONNEMENT` (attentes et positionnement, avant
   la formation), `FROID` (à 60 jours), `CHAUD_FORMATEUR`,
   `SATISFACTION_FORMATEUR`, `FINANCEUR`. Même mécanique de lien à usage
-  unique que la satisfaction (`lib/questionnaires.ts`, questions dans
-  `lib/questionnaires-questions.ts`, remplissage public
-  `/questionnaires/[jeton]`).
+  unique que la satisfaction (`lib/questionnaires.ts`, remplissage public
+  `/questionnaires/[jeton]`, et `/questionnaire/[jeton]` pour la satisfaction).
+- **Questionnaires modifiables** (demande du client, 24/09/2026) : titre,
+  introduction et questions des six questionnaires (les cinq ci-dessus et la
+  satisfaction à chaud, code `SATISFACTION`) se modifient dans Questionnaires
+  → Modifier les questionnaires (admin et gestionnaire), avec aperçu et
+  retour à l'origine. Versions d'origine dans `QUESTIONNAIRES_ORIGINE`
+  (`lib/questionnaires-questions.ts`) ; une version modifiée est une ligne de
+  `modeles_questionnaire` (sans ligne = origine). Lecture et contrôles dans
+  `lib/questionnaires-modeles.ts`.
+- Quatre formes de réponse, toutes en **cases à cocher** sauf la dernière :
+  une seule réponse, plusieurs réponses, note de 1 à 5 (« Pas du tout » →
+  « Tout à fait », seule forme chiffrée), réponse libre. Formulaire public
+  commun : `app/_composants/formulaire-questionnaire.tsx`.
+- Chaque question a un identifiant stable (reformuler la garde comparable).
+  Les réponses sont rangées par identifiant et **les questions posées sont
+  figées avec la réponse** (colonne `questions`) : modifier un questionnaire
+  ne change jamais le sens d'une réponse reçue. Un questionnaire envoyé mais
+  pas encore rempli montre la version en vigueur au moment où il est rempli.
+- Satisfaction : `noteGlobale` = la note cochée « satisfaction générale »,
+  sinon la moyenne arrondie des notes. Statistiques et page « Fin de
+  formation » lisent les notes détaillées dans les questions figées
+  (`notesDetaillees`).
 - Envoi : POSITIONNEMENT à J-15 (avec la convention), FROID à J+60,
   campagnes annuelles pour formateurs et financeurs ; CHAUD_FORMATEUR à la
   main depuis `/questionnaires`.
@@ -314,8 +334,7 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Bibliothèque : six types de documents `QUESTIONNAIRE_*` (positionnement,
   à chaud apprenant, à chaud formateur, à froid, financeur, annuel
   formateurs) pour ranger les modèles de l'organisme ou des exemplaires
-  papier remplis. Ils sont indépendants des questionnaires en ligne, dont les
-  questions restent dans `lib/questionnaires-questions.ts`.
+  papier remplis. Ils sont indépendants des questionnaires en ligne.
 
 ## Sécurité
 

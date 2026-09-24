@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
-import { FormulaireQuestionnaire } from "@/app/questionnaire/[jeton]/formulaire";
+import { EnTeteQuestionnaire } from "@/app/_composants/en-tete-questionnaire";
+import { FormulaireQuestionnaire } from "@/app/_composants/formulaire-questionnaire";
+import { repondreQuestionnaire } from "@/app/questionnaire/actions";
 import { lireOrganisme } from "@/lib/organisme";
+import { lireContenuQuestionnaire } from "@/lib/questionnaires-modeles";
 import { questionnaireParJeton } from "@/lib/satisfaction";
 import { formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -43,14 +46,21 @@ export default async function PageQuestionnaire({ params }: { params: Promise<{ 
     );
   }
 
+  const { contenu } = await lireContenuQuestionnaire("SATISFACTION");
   return cadre(
     <>
-      <h1 className="text-[22px] font-extrabold tracking-tight">Bonjour {q.learner.prenom},</h1>
-      <p className="mb-5 mt-1 text-[14px] text-texte-doux">
-        Que pensez-vous de la formation « {q.session.formation.titre} » ({formaterPeriode(q.session.dateDebut, q.session.dateFin)}) ?
-        Notez chaque point de 1 (pas du tout) à 5 (tout à fait).
-      </p>
-      <FormulaireQuestionnaire jeton={jeton} />
+      <EnTeteQuestionnaire
+        titre={contenu.titre}
+        contexte={`« ${q.session.formation.titre} » — ${formaterPeriode(q.session.dateDebut, q.session.dateFin)}`}
+        prenom={q.learner.prenom}
+        introduction={contenu.introduction}
+      />
+      <FormulaireQuestionnaire
+        questions={contenu.questions}
+        action={repondreQuestionnaire}
+        jeton={jeton}
+        messageMerci="Elle nous aide à améliorer nos formations. Vous pouvez fermer cette page."
+      />
     </>,
   );
 }

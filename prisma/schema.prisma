@@ -1249,8 +1249,11 @@ model QuestionnaireSatisfaction {
   envoyeAt  DateTime?
   reponduAt DateTime?
 
-  /// Notes de 1 à 5 par question, et commentaires libres
+  /// Réponses par identifiant de question (voir lib/questionnaires-questions.ts)
   reponses   Json?
+  /// Questions telles qu'elles ont été posées, figées à la réponse : modifier
+  /// le questionnaire ensuite ne change pas le sens des réponses déjà reçues.
+  questions  Json?
   noteGlobale Int?
 
   createdAt DateTime @default(now())
@@ -1304,8 +1307,10 @@ model Questionnaire {
   envoyeAt  DateTime?
   reponduAt DateTime?
 
-  /// Réponses par code de question : { "case": true/false, "commentaire": "texte" }
+  /// Réponses par identifiant de question (voir lib/questionnaires-questions.ts)
   reponses Json?
+  /// Questions telles qu'elles ont été posées, figées à la réponse.
+  questions Json?
 
   createdAt DateTime @default(now())
 
@@ -1313,6 +1318,27 @@ model Questionnaire {
   @@index([sessionId])
   @@index([reponduAt])
   @@map("questionnaires")
+}
+
+/// Contenu d'un questionnaire modifié depuis l'application (titre,
+/// introduction, questions). Sans ligne pour un code, c'est le questionnaire
+/// d'origine, écrit dans lib/questionnaires-questions.ts, qui s'applique :
+/// revenir à l'origine revient à supprimer la ligne.
+model ModeleQuestionnaire {
+  id String @id @default(uuid(7))
+
+  /// Type de questionnaire (POSITIONNEMENT, FROID…) ou SATISFACTION pour le
+  /// questionnaire à chaud des apprenants, qui a sa propre table.
+  code String @unique
+
+  titre        String
+  introduction String?
+  questions    Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("modeles_questionnaire")
 }
 
 // ===========================================================================

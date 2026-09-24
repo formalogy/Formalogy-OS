@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
-import { FormulaireQuestionnaireQualite } from "@/app/questionnaires/[jeton]/formulaire";
-import { LIBELLE_TYPE_QUESTIONNAIRE, QUESTIONS_QUESTIONNAIRE } from "@/lib/questionnaires-questions";
+import { EnTeteQuestionnaire } from "@/app/_composants/en-tete-questionnaire";
+import { FormulaireQuestionnaire } from "@/app/_composants/formulaire-questionnaire";
+import { repondreQuestionnaireQualite } from "@/app/questionnaires/actions";
 import { lireOrganisme } from "@/lib/organisme";
 import { questionnaireQualiteParJeton } from "@/lib/questionnaires";
+import { lireContenuQuestionnaire } from "@/lib/questionnaires-modeles";
 import { formaterPeriode } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
@@ -49,18 +51,16 @@ export default async function PageQuestionnaireQualite({ params }: { params: Pro
     );
   }
 
+  const { contenu } = await lireContenuQuestionnaire(q.type);
   return cadre(
     <>
-      <h1 className="text-[22px] font-extrabold tracking-tight">Bonjour {nomDestinataire(q)},</h1>
-      <p className="mb-5 mt-1 text-[14px] text-texte-doux">
-        {LIBELLE_TYPE_QUESTIONNAIRE[q.type]}
-        {q.session && (
-          <>
-            {" "}— « {q.session.formation.titre} » ({formaterPeriode(q.session.dateDebut, q.session.dateFin)})
-          </>
-        )}
-      </p>
-      <FormulaireQuestionnaireQualite jeton={jeton} questions={QUESTIONS_QUESTIONNAIRE[q.type]} />
+      <EnTeteQuestionnaire
+        titre={contenu.titre}
+        contexte={q.session ? `« ${q.session.formation.titre} » — ${formaterPeriode(q.session.dateDebut, q.session.dateFin)}` : undefined}
+        prenom={nomDestinataire(q)}
+        introduction={contenu.introduction}
+      />
+      <FormulaireQuestionnaire questions={contenu.questions} action={repondreQuestionnaireQualite} jeton={jeton} />
     </>,
   );
 }

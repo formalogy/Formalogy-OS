@@ -1,7 +1,18 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { questionsPosees } from "@/lib/questionnaires-modeles";
+import { LIBELLE_TYPE_QUESTIONNAIRE, texteReponse, type Question, type ReponsesQuestionnaire } from "@/lib/questionnaires-questions";
 import { stockage } from "@/lib/stockage";
+
+/// Réponses d'un questionnaire sous forme lisible : l'intitulé de chaque
+/// question posée et la réponse donnée.
+function reponsesLisibles(questions: Question[], reponses: unknown) {
+  const valeurs = (reponses ?? {}) as ReponsesQuestionnaire;
+  return questions
+    .map((q) => ({ question: q.libelle, reponse: texteReponse(q, valeurs[q.id]) }))
+    .filter((r) => r.reponse !== null);
+}
 
 /// Toutes les données personnelles détenues sur un apprenant, pour répondre à
 /// une demande d'accès ou de portabilité (RGPD). Les fichiers eux-mêmes
@@ -21,7 +32,8 @@ export async function exporterDonneesApprenant(learnerId: string) {
       },
       presences: { select: { jour: true, creneau: true, statut: true } },
       evaluations: { select: { resultat: true, commentaire: true, createdAt: true } },
-      satisfactions: { select: { envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true } },
+      satisfactions: { select: { envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true, questions: true } },
+      questionnaires: { select: { type: true, envoyeAt: true, reponduAt: true, reponses: true, questions: true } },
       documents: {
         where: { deletedAt: null },
         select: { nom: true, categorie: true, createdAt: true, type: { select: { nom: true } } },
@@ -52,7 +64,18 @@ export async function exporterDonneesApprenant(learnerId: string) {
     sessions: apprenant.inscriptions.map((i) => i.session),
     presences: apprenant.presences,
     evaluations: apprenant.evaluations,
-    questionnairesSatisfaction: apprenant.satisfactions,
+    questionnairesSatisfaction: apprenant.satisfactions.map((q) => ({
+      envoyeLe: q.envoyeAt,
+      reponduLe: q.reponduAt,
+      noteGlobale: q.noteGlobale,
+      reponses: reponsesLisibles(questionsPosees(q.questions, "SATISFACTION"), q.reponses),
+    })),
+    autresQuestionnaires: apprenant.questionnaires.map((q) => ({
+      questionnaire: LIBELLE_TYPE_QUESTIONNAIRE[q.type],
+      envoyeLe: q.envoyeAt,
+      reponduLe: q.reponduAt,
+      reponses: reponsesLisibles(questionsPosees(q.questions, q.type), q.reponses),
+    })),
     documents: apprenant.documents,
     factures: apprenant.factures,
     emailsRecus: apprenant.emails,

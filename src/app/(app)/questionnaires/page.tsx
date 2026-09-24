@@ -1,13 +1,11 @@
 import type { TypeQuestionnaire } from "@prisma/client";
 import Link from "next/link";
 
+import { DetailReponses } from "@/app/(app)/_composants/reponses-questionnaires";
 import { EnvoiQuestionnaire, type SessionEnvoi } from "@/app/(app)/questionnaires/envoi";
 import { prisma } from "@/lib/prisma";
-import {
-  LIBELLE_TYPE_QUESTIONNAIRE,
-  QUESTIONS_QUESTIONNAIRE,
-  type ReponsesQuestionnaire,
-} from "@/lib/questionnaires-questions";
+import { questionsPosees } from "@/lib/questionnaires-modeles";
+import { LIBELLE_TYPE_QUESTIONNAIRE } from "@/lib/questionnaires-questions";
 import { exigerRole } from "@/lib/session";
 import { formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -66,12 +64,20 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
 
   return (
     <>
-      <header className="mb-6">
-        <h1 className="text-[22px] font-extrabold tracking-tight">Questionnaires</h1>
-        <p className="mt-1 text-[12.8px] text-texte-doux">
-          Positionnement, à froid, retours des formateurs et des financeurs. Le questionnaire de satisfaction à chaud des
-          apprenants se suit depuis la session concernée.
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-extrabold tracking-tight">Questionnaires</h1>
+          <p className="mt-1 text-[12.8px] text-texte-doux">
+            Positionnement, à froid, retours des formateurs et des financeurs. Le questionnaire de satisfaction à chaud des
+            apprenants se suit depuis la session concernée.
+          </p>
+        </div>
+        <Link
+          href="/questionnaires/modeles"
+          className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[12.5px] font-semibold text-accent-fort shadow-sm hover:bg-surface-creuse"
+        >
+          Modifier les questionnaires
+        </Link>
       </header>
 
       <div className="mb-5">
@@ -101,7 +107,6 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
               : q.trainer
                 ? `${q.trainer.prenom} ${q.trainer.nom}`
                 : (q.dossier?.financeurNom ?? "—");
-            const reponses = (q.reponses ?? {}) as ReponsesQuestionnaire;
             const expire = !q.reponduAt && q.expireAt < new Date();
 
             return (
@@ -132,30 +137,9 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
                 </div>
 
                 {q.reponduAt && (
-                  <dl className="mt-3 flex flex-col gap-1.5 border-t border-bordure-douce pt-3">
-                    {QUESTIONS_QUESTIONNAIRE[q.type].map((question) => {
-                      const valeur = reponses[question.code];
-                      return (
-                        <div key={question.code} className="grid gap-0.5 sm:grid-cols-[1fr_auto] sm:gap-4">
-                          {question.section && (
-                            <p className="pt-1.5 text-[11px] font-bold uppercase tracking-wider text-texte-tenu sm:col-span-2">
-                              {question.section}
-                            </p>
-                          )}
-                          <dt className="text-[12.5px] text-texte-doux">{question.libelle}</dt>
-                          <dd className="text-[12.5px] sm:text-right">
-                            {question.type === "CASE" ? (
-                              <span className={valeur ? "font-semibold text-succes" : "text-texte-tenu"}>{valeur ? "Oui" : "Non"}</span>
-                            ) : typeof valeur === "string" && valeur ? (
-                              <span className="whitespace-pre-line">{valeur}</span>
-                            ) : (
-                              <span className="text-texte-tenu">—</span>
-                            )}
-                          </dd>
-                        </div>
-                      );
-                    })}
-                  </dl>
+                  <div className="mt-3 border-t border-bordure-douce pt-3">
+                    <DetailReponses questions={questionsPosees(q.questions, q.type)} reponses={q.reponses} />
+                  </div>
                 )}
               </article>
             );

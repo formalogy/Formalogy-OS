@@ -4,8 +4,7 @@ import type { ResultatAcquis, StatutFacture, StatutPresence, StatutSession } fro
 
 import { enCentimes } from "@/lib/factures";
 import { prisma } from "@/lib/prisma";
-import type { CleQuestion } from "@/lib/satisfaction-questions";
-import { QUESTIONS_SATISFACTION } from "@/lib/satisfaction-questions";
+import { notesDetaillees } from "@/lib/questionnaires-modeles";
 
 /// Sessions retenues dans les statistiques : ni brouillon (rien n'est encore
 /// décidé) ni annulée (elle n'a pas eu lieu).
@@ -70,7 +69,9 @@ export async function calculerStatistiques(annee: number) {
     }),
     prisma.questionnaireSatisfaction.findMany({
       where: { session: { ...SESSIONS_COMPTEES, dateDebut: periode } },
-      select: { envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true },
+      select: { envoyeAt: true, reponduAt: true, noteGlobale: true, reponses: true, questions: true },
+      // Les plus récentes d'abord : voir notesDetaillees.
+      orderBy: { reponduAt: { sort: "desc", nulls: "last" } },
     }),
     prisma.evaluationAcquis.groupBy({
       by: ["resultat"],
@@ -159,7 +160,7 @@ function assiduite(lignes: { statut: StatutPresence; _count: { _all: number } }[
 
 // ---------------------------------------------------------------- Satisfaction
 
-type SatisfactionCalcul = { envoyeAt: Date | null; reponduAt: Date | null; noteGlobale: number | null; reponses: unknown };
+type SatisfactionCalcul = { envoyeAt: Date | null; reponduAt: Date | null; noteGlobale: number | null; reponses: unknown; questions: unknown };
 
 function satisfaction(questionnaires: SatisfactionCalcul[]) {
   const envoyes = questionnaires.filter((q) => q.envoyeAt !== null).length;
@@ -168,12 +169,15 @@ function satisfaction(questionnaires: SatisfactionCalcul[]) {
   const notes = repondus.map((q) => q.noteGlobale).filter((n): n is number => typeof n === "number");
   const moyenne = notes.length > 0 ? notes.reduce((t, n) => t + n, 0) / notes.length : null;
 
-  const parQuestion = QUESTIONS_SATISFACTION.map((question) => {
+  // Une moyenne par note détaillée, sous l'intitulé le plus récent : une
+  // question reformulée garde son historique, une question retirée du
+  // questionnaire reste visible tant que l'année compte des réponses.
+  const parQuestion = notesDetaillees(repondus.map((q) => q.questions), "SATISFACTION").map((question) => {
     const valeurs = repondus
-      .map((q) => (q.reponses as { notes?: Record<CleQuestion, number> } | null)?.notes?.[question.cle])
+      .map((q) => (q.reponses as Record<string, unknown> | null)?.[question.id])
       .filter((n): n is number => typeof n === "number");
     return {
-      cle: question.cle,
+      cle: question.id,
       libelle: question.libelle,
       moyenne: valeurs.length > 0 ? valeurs.reduce((t, n) => t + n, 0) / valeurs.length : null,
       nombre: valeurs.length,

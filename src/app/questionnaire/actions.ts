@@ -1,44 +1,34 @@
 "use server";
 
-import { z } from "zod";
-
 import { prisma } from "@/lib/prisma";
-import { QUESTIONS_SATISFACTION, type ReponsesSatisfaction } from "@/lib/satisfaction-questions";
+import { analyserReponses, lireContenuQuestionnaire, noteGlobale } from "@/lib/questionnaires-modeles";
+import type { EtatReponse } from "@/lib/questionnaires-questions";
 import { questionnaireParJeton } from "@/lib/satisfaction";
 
-export type EtatQuestionnaire = { erreur?: string; merci?: boolean };
-
-const note = z.coerce.number().int().min(1).max(5);
-
-/// Réponse d'un apprenant, sans compte : le jeton du lien fait office
-/// d'autorisation, pour ce seul questionnaire et une seule fois.
-export async function repondreQuestionnaire(_precedent: EtatQuestionnaire, donnees: FormData): Promise<EtatQuestionnaire> {
+/// Réponse d'un apprenant au questionnaire de satisfaction, sans compte : le
+/// jeton du lien fait office d'autorisation, pour ce seul questionnaire et une
+/// seule fois.
+export async function repondreQuestionnaire(precedent: EtatReponse, donnees: FormData): Promise<EtatReponse> {
+  const essai = (precedent.essai ?? 0) + 1;
   const jeton = String(donnees.get("jeton") ?? "");
   const q = await questionnaireParJeton(jeton);
-  if (!q || q.expireAt < new Date()) return { erreur: "Ce lien n'est plus valable." };
+  if (!q || q.expireAt < new Date()) return { erreur: "Ce lien n'est plus valable.", essai };
   if (q.reponduAt) return { merci: true };
 
-  const notes: Record<string, number> = {};
-  for (const question of QUESTIONS_SATISFACTION) {
-    const r = note.safeParse(donnees.get(question.cle));
-    if (!r.success) return { erreur: "Merci de répondre à toutes les questions notées." };
-    notes[question.cle] = r.data;
-  }
-  const globale = note.safeParse(donnees.get("globale"));
-  if (!globale.success) return { erreur: "Merci d'indiquer votre satisfaction générale." };
+  const { contenu } = await lireContenuQuestionnaire("SATISFACTION");
+  const analyse = analyserReponses(contenu.questions, donnees);
+  if ("erreur" in analyse) return { erreur: analyse.erreur, valeurs: analyse.valeurs, essai };
 
-  const texte = (cle: string) => String(donnees.get(cle) ?? "").trim().slice(0, 2000) || undefined;
-  const reponses: ReponsesSatisfaction = {
-    notes: notes as ReponsesSatisfaction["notes"],
-    pointsForts: texte("pointsForts"),
-    ameliorations: texte("ameliorations"),
-  };
-
-  // Condition sur « pas encore répondu » dans la mise à jour elle-même : deux
-  // envois simultanés ne peuvent pas enregistrer deux réponses.
+  // Questions figées avec les réponses, comme pour les questionnaires qualité ;
+  // la note générale est calculée une fois pour toutes, pour les statistiques.
   await prisma.questionnaireSatisfaction.updateMany({
     where: { id: q.id, reponduAt: null },
-    data: { reponses, noteGlobale: globale.data, reponduAt: new Date() },
+    data: {
+      reponses: analyse.reponses,
+      questions: contenu.questions,
+      noteGlobale: noteGlobale(contenu.questions, analyse.reponses),
+      reponduAt: new Date(),
+    },
   });
   return { merci: true };
 }

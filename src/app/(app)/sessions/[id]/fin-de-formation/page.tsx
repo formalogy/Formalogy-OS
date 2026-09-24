@@ -5,7 +5,8 @@ import { EvaluationAcquis } from "@/app/(app)/_composants/evaluation-acquis";
 import { EnvoiQuestionnaires, GenerationAttestations } from "@/app/(app)/sessions/[id]/fin-de-formation/generation";
 import { bilanFinDeFormation, chargerFinDeFormation } from "@/lib/fin-de-formation";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
-import { QUESTIONS_SATISFACTION, type ReponsesSatisfaction } from "@/lib/satisfaction-questions";
+import { notesDetaillees, questionsPosees } from "@/lib/questionnaires-modeles";
+import { texteReponse, type ReponsesQuestionnaire } from "@/lib/questionnaires-questions";
 import { exigerRole } from "@/lib/session";
 import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -22,8 +23,14 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
   const bilan = bilanFinDeFormation(session, manquesOrganisme(organisme));
   const commencee = session.dateDebut <= aujourdhuiUTC();
   const prets = bilan.apprenants.filter((a) => a.blocages.length === 0).length;
-  const reponses = session.satisfactions.filter((q) => q.reponduAt && q.noteGlobale);
-  const moyenne = reponses.length ? reponses.reduce((t, q) => t + q.noteGlobale!, 0) / reponses.length : null;
+  // Les plus récentes d'abord : si le questionnaire a été modifié entre deux
+  // réponses, c'est l'intitulé le plus récent de chaque note qui s'affiche.
+  const reponses = session.satisfactions
+    .filter((q) => q.reponduAt)
+    .sort((a, b) => b.reponduAt!.getTime() - a.reponduAt!.getTime());
+  const notes = notesDetaillees(reponses.map((q) => q.questions), "SATISFACTION");
+  const globales = reponses.map((q) => q.noteGlobale).filter((n): n is number => n !== null);
+  const moyenne = globales.length ? globales.reduce((t, n) => t + n, 0) / globales.length : null;
 
   return (
     <>
@@ -138,29 +145,38 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
               <thead>
                 <tr className="bg-surface-creuse text-left text-[10.5px] uppercase tracking-wider text-texte-tenu">
                   <th className="px-4 py-2 font-semibold">Apprenant</th>
-                  {QUESTIONS_SATISFACTION.map((q) => (
-                    <th key={q.cle} title={q.libelle} className="whitespace-nowrap px-2 py-2 text-center font-semibold">
-                      {q.cle}
+                  {notes.map((q, i) => (
+                    <th key={q.id} title={q.libelle} className="whitespace-nowrap px-2 py-2 text-center font-semibold">
+                      Q{i + 1}
                     </th>
                   ))}
                   <th className="px-2 py-2 text-center font-semibold">Global</th>
-                  <th className="px-4 py-2 font-semibold">Commentaires</th>
+                  <th className="px-4 py-2 font-semibold">Autres réponses</th>
                 </tr>
               </thead>
               <tbody>
                 {reponses.map((q) => {
-                  const r = q.reponses as ReponsesSatisfaction | null;
+                  const r = (q.reponses ?? {}) as ReponsesQuestionnaire;
                   const nom = bilan.apprenants.find((a) => a.learnerId === q.learnerId)?.nom ?? "—";
+                  const autres = questionsPosees(q.questions, "SATISFACTION")
+                    .filter((question) => question.type !== "NOTE")
+                    .map((question) => ({ question, texte: texteReponse(question, r[question.id]) }))
+                    .filter((x) => x.texte);
                   return (
                     <tr key={q.learnerId} className="border-t border-bordure-douce align-top">
                       <td className="whitespace-nowrap px-4 py-2 font-semibold">{nom}</td>
-                      {QUESTIONS_SATISFACTION.map((question) => (
-                        <td key={question.cle} className="px-2 py-2 text-center font-mono tabular-nums">{r?.notes[question.cle] ?? "—"}</td>
+                      {notes.map((question) => (
+                        <td key={question.id} className="px-2 py-2 text-center font-mono tabular-nums">
+                          {typeof r[question.id] === "number" ? String(r[question.id]) : "—"}
+                        </td>
                       ))}
-                      <td className="px-2 py-2 text-center font-mono font-semibold tabular-nums">{q.noteGlobale}</td>
+                      <td className="px-2 py-2 text-center font-mono font-semibold tabular-nums">{q.noteGlobale ?? "—"}</td>
                       <td className="px-4 py-2 text-texte-doux">
-                        {r?.pointsForts && <p><span className="font-semibold text-succes">+</span> {r.pointsForts}</p>}
-                        {r?.ameliorations && <p><span className="font-semibold text-alerte">→</span> {r.ameliorations}</p>}
+                        {autres.map(({ question, texte }) => (
+                          <p key={question.id} className="whitespace-pre-line">
+                            <span className="font-semibold text-texte">{question.libelle} :</span> {texte}
+                          </p>
+                        ))}
                       </td>
                     </tr>
                   );
@@ -168,6 +184,15 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
               </tbody>
             </table>
           </div>
+          {notes.length > 0 && (
+            <ol className="border-t border-bordure-douce px-4 py-3 text-[11.5px] text-texte-doux">
+              {notes.map((q, i) => (
+                <li key={q.id}>
+                  <span className="font-semibold">Q{i + 1}</span> — {q.libelle} <span className="text-texte-tenu">(note de 1 à 5)</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
       )}
     </>

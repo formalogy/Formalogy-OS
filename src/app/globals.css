@@ -102,3 +102,33 @@ h3 {
   font-family: var(--font-titre), system-ui, sans-serif;
   text-wrap: balance;
 }
+
+/* Case à cocher des questionnaires en ligne : un carré coché d'une coche,
+   même allure pour une réponse unique (bouton radio) que pour plusieurs. La
+   coche est blanche sur l'accent en clair, sombre sur l'accent plus vif du
+   thème sombre, pour rester lisible dans les deux cas. */
+.case-a-cocher {
+  appearance: none;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  border: 2px solid var(--bordure);
+  border-radius: 4px;
+  background: var(--surface) center / 0.8rem no-repeat;
+  cursor: pointer;
+}
+.case-a-cocher:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.case-a-cocher:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  .case-a-cocher:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='%23141c24' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+}
