@@ -47,6 +47,7 @@ export type DonneesConvocation = {
   /// l'identique donne le même fichier.
   etabliLe: Date;
   signature?: { octets: Uint8Array; typeMime: string } | null;
+  logo?: { octets: Uint8Array; typeMime: string } | null;
 };
 
 export async function genererConvocation(d: DonneesConvocation): Promise<Uint8Array> {
@@ -61,7 +62,7 @@ export async function genererConvocation(d: DonneesConvocation): Promise<Uint8Ar
   const grasse = await pdf.embedFont(StandardFonts.HelveticaBold);
   const r = new Redaction(pdf, normale, grasse);
 
-  r.enTete(d.organisme.raisonSociale);
+  await r.enTete(d.organisme.raisonSociale, d.logo);
   r.titre("Convocation");
   r.paragraphe(`Bonjour ${d.apprenant.prenom} ${d.apprenant.nom},`);
   r.paragraphe(`Vous êtes inscrit(e) à la session de formation suivante :`);
@@ -160,9 +161,31 @@ class Redaction {
     this.page.drawText(texteSur(police, texte), { x, y, size: taille, font: police, color: couleur });
   }
 
-  enTete(nom: string) {
-    this.ecrire(nom.toUpperCase(), MARGE.gauche, this.y - 11, 11, this.grasse, ACCENT);
-    this.y -= 26;
+  /// Le logo s'il existe, le nom de l'organisme sinon. Un logo illisible ne
+  /// fait jamais échouer le document.
+  async enTete(nom: string, logo?: { octets: Uint8Array; typeMime: string } | null) {
+    let hauteurLogo = 0;
+    if (logo) {
+      try {
+        const dessin = logo.typeMime === "image/png" ? await this.pdf.embedPng(logo.octets) : await this.pdf.embedJpg(logo.octets);
+        // Hauteur bornée : un logo très haut ne doit pas manger la page.
+        const facteur = Math.min(170 / dessin.width, 44 / dessin.height);
+        hauteurLogo = dessin.height * facteur;
+        this.page.drawImage(dessin, {
+          x: MARGE.gauche,
+          y: this.y - hauteurLogo,
+          width: dessin.width * facteur,
+          height: hauteurLogo,
+        });
+      } catch {
+        console.error("Logo de l'organisme illisible : document produit sans lui.");
+      }
+    }
+    if (hauteurLogo === 0) {
+      this.ecrire(nom.toUpperCase(), MARGE.gauche, this.y - 11, 11, this.grasse, ACCENT);
+      hauteurLogo = 15;
+    }
+    this.y -= hauteurLogo + 11;
     this.page.drawLine({
       start: { x: MARGE.gauche, y: this.y },
       end: { x: A4.largeur - MARGE.droite, y: this.y },

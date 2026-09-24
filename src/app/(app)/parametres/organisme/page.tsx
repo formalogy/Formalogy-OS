@@ -1,5 +1,5 @@
 import { FormulaireOrganisme } from "@/app/(app)/parametres/organisme/formulaire";
-import { SignatureOrganisme } from "@/app/(app)/parametres/organisme/signature";
+import { ImageOrganisme } from "@/app/(app)/parametres/organisme/images";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
 import { exigerRole } from "@/lib/session";
 import { jourVersSaisie } from "@/lib/sessions-libelles";
@@ -36,8 +36,21 @@ export default async function PageOrganisme() {
 
       {/* Le dépôt d'une signature engage la société : réservé aux administrateurs. */}
       {utilisateur.role === "ADMIN" && (
-        <div className="mt-4">
-          <SignatureOrganisme presente={o.signatureCheminStockage !== null} />
+        <div className="mt-4 flex flex-col gap-4">
+          <ImageOrganisme
+            image="logo"
+            titre="Logo de l'organisme"
+            description="Repris en tête des convocations, attestations et certificats générés. Un PNG à fond transparent donne le meilleur rendu."
+            presente={o.logoCheminStockage !== null}
+            detourageParDefaut={false}
+          />
+          <ImageOrganisme
+            image="signature"
+            titre="Signature de l'organisme"
+            description="Apposée au bas des conventions, convocations, attestations et certificats. Un scan de votre signature ou de votre cachet signé convient : le fond blanc est retiré automatiquement."
+            presente={o.signatureCheminStockage !== null}
+            detourageParDefaut
+          />
         </div>
       )}
     </>

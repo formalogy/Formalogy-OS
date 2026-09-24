@@ -1188,6 +1188,9 @@ model Organisme {
   /// qu'il émet. Image stockée comme les autres fichiers, jamais en base.
   signatureCheminStockage String?
 
+  /// Logo repris en tête des documents générés.
+  logoCheminStockage String?
+
   /// Certification Qualiopi : organisme certificateur et échéances
   qualiopiCertificateur  String?
   qualiopiObtentionAt    DateTime?

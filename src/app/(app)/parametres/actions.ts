@@ -6,7 +6,7 @@ import { z } from "zod";
 import { executerPlanifiees, lireRegle } from "@/lib/automatisations/moteur";
 import { variablesInconnues } from "@/lib/emails/modeles";
 import { journaliser } from "@/lib/journal";
-import { cheminSignature, verifierSignature } from "@/lib/organisme-signature";
+import { CHAMPS_IMAGE, cheminLogo, cheminSignature, verifierSignature, type ImageOrganisme } from "@/lib/organisme-signature";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { stockage } from "@/lib/stockage";
@@ -226,52 +226,63 @@ export async function modifierOrganisme(_precedent: EtatFormulaire, donnees: For
   return { succes: "Informations enregistrées." };
 }
 
-/// Dépose (ou remplace) la signature de l'organisme.
-export async function deposerSignatureOrganisme(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+const LIBELLE_IMAGE: Record<ImageOrganisme, string> = { signature: "Signature", logo: "Logo" };
+
+function lireQuelleImage(donnees: FormData): ImageOrganisme {
+  return donnees.get("image") === "logo" ? "logo" : "signature";
+}
+
+/// Dépose (ou remplace) le logo ou la signature de l'organisme.
+export async function deposerImageOrganisme(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
   const utilisateur = await exigerRole("ADMIN");
+  const quoi = lireQuelleImage(donnees);
 
-  const signature = await verifierSignature(donnees.get("fichier"));
-  if (typeof signature === "string") return { erreur: signature };
+  const image = await verifierSignature(donnees.get("fichier"));
+  if (typeof image === "string") return { erreur: image };
 
-  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true } });
-  const chemin = cheminSignature(signature.extension);
+  const champ = CHAMPS_IMAGE[quoi];
+  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true, logoCheminStockage: true } });
+  const chemin = quoi === "logo" ? cheminLogo(image.extension) : cheminSignature(image.extension);
   try {
-    await stockage().deposer(chemin, signature.octets, signature.typeMime);
+    await stockage().deposer(chemin, image.octets, image.typeMime);
   } catch (erreur) {
     return { erreur: erreur instanceof Error ? erreur.message : "Dépôt impossible." };
   }
 
-  await prisma.organisme.update({ where: { id: "organisme" }, data: { signatureCheminStockage: chemin } });
+  await prisma.organisme.update({ where: { id: "organisme" }, data: { [champ]: chemin } });
 
   // L'ancienne image est retirée après coup : un échec ici n'annule pas le
   // remplacement, déjà effectif en base.
-  if (organisme?.signatureCheminStockage) {
-    await stockage().supprimer([organisme.signatureCheminStockage]).catch(() => undefined);
-  }
+  const ancien = organisme?.[champ];
+  if (ancien) await stockage().supprimer([ancien]).catch(() => undefined);
 
   await journaliser({
-    action: "organisation.signature_updated",
-    summary: "Signature de l'organisme mise à jour",
+    action: `organisation.${quoi}_updated`,
+    summary: `${LIBELLE_IMAGE[quoi]} de l'organisme mis à jour`,
     entityType: "Organisme",
     userId: utilisateur.id,
   });
 
   revalidatePath("/parametres/organisme");
-  return { succes: "Signature enregistrée." };
+  return { succes: `${LIBELLE_IMAGE[quoi]} enregistré.` };
 }
 
-/// Retire la signature, sans remplacement.
-export async function retirerSignatureOrganisme(): Promise<void> {
+/// Retire l'image, sans remplacement.
+export async function retirerImageOrganisme(donnees: FormData): Promise<void> {
   const utilisateur = await exigerRole("ADMIN");
-  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true } });
-  if (!organisme?.signatureCheminStockage) return;
+  const quoi = lireQuelleImage(donnees);
+  const champ = CHAMPS_IMAGE[quoi];
 
-  await prisma.organisme.update({ where: { id: "organisme" }, data: { signatureCheminStockage: null } });
-  await stockage().supprimer([organisme.signatureCheminStockage]).catch(() => undefined);
+  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true, logoCheminStockage: true } });
+  const chemin = organisme?.[champ];
+  if (!chemin) return;
+
+  await prisma.organisme.update({ where: { id: "organisme" }, data: { [champ]: null } });
+  await stockage().supprimer([chemin]).catch(() => undefined);
 
   await journaliser({
-    action: "organisation.signature_removed",
-    summary: "Signature de l'organisme retirée",
+    action: `organisation.${quoi}_removed`,
+    summary: `${LIBELLE_IMAGE[quoi]} de l'organisme retiré`,
     entityType: "Organisme",
     userId: utilisateur.id,
   });

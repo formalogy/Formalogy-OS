@@ -30,21 +30,38 @@ export async function verifierSignature(fichier: FormDataEntryValue | null): Pro
 
 /// Emplacement régénéré à chaque dépôt : jamais dérivé d'une saisie.
 export const cheminSignature = (extension: string) => `organisme/signature-${randomUUID()}.${extension}`;
+export const cheminLogo = (extension: string) => `organisme/logo-${randomUUID()}.${extension}`;
+
+/// Les deux images de l'organisme, désignées par le champ qui les porte.
+export const CHAMPS_IMAGE = {
+  signature: "signatureCheminStockage",
+  logo: "logoCheminStockage",
+} as const;
+
+export type ImageOrganisme = keyof typeof CHAMPS_IMAGE;
 
 export type SignatureOrganisme = { octets: Uint8Array; typeMime: string };
 
-/// Image de signature à apposer sur un document généré, si elle existe.
-/// Une signature introuvable dans le stockage n'est jamais une erreur
-/// bloquante : le document se produit sans elle.
-export async function lireSignatureOrganisme(): Promise<SignatureOrganisme | null> {
-  const organisme = await prisma.organisme.findFirst({ select: { signatureCheminStockage: true } });
-  if (!organisme?.signatureCheminStockage) return null;
+/// Image de l'organisme à reprendre dans un document généré, si elle existe.
+/// Une image introuvable dans le stockage n'est jamais une erreur bloquante :
+/// le document se produit sans elle.
+export async function lireImageOrganisme(quoi: ImageOrganisme): Promise<SignatureOrganisme | null> {
+  const organisme = await prisma.organisme.findFirst({
+    select: { signatureCheminStockage: true, logoCheminStockage: true },
+  });
+  const chemin = organisme?.[CHAMPS_IMAGE[quoi]];
+  if (!chemin) return null;
   try {
-    const blob = await stockage().lire(organisme.signatureCheminStockage);
-    const typeMime = blob.type || (organisme.signatureCheminStockage.endsWith(".png") ? "image/png" : "image/jpeg");
-    return { octets: new Uint8Array(await blob.arrayBuffer()), typeMime };
+    const blob = await stockage().lire(chemin);
+    return {
+      octets: new Uint8Array(await blob.arrayBuffer()),
+      typeMime: blob.type || (chemin.endsWith(".png") ? "image/png" : "image/jpeg"),
+    };
   } catch {
-    console.error("Signature de l'organisme introuvable dans le stockage.");
+    console.error(`Image « ${quoi} » de l'organisme introuvable dans le stockage.`);
     return null;
   }
 }
+
+export const lireSignatureOrganisme = () => lireImageOrganisme("signature");
+export const lireLogoOrganisme = () => lireImageOrganisme("logo");

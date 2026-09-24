@@ -6,7 +6,7 @@ import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
 import { marqueursDuModele, remplirModeleDocx } from "@/lib/conventions-docx";
 import { genererConvocation } from "@/lib/convocation-pdf";
 import { docxVersPdf } from "@/lib/docx-vers-pdf";
-import { lireSignatureOrganisme } from "@/lib/organisme-signature";
+import { lireLogoOrganisme, lireSignatureOrganisme } from "@/lib/organisme-signature";
 import { formaterMontant } from "@/lib/factures";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { lireOrganisme } from "@/lib/organisme";
@@ -167,6 +167,7 @@ export async function genererConvocationApprenant(params: {
     // régénérée plus tard reste identique à l'octet près.
     etabliLe: session.dateDebut,
     signature: await lireSignatureOrganisme(),
+    logo: await lireLogoOrganisme(),
   });
 
   const nomApprenant = `${apprenant.prenom} ${apprenant.nom}`;
