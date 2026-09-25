@@ -6,9 +6,11 @@ import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
 import { LancementSession } from "@/app/(app)/sessions/[id]/lancement";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
-import { TarifInscription } from "@/app/(app)/sessions/[id]/tarif-inscription";
+import { FacturationInscription } from "@/app/(app)/sessions/[id]/facturation-inscription";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
 import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
+import { financeursConnus } from "@/lib/financeurs-connus";
+import { decrirePayeur, type PayeurInscription } from "@/lib/inscriptions-facturation";
 import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
@@ -55,6 +57,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           learner: {
             select: { id: true, prenom: true, nom: true, email: true, financement: true, company: { select: { raisonSociale: true } } },
           },
+          dossierFinancement: { select: { financeurNom: true, reference: true, email: true } },
         },
       },
       documents: {
@@ -89,11 +92,14 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
 
   const idsInscrits = session.inscriptions.map((i) => i.learner.id);
   // On propose en priorité les apprenants de l'entreprise cliente.
-  const candidats = await prisma.learner.findMany({
-    where: { deletedAt: null, id: { notIn: idsInscrits }, statut: { not: "ABANDONNE" } },
-    orderBy: [{ nom: "asc" }, { prenom: "asc" }],
-    select: { id: true, prenom: true, nom: true, companyId: true, company: { select: { raisonSociale: true } } },
-  });
+  const [candidats, financeurs] = await Promise.all([
+    prisma.learner.findMany({
+      where: { deletedAt: null, id: { notIn: idsInscrits }, statut: { not: "ABANDONNE" } },
+      orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+      select: { id: true, prenom: true, nom: true, financement: true, companyId: true, company: { select: { raisonSociale: true } } },
+    }),
+    financeursConnus(),
+  ]);
   const candidatsTries = [
     ...candidats.filter((c) => session.companyId && c.companyId === session.companyId),
     ...candidats.filter((c) => !session.companyId || c.companyId !== session.companyId),
@@ -260,7 +266,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               <p className="mb-4 text-[12.8px] text-texte-doux">Aucun apprenant inscrit pour le moment.</p>
             ) : (
               <ul className="mb-4">
-                {session.inscriptions.map(({ learner, prixHT }) => (
+                {session.inscriptions.map(({ learner, prixHT, facturerA, dossierFinancement, factureId }) => (
                   <li
                     key={learner.id}
                     className="flex items-center justify-between gap-3 border-t border-bordure-douce py-2 first:border-t-0"
@@ -274,11 +280,23 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
-                      <TarifInscription
+                      <FacturationInscription
                         sessionId={session.id}
                         learnerId={learner.id}
+                        description={decrirePayeur(facturerA, {
+                          entreprise: learner.company?.raisonSociale ?? session.company?.raisonSociale,
+                          financeur: dossierFinancement?.financeurNom,
+                          dossier: dossierFinancement?.reference,
+                        })}
+                        payeur={facturerA as PayeurInscription}
                         prix={prixHT === null ? null : String(prixHT)}
-                        modifiable={!session.factures.some((f) => f.learnerId === learner.id)}
+                        financeur={{
+                          nom: dossierFinancement?.financeurNom ?? null,
+                          reference: dossierFinancement?.reference ?? null,
+                          email: dossierFinancement?.email ?? null,
+                        }}
+                        financeursConnus={financeurs}
+                        modifiable={!factureId}
                       />
                     </div>
                     <form action={desinscrireApprenant}>
@@ -300,8 +318,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               <FormulaireInscription
                 sessionId={session.id}
                 prixParDefaut={session.prixHT === null ? null : String(session.prixHT)}
+                entrepriseSession={Boolean(session.companyId)}
+                financeursConnus={financeurs}
                 candidats={candidatsTries.map((c) => ({
                   id: c.id,
+                  financement: c.financement,
+                  aUneEntreprise: Boolean(c.companyId),
                   libelle: `${c.nom} ${c.prenom}${c.company ? ` — ${c.company.raisonSociale}` : ""}`,
                 }))}
               />

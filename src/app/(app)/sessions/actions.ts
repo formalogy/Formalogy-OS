@@ -9,6 +9,7 @@ import { z } from "zod";
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { lireMontant } from "@/lib/factures";
+import { decrirePayeur, estFinanceurTiers, PAYEURS_INSCRIPTION } from "@/lib/inscriptions-facturation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -271,7 +272,7 @@ export async function changerStatutSession(donnees: FormData): Promise<void> {
 async function inscrire(
   sessionId: string,
   learnerId: string,
-  prixHT: string,
+  facturation: Facturation,
   utilisateur: { id: string },
 ): Promise<EtatFormulaire> {
   const [session, apprenant] = await Promise.all([
@@ -290,10 +291,23 @@ async function inscrire(
   if (session.placesMax !== null && session._count.inscriptions >= session.placesMax) {
     return { erreur: `La session est complète (${session.placesMax} places).` };
   }
+  const companyId = apprenant.companyId ?? session.companyId;
+  if (facturation.facturerA === "ENTREPRISE" && !companyId) {
+    return { erreur: "Cet apprenant n'est rattaché à aucune entreprise : rattachez-le d'abord, ou choisissez un autre payeur." };
+  }
 
   try {
-    await prisma.sessionLearner.create({
-      data: { sessionId: session.id, learnerId: apprenant.id, prixHT },
+    await prisma.$transaction(async (tx) => {
+      const dossier = await creerDossierFinancement(tx, facturation, { sessionId: session.id, learnerId: apprenant.id, companyId, userId: utilisateur.id });
+      await tx.sessionLearner.create({
+        data: {
+          sessionId: session.id,
+          learnerId: apprenant.id,
+          prixHT: facturation.prixHT,
+          facturerA: facturation.facturerA,
+          dossierFinancementId: dossier?.id,
+        },
+      });
     });
   } catch (erreur) {
     if (erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === "P2002") {
@@ -311,7 +325,7 @@ async function inscrire(
 
   await journaliser({
     action: "session.learner_added",
-    summary: `${apprenant.prenom} ${apprenant.nom} inscrit à la session ${session.numero} (${prixHT.replace(".", ",")} € HT)`,
+    summary: `${apprenant.prenom} ${apprenant.nom} inscrit à la session ${session.numero} (${facturation.prixHT.replace(".", ",")} € HT, ${decrirePayeur(facturation.facturerA, { financeur: facturation.financeurNom, dossier: facturation.financeurReference })})`,
     entityType: "TrainingSession",
     entityId: session.id,
     userId: utilisateur.id,
@@ -325,16 +339,63 @@ async function inscrire(
   return {};
 }
 
-/// Le tarif de l'apprenant est indiqué à l'inscription (décision du client) :
-/// c'est le montant de sa facture personnelle.
-const schemaInscription = z.object({
-  sessionId: z.string().min(1),
-  learnerId: z.string().min(1, "Choisissez un apprenant."),
-  prixHT: z
+/// Facturation d'une inscription (décision du client) : à qui facturer, au
+/// tarif indiqué ; pour un financeur en subrogation (OPCO, France Travail),
+/// son nom, qui figurera sur la facture, et son numéro de dossier.
+const texteOptionnel = (max: number) =>
+  z
     .string()
-    .transform((saisie) => lireMontant(saisie))
-    .refine((montant): montant is string => montant !== null, "Indiquez le tarif HT de l'apprenant (par exemple 1200 ou 1 200,50)."),
-});
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => v || undefined);
+const schemaInscription = z
+  .object({
+    sessionId: z.string().min(1),
+    learnerId: z.string().min(1, "Choisissez un apprenant."),
+    facturerA: z.enum(PAYEURS_INSCRIPTION, { message: "Choisissez à qui facturer." }),
+    prixHT: z
+      .string()
+      .transform((saisie) => lireMontant(saisie))
+      .refine((montant): montant is string => montant !== null, "Indiquez le tarif HT de l'apprenant (par exemple 1200 ou 1 200,50)."),
+    financeurNom: texteOptionnel(200),
+    financeurReference: texteOptionnel(100),
+    financeurEmail: z
+      .union([z.literal(""), z.email("L'adresse email du financeur n'est pas valide.")])
+      .optional()
+      .transform((v) => v || undefined),
+  })
+  .superRefine((d, ctx) => {
+    if (estFinanceurTiers(d.facturerA) && !d.financeurNom) {
+      ctx.addIssue({ code: "custom", message: "Indiquez le nom du financeur à facturer (par exemple OPCO EP)." });
+    }
+  });
+type Facturation = Omit<z.infer<typeof schemaInscription>, "sessionId" | "learnerId">;
+
+/// Dossier de financement d'un financeur facturé en subrogation, créé avec
+/// l'inscription : il apparaît dans « Financements » et porte le nom qui
+/// figurera sur la facture.
+async function creerDossierFinancement(
+  tx: Prisma.TransactionClient,
+  f: Facturation,
+  lien: { sessionId: string; learnerId: string; companyId: string | null; userId: string },
+) {
+  if (!estFinanceurTiers(f.facturerA) || !f.financeurNom) return null;
+  return tx.dossierFinancement.create({
+    data: {
+      financeurType: f.facturerA === "OPCO" ? "OPCO" : "FRANCE_TRAVAIL",
+      financeurNom: f.financeurNom,
+      reference: f.financeurReference,
+      email: f.financeurEmail,
+      montant: f.prixHT,
+      subrogation: true,
+      sessionId: lien.sessionId,
+      learnerId: lien.learnerId,
+      companyId: lien.companyId,
+      createdById: lien.userId,
+    },
+  });
+}
 
 export async function inscrireApprenant(
   _precedent: EtatFormulaire,
@@ -343,7 +404,7 @@ export async function inscrireApprenant(
   const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
   const r = schemaInscription.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
-  return inscrire(r.data.sessionId, r.data.learnerId, r.data.prixHT, utilisateur);
+  return inscrire(r.data.sessionId, r.data.learnerId, r.data, utilisateur);
 }
 
 /// Même inscription, mais depuis la fiche d'un apprenant qui vient d'être
@@ -356,7 +417,7 @@ export async function inscrireApprenantEtVoirFiche(
   const r = schemaInscription.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
 
-  const resultat = await inscrire(r.data.sessionId, r.data.learnerId, r.data.prixHT, utilisateur);
+  const resultat = await inscrire(r.data.sessionId, r.data.learnerId, r.data, utilisateur);
   if (resultat.erreur) return resultat;
 
   redirect(`/apprenants/${r.data.learnerId}`);
@@ -549,30 +610,67 @@ export async function piloterDeroulementSession(
   return { erreur: "Opération inconnue." };
 }
 
-/// Corrige le tarif d'un apprenant inscrit. Impossible une fois sa facture
-/// personnelle émise : le montant facturé ne doit plus diverger.
-export async function modifierTarifInscription(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+/// Corrige la facturation d'un apprenant inscrit (payeur, tarif, financeur).
+/// Impossible une fois l'inscription facturée : le montant et le payeur
+/// facturés ne doivent plus diverger.
+export async function modifierFacturationInscription(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
   const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
   const r = schemaInscription.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
-  const { sessionId, learnerId, prixHT } = r.data;
+  const { sessionId, learnerId, ...facturation } = r.data;
 
   const inscription = await prisma.sessionLearner.findUnique({
     where: { sessionId_learnerId: { sessionId, learnerId } },
-    include: { learner: { select: { prenom: true, nom: true } }, session: { select: { numero: true } } },
+    include: {
+      learner: { select: { prenom: true, nom: true, companyId: true } },
+      session: { select: { numero: true, companyId: true } },
+    },
   });
   if (!inscription) return { erreur: "Inscription introuvable." };
-  const facturee = await prisma.facture.count({ where: { sessionId, learnerId, statut: { not: "ANNULEE" } } });
-  if (facturee > 0) return { erreur: "Sa facture est déjà émise : le tarif ne peut plus changer." };
+  if (inscription.factureId) return { erreur: "Cette inscription est déjà facturée : sa facturation ne peut plus changer." };
+  const companyId = inscription.learner.companyId ?? inscription.session.companyId;
+  if (facturation.facturerA === "ENTREPRISE" && !companyId) {
+    return { erreur: "Cet apprenant n'est rattaché à aucune entreprise : rattachez-le d'abord, ou choisissez un autre payeur." };
+  }
 
-  await prisma.sessionLearner.update({ where: { id: inscription.id }, data: { prixHT } });
+  await prisma.$transaction(async (tx) => {
+    // Le dossier créé avec l'inscription suit le payeur : mis à jour s'il
+    // reste un financeur, supprimé sinon (il n'a encore aucune facture).
+    let dossierFinancementId = inscription.dossierFinancementId;
+    if (estFinanceurTiers(facturation.facturerA) && dossierFinancementId) {
+      await tx.dossierFinancement.update({
+        where: { id: dossierFinancementId },
+        data: {
+          financeurType: facturation.facturerA === "OPCO" ? "OPCO" : "FRANCE_TRAVAIL",
+          financeurNom: facturation.financeurNom,
+          reference: facturation.financeurReference ?? null,
+          email: facturation.financeurEmail ?? null,
+          montant: facturation.prixHT,
+          companyId,
+        },
+      });
+    } else if (estFinanceurTiers(facturation.facturerA)) {
+      dossierFinancementId =
+        (await creerDossierFinancement(tx, facturation, { sessionId, learnerId, companyId, userId: utilisateur.id }))?.id ?? null;
+    } else if (dossierFinancementId) {
+      await tx.sessionLearner.update({ where: { id: inscription.id }, data: { dossierFinancementId: null } });
+      await tx.dossierFinancement.delete({ where: { id: dossierFinancementId } });
+      dossierFinancementId = null;
+    }
+    await tx.sessionLearner.update({
+      where: { id: inscription.id },
+      data: { prixHT: facturation.prixHT, facturerA: facturation.facturerA, dossierFinancementId },
+    });
+  });
+
   await journaliser({
-    action: "session.learner_price_changed",
-    summary: `Tarif de ${inscription.learner.prenom} ${inscription.learner.nom} pour la session ${inscription.session.numero} : ${prixHT.replace(".", ",")} € HT`,
+    action: "session.learner_billing_changed",
+    summary: `Facturation de ${inscription.learner.prenom} ${inscription.learner.nom} pour la session ${inscription.session.numero} : ${facturation.prixHT.replace(".", ",")} € HT, ${decrirePayeur(facturation.facturerA, { financeur: facturation.financeurNom, dossier: facturation.financeurReference })}`,
     entityType: "TrainingSession",
     entityId: sessionId,
     userId: utilisateur.id,
   });
   revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/financements");
   return {};
 }

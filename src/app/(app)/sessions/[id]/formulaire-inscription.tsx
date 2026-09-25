@@ -1,19 +1,27 @@
 "use client";
 
+import type { TypeFinancement } from "@prisma/client";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { ChampsFacturation } from "@/app/(app)/_composants/champs-facturation";
 import { BoutonEnvoyer, MessageErreur } from "@/app/(app)/_composants/formulaire";
 import { inscrireApprenant, type EtatFormulaire } from "@/app/(app)/sessions/actions";
+import { payeurParDefaut } from "@/lib/inscriptions-facturation";
 
 type Props = {
   sessionId: string;
   /// Prix de la session, proposé comme tarif de l'apprenant
   prixParDefaut: string | null;
-  candidats: { id: string; libelle: string }[];
+  /// La session a une entreprise cliente : l'entreprise peut toujours payer
+  entrepriseSession: boolean;
+  candidats: { id: string; libelle: string; financement: TypeFinancement; aUneEntreprise: boolean }[];
+  financeursConnus: string[];
 };
 
-export function FormulaireInscription({ sessionId, prixParDefaut, candidats }: Props) {
+/// Inscription d'un apprenant depuis la session, avec sa facturation : à qui
+/// facturer et à quel tarif, proposés d'après sa fiche et le prix de la session.
+export function FormulaireInscription({ sessionId, prixParDefaut, entrepriseSession, candidats, financeursConnus }: Props) {
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(inscrireApprenant, {});
 
   if (candidats.length === 0) {
@@ -27,46 +35,67 @@ export function FormulaireInscription({ sessionId, prixParDefaut, candidats }: P
     );
   }
 
+  // La clé change à chaque inscription réussie : le formulaire se vide et la
+  // liste se reconstruit sans l'apprenant qui vient d'être ajouté.
+  return (
+    <Formulaire
+      key={candidats.length}
+      sessionId={sessionId}
+      prixParDefaut={prixParDefaut}
+      entrepriseSession={entrepriseSession}
+      candidats={candidats}
+      financeursConnus={financeursConnus}
+      envoyer={envoyer}
+      erreur={etat.erreur}
+    />
+  );
+}
+
+function Formulaire({
+  sessionId,
+  prixParDefaut,
+  entrepriseSession,
+  candidats,
+  financeursConnus,
+  envoyer,
+  erreur,
+}: Props & { envoyer: (donnees: FormData) => void; erreur?: string }) {
+  const [learnerId, setLearnerId] = useState("");
+  const candidat = candidats.find((c) => c.id === learnerId);
+
   return (
     <form action={envoyer} className="border-t border-bordure-douce pt-3">
       <input type="hidden" name="sessionId" value={sessionId} />
       <label htmlFor="learnerId" className="block text-[12.5px] font-semibold">
         Inscrire un apprenant
       </label>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        {/* La clé change à chaque inscription réussie : la liste se vide et se
-            reconstruit sans l'apprenant qui vient d'être ajouté. */}
-        <select
-          key={candidats.length}
-          id="learnerId"
-          name="learnerId"
-          defaultValue=""
-          className="min-w-0 flex-1 rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
-        >
-          <option value="">Choisir…</option>
-          {candidats.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.libelle}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-1.5 text-[12.5px] text-texte-doux">
-          Tarif
-          <input
-            key={candidats.length}
-            name="prixHT"
-            inputMode="decimal"
-            required
-            defaultValue={prixParDefaut?.replace(".", ",") ?? ""}
-            aria-label="Tarif HT de l'apprenant"
-            className="w-24 rounded-lg border border-bordure bg-surface px-2 py-2 text-right font-mono text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+      <select
+        id="learnerId"
+        name="learnerId"
+        value={learnerId}
+        onChange={(e) => setLearnerId(e.target.value)}
+        className="mt-1.5 w-full rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+      >
+        <option value="">Choisir…</option>
+        {candidats.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.libelle}
+          </option>
+        ))}
+      </select>
+      {candidat && (
+        <div className="mt-3">
+          <ChampsFacturation
+            key={candidat.id}
+            payeur={payeurParDefaut(candidat.financement, candidat.aUneEntreprise || entrepriseSession)}
+            prix={prixParDefaut}
+            financeursConnus={financeursConnus}
           />
-          € HT
-        </label>
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <BoutonEnvoyer libelle="Inscrire" />
-      </div>
-      <div className="mt-2">
-        <MessageErreur message={etat.erreur} />
+        <MessageErreur message={erreur} />
       </div>
     </form>
   );

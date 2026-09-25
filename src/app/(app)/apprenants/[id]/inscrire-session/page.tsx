@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { FormulaireInscriptionApprenant } from "@/app/(app)/apprenants/[id]/inscrire-session/formulaire";
+import { financeursConnus } from "@/lib/financeurs-connus";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
@@ -42,7 +43,9 @@ export default async function PageInscrireSession({
     id: s.id,
     libelle: `${s.formation.titre} — ${formaterPeriode(s.dateDebut, s.dateFin)} (${s.numero})`,
     prix: s.prixHT === null ? null : String(s.prixHT),
+    entreprise: Boolean(s.companyId),
   }));
+  const financeurs = await financeursConnus();
 
   return (
     <>
@@ -67,7 +70,13 @@ export default async function PageInscrireSession({
       </header>
 
       <section className="max-w-xl rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-        <FormulaireInscriptionApprenant learnerId={apprenant.id} candidats={candidats} />
+        <FormulaireInscriptionApprenant
+          learnerId={apprenant.id}
+          financement={apprenant.financement}
+          aUneEntreprise={Boolean(apprenant.companyId)}
+          candidats={candidats}
+          financeursConnus={financeurs}
+        />
       </section>
 
       <p className="mt-4 text-[12.5px]">

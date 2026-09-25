@@ -620,13 +620,29 @@ model SessionLearner {
   learner   Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
 
   /// Tarif HT de cet apprenant pour cette session, indiqué à l'inscription
-  /// (pré-rempli avec le prix de la session). C'est le montant de sa facture
-  /// personnelle (dossier CPF, apprenant qui paie lui-même).
+  /// (pré-rempli avec le prix de la session) : le montant de sa ligne de
+  /// facture, quel que soit le payeur.
   prixHT Decimal? @db.Decimal(10, 2)
+
+  /// À qui facturer cette inscription, choisi à l'inscription : l'entreprise
+  /// qui finance elle-même, un financeur en subrogation (OPCO, France
+  /// Travail), la Caisse des Dépôts (CPF) ou l'apprenant.
+  facturerA TypePayeur
+
+  /// Dossier de financement créé avec l'inscription quand un financeur est
+  /// facturé en subrogation : son nom figure sur la facture.
+  dossierFinancementId String?             @unique
+  dossierFinancement   DossierFinancement? @relation(fields: [dossierFinancementId], references: [id], onDelete: SetNull)
+
+  /// Facture qui a facturé cette inscription. Posée à l'émission, elle
+  /// empêche de facturer deux fois et fige tarif et payeur.
+  factureId String?
+  facture   Facture? @relation(fields: [factureId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@unique([sessionId, learnerId])
+  @@index([factureId])
   @@index([learnerId])
   @@map("session_learners")
 }
@@ -1211,10 +1227,6 @@ model Organisme {
   qualiopiExpireAt       DateTime?
   qualiopiProchainAuditAt DateTime?
 
-  /// Client « Caisse des Dépôts » chez Henrri, créé une fois pour toutes :
-  /// destinataire des factures des dossiers CPF.
-  henrriCaisseDepotsId Int?
-
   updatedAt DateTime @updatedAt
 
   @@map("organisme")
@@ -1359,6 +1371,24 @@ model ModeleQuestionnaire {
   @@map("modeles_questionnaire")
 }
 
+/// Financeurs tiers facturés via Henrri (OPCO, France Travail, Caisse des
+/// Dépôts) : un client Henrri par financeur, créé au premier besoin puis
+/// retrouvé par son nom.
+model ClientHenrriFinanceur {
+  id String @id @default(uuid(7))
+
+  /// Nom normalisé (minuscules, espaces réduits) : « OPCO EP » et « opco  ep »
+  /// désignent le même financeur.
+  cle String @unique
+  nom String
+
+  henrriCustomerId Int
+
+  createdAt DateTime @default(now())
+
+  @@map("clients_henrri_financeurs")
+}
+
 // ===========================================================================
 // Factures et paiements (Phase 13)
 // ===========================================================================
@@ -1442,6 +1472,8 @@ model Facture {
 
   paiements Paiement[]
   dossiers  DossierFinancement[]
+  /// Inscriptions facturées par cette facture (une ligne chacune)
+  inscriptions SessionLearner[]
 
   @@index([statut])
   @@index([sessionId])
@@ -1536,6 +1568,7 @@ model DossierFinancement {
   createdBy   User?   @relation("DossierCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   questionnaires Questionnaire[]
+  inscription    SessionLearner?
 
   @@index([sessionId])
   @@map("dossiers_financement")

@@ -271,31 +271,39 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   hors de portée de l'application. Le modèle d'email `FACTURE` existe mais
   reste désactivé. En cas d'échec (prix manquant, payeur ambigu, Henrri
   injoignable), alerte au tableau de bord et bouton « Relancer ».
-- **Destinataires** (`destinataires` dans `lib/henrri/facturation.ts`) :
-  - session avec une entreprise cliente : **une facture**, à l'entreprise ;
-  - sinon, **une facture par apprenant financé par le CPF**, adressée à la
-    **Caisse des Dépôts et Consignations** (décision du client du
-    25/09/2026 : EDOF facture dossier par dossier). L'identité de
+- **Payeurs et regroupement** (`regrouper` dans `lib/henrri/facturation.ts`) :
+  le payeur et le tarif de chaque apprenant sont choisis **à son
+  inscription** (`session_learners.facturerA`, `prixHT`). Les factures se
+  regroupent par payeur, une ligne par inscription à son tarif :
+  - entreprise qui finance elle-même : une facture par entreprise (celle de
+    l'apprenant, à défaut celle de la session) ;
+  - OPCO ou France Travail en **subrogation** : une facture **au nom du
+    financeur**, par entreprise et par numéro de dossier, avec « Subrogation
+    de paiement », l'entreprise, le dossier et les stagiaires dans le corps.
+    Le financeur se saisit à l'inscription, qui crée le dossier de
+    financement correspondant (`session_learners.dossierFinancementId`,
+    visible dans « Financements ») ;
+  - CPF : **une facture par dossier**, à la **Caisse des Dépôts et
+    Consignations** (EDOF facture dossier par dossier), avec l'identité de
     l'apprenant et son numéro de dossier CPF (`learners.numeroDossierCpf`)
-    figurent dans le **corps** de la facture (sous-titre et ligne), jamais
-    dans les coordonnées du client. Le numéro d'offre, référence interne,
-    n'y figure pas (choix du client). Sans numéro de dossier : échec clair,
-    alerte au tableau de bord ;
-  - un apprenant hors CPF sans entreprise paie lui-même ; plusieurs dans ce
-    cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
-  Un destinataire déjà facturé est passé : une relance ne crée que les
-  factures manquantes. Une facture saisie à la main pour la session bloque
-  toute émission automatique. Montant : le prix de la session pour la
-  facture d'entreprise ; pour une facture personnelle (CPF, apprenant
-  payeur), **le tarif indiqué à l'inscription** (`session_learners.prixHT`),
-  à défaut le prix de la session.
+    dans le corps, jamais dans les coordonnées du client ; pas de numéro
+    d'offre (référence interne, choix du client) ;
+  - apprenant qui paie lui-même : une facture à son nom.
+  Tout ce qui empêcherait une facture juste (tarif, entreprise, financeur,
+  dossier CPF) est signalé d'un coup et rien n'est émis. Chaque inscription
+  facturée porte sa facture (`session_learners.factureId`) : une relance ne
+  crée que les factures manquantes, et payeur et tarif ne se modifient plus.
+  Une facture saisie à la main pour la session bloque toute émission
+  automatique.
 - Pour le CPF, la facture Henrri fournit le numéro à saisir dans EDOF ; la
   transmission dans EDOF reste manuelle (aucun accès pour un logiciel tiers).
 - Le client Henrri est créé une seule fois : identifiant mis en cache sur
-  `companies.henrriCustomerId`, `learners.henrriCustomerId` et, pour la
-  Caisse des Dépôts, `organisme.henrriCaisseDepotsId`. **Ces identifiants
-  sont ceux du bac à sable** : au passage de Henrri en production, les vider
-  pour que les clients soient recréés dans le vrai compte.
+  `companies.henrriCustomerId`, `learners.henrriCustomerId` et, pour les
+  financeurs (OPCO, France Travail, Caisse des Dépôts), dans
+  `clients_henrri_financeurs`, retrouvés par leur nom normalisé. **Ces
+  identifiants sont ceux du bac à sable** : au passage de Henrri en
+  production, les vider pour que les clients soient recréés dans le vrai
+  compte.
 - Henrri injoignable : message lisible (« Henrri ne répond pas… »), puis
   « Relancer » une fois le service revenu.
 - Contenu de la facture : thème (titre = intitulé de la formation), sous-titre
@@ -344,10 +352,15 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans
   intervention »). Le changement manuel de statut reste possible.
-- **Tarif à l'inscription** (décision du client du 25/09/2026) : inscrire un
-  apprenant demande son tarif HT, proposé d'après le prix de la session
-  (depuis la session comme depuis la fiche apprenant). Il se corrige dans la
-  liste des inscrits tant que sa facture personnelle n'est pas émise.
+- **Facturation à l'inscription** (décision du client du 25/09/2026) :
+  inscrire un apprenant, depuis la session comme depuis sa fiche, demande
+  **à qui facturer** (entreprise, OPCO ou France Travail en subrogation avec
+  le nom du financeur, Caisse des Dépôts pour le CPF, apprenant — proposé
+  d'après le financement de la fiche) et **son tarif HT** (proposé d'après le
+  prix de la session). Composant commun `ChampsFacturation` ; les onze OPCO
+  sont proposés à la saisie (`lib/inscriptions-facturation.ts`). Payeur et
+  tarif se corrigent dans la liste des inscrits tant que l'inscription n'est
+  pas facturée.
 - Tableau de bord : « Entrées / Sorties de formation aujourd'hui » listent
   chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
   session annulée).

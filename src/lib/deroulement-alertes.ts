@@ -35,18 +35,19 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       statut: true,
       dateFin: true,
       deroulementSuspenduAt: true,
-      companyId: true,
       trainer: { select: { prenom: true, nom: true, email: true } },
       inscriptions: {
         where: { learner: { deletedAt: null } },
         select: {
-          learner: { select: { id: true, prenom: true, nom: true, email: true, financement: true, numeroDossierCpf: true } },
+          facturerA: true,
+          factureId: true,
+          learner: { select: { id: true, prenom: true, nom: true, email: true, numeroDossierCpf: true } },
         },
       },
       evaluations: { select: { learnerId: true } },
       factures: {
         where: { statut: { not: "ANNULEE" } },
-        select: { id: true, numero: true, statut: true, documentId: true },
+        select: { id: true, numero: true, statut: true, documentId: true, origine: true },
       },
     },
   });
@@ -74,18 +75,16 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
     }
 
     // Dossiers CPF : sans numéro de dossier, pas de facture à la Caisse des
-    // Dépôts. À compléter avant la fin, tant que rien n'est émis.
-    if (!s.companyId && s.factures.length === 0) {
-      const incomplets = s.inscriptions
-        .map((i) => i.learner)
-        .filter((l) => l.financement === "CPF" && !l.numeroDossierCpf?.trim());
-      for (const l of incomplets) {
-        alertes.push({
-          niveau: achevee ? "bloquant" : "attente",
-          texte: `${s.numero} : numéro de dossier CPF à compléter pour ${l.prenom} ${l.nom} (facture à la Caisse des Dépôts).`,
-          lien: `/apprenants/${l.id}/modifier`,
-        });
-      }
+    // Dépôts. À compléter avant la fin, tant que l'inscription n'est pas facturée.
+    const cpfIncomplets = s.inscriptions.filter(
+      (i) => i.facturerA === "CAISSE_DES_DEPOTS" && !i.factureId && !i.learner.numeroDossierCpf?.trim(),
+    );
+    for (const { learner: l } of cpfIncomplets) {
+      alertes.push({
+        niveau: achevee ? "bloquant" : "attente",
+        texte: `${s.numero} : numéro de dossier CPF à compléter pour ${l.prenom} ${l.nom} (facture à la Caisse des Dépôts).`,
+        lien: `/apprenants/${l.id}/modifier`,
+      });
     }
 
     if (achevee) {
@@ -101,12 +100,19 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
         });
       }
 
-      const facture = s.factures.find((f) => f.numero);
-      if (s.statut === "TERMINEE" || s.statut === "CLOTUREE") {
-        if (!facture) {
-          alertes.push({ niveau: "bloquant", texte: `${s.numero} : facture non émise.`, lien: "/factures" });
-        } else if (!facture.documentId) {
-          alertes.push({ niveau: "bloquant", texte: `${s.numero} : PDF de la facture ${facture.numero} non récupéré depuis Henrri.`, lien: `/factures/${facture.id}` });
+      // Une facture saisie à la main pour la session reprend la main : plus
+      // d'alerte sur la facturation automatique.
+      if ((s.statut === "TERMINEE" || s.statut === "CLOTUREE") && !s.factures.some((f) => f.origine === "MANUEL")) {
+        const nonFacturees = s.inscriptions.filter((i) => !i.factureId).length;
+        if (nonFacturees > 0) {
+          alertes.push({
+            niveau: "bloquant",
+            texte: `${s.numero} : ${nonFacturees} inscription${nonFacturees > 1 ? "s" : ""} pas encore facturée${nonFacturees > 1 ? "s" : ""}.`,
+            lien,
+          });
+        }
+        for (const f of s.factures.filter((f) => f.numero && !f.documentId)) {
+          alertes.push({ niveau: "bloquant", texte: `${s.numero} : PDF de la facture ${f.numero} non récupéré depuis Henrri.`, lien: `/factures/${f.id}` });
         }
       }
     }
