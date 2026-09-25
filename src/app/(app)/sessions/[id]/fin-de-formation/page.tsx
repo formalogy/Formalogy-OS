@@ -6,7 +6,7 @@ import { EnvoiQuestionnaires, GenerationAttestations } from "@/app/(app)/session
 import { bilanFinDeFormation, chargerFinDeFormation } from "@/lib/fin-de-formation";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
 import { notesDetaillees, questionsPosees } from "@/lib/questionnaires-modeles";
-import { texteReponse, type ReponsesQuestionnaire } from "@/lib/questionnaires-questions";
+import { echelle, texteReponse, type ReponsesQuestionnaire } from "@/lib/questionnaires-questions";
 import { exigerRole } from "@/lib/session";
 import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -188,7 +188,10 @@ export default async function PageFinDeFormation({ params }: { params: Promise<{
             <ol className="border-t border-bordure-douce px-4 py-3 text-[11.5px] text-texte-doux">
               {notes.map((q, i) => (
                 <li key={q.id}>
-                  <span className="font-semibold">Q{i + 1}</span> — {q.libelle} <span className="text-texte-tenu">(note de 1 à 5)</span>
+                  <span className="font-semibold">Q{i + 1}</span> — {q.libelle}{" "}
+                  <span className="text-texte-tenu">
+                    (note de {echelle(q).min} à {echelle(q).max})
+                  </span>
                 </li>
               ))}
             </ol>

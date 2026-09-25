@@ -411,9 +411,15 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   (`lib/questionnaires-questions.ts`) ; une version modifiée est une ligne de
   `modeles_questionnaire` (sans ligne = origine). Lecture et contrôles dans
   `lib/questionnaires-modeles.ts`.
-- Quatre formes de réponse, toutes en **cases à cocher** sauf la dernière :
-  une seule réponse, plusieurs réponses, note de 1 à 5 (« Pas du tout » →
-  « Tout à fait », seule forme chiffrée), réponse libre. Formulaire public
+- Cinq formes de réponse, menu de l'éditeur à la manière des outils de
+  formulaires : **Réponse unique** et **Réponses multiples** (cases à
+  cocher), **Réponse libre**, **Réponses ordonnées** (la personne classe les
+  éléments proposés avec des flèches ; réponse = la liste dans l'ordre),
+  **Note** sur une échelle choisie de 0 à 10 au plus (1 à 5 par défaut, avec
+  les libellés « Pas du tout » → « Tout à fait »). Chaque question peut
+  porter une **description** affichée sous l'intitulé. La note de
+  satisfaction générale reste sur 1 à 5 (moyenne des statistiques), et la
+  moyenne de repli ne mêle que des notes sur 1 à 5. Formulaire public
   commun : `app/_composants/formulaire-questionnaire.tsx`.
 - Chaque question a un identifiant stable (reformuler la garde comparable).
   Les réponses sont rangées par identifiant et **les questions posées sont

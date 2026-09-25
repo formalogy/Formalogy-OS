@@ -19,12 +19,23 @@ export function estCodeQuestionnaire(valeur: unknown): valeur is CodeQuestionnai
   return CODES_QUESTIONNAIRE.includes(valeur as CodeQuestionnaire);
 }
 
-/// Toutes les questions se répondent en cochant des cases, sauf la réponse
-/// libre. Une note va de 1 (« Pas du tout ») à 5 (« Tout à fait ») : c'est la
-/// seule forme chiffrée, celle qui alimente les statistiques.
-export type TypeQuestion = "CHOIX_UNIQUE" | "CHOIX_MULTIPLE" | "NOTE" | "TEXTE";
+/// Formes de réponse : cases à cocher (une ou plusieurs), réponse libre,
+/// classement des éléments proposés, ou note. La note se donne sur une
+/// échelle choisie (de 1 à 5 par défaut, « Pas du tout » à « Tout à fait ») :
+/// c'est la seule forme chiffrée, celle qui alimente les statistiques.
+export type TypeQuestion = "CHOIX_UNIQUE" | "CHOIX_MULTIPLE" | "TEXTE" | "CLASSEMENT" | "NOTE";
 
-export const TYPES_QUESTION: TypeQuestion[] = ["CHOIX_UNIQUE", "CHOIX_MULTIPLE", "NOTE", "TEXTE"];
+/// Dans l'ordre du menu de l'éditeur.
+export const TYPES_QUESTION: TypeQuestion[] = ["CHOIX_UNIQUE", "CHOIX_MULTIPLE", "TEXTE", "CLASSEMENT", "NOTE"];
+
+/// Questions dont la personne répond à partir d'une liste d'éléments.
+export const AVEC_OPTIONS: TypeQuestion[] = ["CHOIX_UNIQUE", "CHOIX_MULTIPLE", "CLASSEMENT"];
+
+/// Échelle de note par défaut, et bornes permises : jusqu'à 11 cases (0 à 10).
+export const NOTE_MIN_DEFAUT = 1;
+export const NOTE_MAX_DEFAUT = 5;
+export const NOTE_BORNE_MIN = 0;
+export const NOTE_BORNE_MAX = 10;
 
 export type Question = {
   /// Identifiant stable : il survit aux reformulations, ce qui garde les
@@ -32,8 +43,13 @@ export type Question = {
   id: string;
   type: TypeQuestion;
   libelle: string;
-  /// Cases proposées, pour les questions à choix.
+  /// Précision affichée sous l'intitulé (exemple, consigne).
+  description?: string;
+  /// Cases proposées (questions à choix) ou éléments à classer.
   options?: string[];
+  /// Échelle d'une note : de `min` à `max` (1 à 5 si absents).
+  min?: number;
+  max?: number;
   obligatoire?: boolean;
   /// Intertitre affiché avant cette question : il ouvre une nouvelle partie.
   section?: string;
@@ -44,7 +60,7 @@ export type Question = {
 export type ContenuQuestionnaire = { titre: string; introduction?: string; questions: Question[] };
 
 /// Réponses par identifiant de question : texte de la case cochée, liste des
-/// cases cochées, note de 1 à 5 ou texte libre.
+/// cases cochées ou des éléments dans l'ordre choisi, note, ou texte libre.
 export type ReponsesQuestionnaire = Record<string, string | string[] | number>;
 
 /// État renvoyé au formulaire public. En cas d'erreur, les valeurs saisies
@@ -59,10 +75,22 @@ export type EtatReponse = {
 export const LIBELLES_NOTE = ["Pas du tout", "Peu", "Moyen", "Plutôt", "Tout à fait"];
 
 export const LIBELLE_TYPE_QUESTION: Record<TypeQuestion, string> = {
-  CHOIX_UNIQUE: "Cases — une seule réponse",
-  CHOIX_MULTIPLE: "Cases — plusieurs réponses possibles",
-  NOTE: "Note de 1 à 5 (de « Pas du tout » à « Tout à fait »)",
-  TEXTE: "Réponse libre (texte)",
+  CHOIX_UNIQUE: "Réponse unique",
+  CHOIX_MULTIPLE: "Réponses multiples",
+  TEXTE: "Réponse libre",
+  CLASSEMENT: "Réponses ordonnées",
+  NOTE: "Note",
+};
+
+/// Bornes effectives d'une note.
+export function echelle(question: Question): { min: number; max: number } {
+  return { min: question.min ?? NOTE_MIN_DEFAUT, max: question.max ?? NOTE_MAX_DEFAUT };
+}
+
+/// L'échelle de 1 à 5 garde ses libellés, de « Pas du tout » à « Tout à fait ».
+export const estEchelleParDefaut = (question: Question) => {
+  const { min, max } = echelle(question);
+  return min === NOTE_MIN_DEFAUT && max === NOTE_MAX_DEFAUT;
 };
 
 export const LIBELLE_TYPE_QUESTIONNAIRE: Record<TypeQuestionnaire, string> = {
@@ -196,7 +224,13 @@ export const LIBELLE_ACQUIS: Record<ResultatAcquis, string> = {
 /// Réponse lisible par un humain, pour les fiches et les tableaux.
 export function texteReponse(question: Question, valeur: unknown): string | null {
   if (valeur === undefined || valeur === null || valeur === "") return null;
-  if (question.type === "NOTE" && typeof valeur === "number") return `${valeur} / 5 — ${LIBELLES_NOTE[valeur - 1] ?? ""}`;
-  if (Array.isArray(valeur)) return valeur.length > 0 ? valeur.join(", ") : null;
+  if (question.type === "NOTE" && typeof valeur === "number") {
+    const { max } = echelle(question);
+    return estEchelleParDefaut(question) ? `${valeur} / ${max} — ${LIBELLES_NOTE[valeur - 1] ?? ""}` : `${valeur} / ${max}`;
+  }
+  if (Array.isArray(valeur)) {
+    if (valeur.length === 0) return null;
+    return question.type === "CLASSEMENT" ? valeur.map((v, i) => `${i + 1}. ${v}`).join(" · ") : valeur.join(", ");
+  }
   return String(valeur);
 }

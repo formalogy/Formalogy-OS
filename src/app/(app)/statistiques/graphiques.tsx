@@ -128,7 +128,8 @@ export function BarreProportion({ parts, total, unite }: { parts: Part[]; total:
 }
 
 /// Notes moyennes question par question, sur 5.
-export function BarresNotes({ lignes }: { lignes: { libelle: string; moyenne: number | null; nombre: number }[] }) {
+/// Moyenne de chaque note détaillée, sur sa propre échelle (sur 5 par défaut).
+export function BarresNotes({ lignes }: { lignes: { libelle: string; moyenne: number | null; nombre: number; max: number }[] }) {
   return (
     <ul className="flex flex-col gap-3">
       {lignes.map((ligne) => (
@@ -136,14 +137,14 @@ export function BarresNotes({ lignes }: { lignes: { libelle: string; moyenne: nu
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-[12.5px] text-texte-doux">{ligne.libelle}</span>
             <span className="shrink-0 font-mono text-[13px] font-semibold tabular-nums">
-              {ligne.moyenne === null ? "—" : `${nombre.format(Math.round(ligne.moyenne * 10) / 10)} / 5`}
+              {ligne.moyenne === null ? "—" : `${nombre.format(Math.round(ligne.moyenne * 10) / 10)} / ${ligne.max}`}
             </span>
           </div>
           <div className="mt-1.5 h-2 rounded-[4px] bg-surface-creuse">
             {ligne.moyenne !== null && (
               <div
-                title={`${ligne.libelle} — ${nombre.format(Math.round(ligne.moyenne * 10) / 10)} sur 5, ${ligne.nombre} réponse(s)`}
-                style={{ width: `${(ligne.moyenne / 5) * 100}%` }}
+                title={`${ligne.libelle} — ${nombre.format(Math.round(ligne.moyenne * 10) / 10)} sur ${ligne.max}, ${ligne.nombre} réponse(s)`}
+                style={{ width: `${(ligne.moyenne / ligne.max) * 100}%` }}
                 className="h-full rounded-[4px] bg-accent"
               />
             )}

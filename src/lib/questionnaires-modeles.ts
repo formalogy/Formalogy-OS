@@ -4,6 +4,13 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import {
+  AVEC_OPTIONS,
+  echelle,
+  estEchelleParDefaut,
+  NOTE_BORNE_MAX,
+  NOTE_BORNE_MIN,
+  NOTE_MAX_DEFAUT,
+  NOTE_MIN_DEFAUT,
   QUESTIONNAIRES_ORIGINE,
   TYPES_QUESTION,
   type CodeQuestionnaire,
@@ -12,8 +19,6 @@ import {
   type ReponsesQuestionnaire,
 } from "@/lib/questionnaires-questions";
 
-const EST_CHOIX = new Set(["CHOIX_UNIQUE", "CHOIX_MULTIPLE"]);
-
 /// Une question telle qu'elle est enregistrée : les champs sans objet pour
 /// son type sont retirés, pour qu'un questionnaire relu soit toujours propre.
 const schemaQuestion = z
@@ -21,22 +26,45 @@ const schemaQuestion = z
     id: z.string().regex(/^[A-Za-z0-9_]{1,40}$/),
     type: z.enum(TYPES_QUESTION),
     libelle: z.string().trim().min(1, "Une question n'a pas d'intitulé.").max(500, "Un intitulé dépasse 500 caractères."),
+    description: z.string().trim().max(1000, "Une description dépasse 1 000 caractères.").optional(),
     options: z.array(z.string().trim().max(200, "Une case dépasse 200 caractères.")).optional(),
+    min: z.number().int().optional(),
+    max: z.number().int().optional(),
     obligatoire: z.boolean().optional(),
     section: z.string().trim().max(200).optional(),
     globale: z.boolean().optional(),
   })
   .transform((q, ctx): Question => {
     const propre: Question = { id: q.id, type: q.type, libelle: q.libelle };
-    if (EST_CHOIX.has(q.type)) {
+    if (q.description) propre.description = q.description;
+    if (AVEC_OPTIONS.includes(q.type)) {
       const options = [...new Set((q.options ?? []).filter(Boolean))];
-      if (options.length < 2) ctx.addIssue({ code: "custom", message: `« ${q.libelle} » doit proposer au moins deux cases.` });
-      if (options.length > 15) ctx.addIssue({ code: "custom", message: `« ${q.libelle} » propose plus de 15 cases.` });
+      const quoi = q.type === "CLASSEMENT" ? "éléments à classer" : "cases";
+      if (options.length < 2) ctx.addIssue({ code: "custom", message: `« ${q.libelle} » doit proposer au moins deux ${quoi}.` });
+      if (options.length > 15) ctx.addIssue({ code: "custom", message: `« ${q.libelle} » propose plus de 15 ${quoi}.` });
       propre.options = options;
+    }
+    if (q.type === "NOTE") {
+      const min = q.min ?? NOTE_MIN_DEFAUT;
+      const max = q.max ?? NOTE_MAX_DEFAUT;
+      if (min < NOTE_BORNE_MIN || max > NOTE_BORNE_MAX || min >= max) {
+        ctx.addIssue({ code: "custom", message: `« ${q.libelle} » : la note doit aller d'un nombre à un nombre plus grand, entre ${NOTE_BORNE_MIN} et ${NOTE_BORNE_MAX}.` });
+      }
+      // L'échelle par défaut ne s'enregistre pas : un questionnaire relu reste propre.
+      if (min !== NOTE_MIN_DEFAUT || max !== NOTE_MAX_DEFAUT) {
+        propre.min = min;
+        propre.max = max;
+      }
+      if (q.globale) {
+        // La satisfaction générale alimente la moyenne des statistiques, sur 5.
+        if (min !== NOTE_MIN_DEFAUT || max !== NOTE_MAX_DEFAUT) {
+          ctx.addIssue({ code: "custom", message: `« ${q.libelle} » sert de satisfaction générale : elle reste notée de 1 à 5.` });
+        }
+        propre.globale = true;
+      }
     }
     if (q.obligatoire) propre.obligatoire = true;
     if (q.section) propre.section = q.section;
-    if (q.globale && q.type === "NOTE") propre.globale = true;
     return propre;
   });
 
@@ -93,8 +121,9 @@ export function questionsPosees(figees: unknown, code: CodeQuestionnaire): Quest
 }
 
 /// Lit les réponses envoyées par le formulaire public et les contrôle au
-/// regard des questions : une case cochée doit exister, une note aller de 1
-/// à 5, une question obligatoire être remplie.
+/// regard des questions : une case cochée doit exister, une note rester dans
+/// son échelle, un classement reprendre tous les éléments proposés, une
+/// question obligatoire être remplie.
 export function analyserReponses(
   questions: Question[],
   donnees: FormData,
@@ -104,6 +133,16 @@ export function analyserReponses(
   let manquante: Question | undefined;
 
   for (const question of questions) {
+    if (question.type === "CLASSEMENT") {
+      // L'ordre envoyé doit reprendre exactement les éléments proposés.
+      const ordre = donnees.getAll(question.id).map(String);
+      const attendus = question.options ?? [];
+      const complet = ordre.length === attendus.length && attendus.every((o) => ordre.includes(o));
+      valeurs[question.id] = complet ? ordre : attendus;
+      if (complet) reponses[question.id] = ordre;
+      else if (question.obligatoire) manquante ??= question;
+      continue;
+    }
     if (question.type === "CHOIX_MULTIPLE") {
       const cochees = [...new Set(donnees.getAll(question.id).map(String))].filter((v) => question.options?.includes(v));
       valeurs[question.id] = cochees;
@@ -115,7 +154,11 @@ export function analyserReponses(
     const brut = String(donnees.get(question.id) ?? "").trim();
     valeurs[question.id] = brut;
     if (question.type === "CHOIX_UNIQUE" && question.options?.includes(brut)) reponses[question.id] = brut;
-    if (question.type === "NOTE" && /^[1-5]$/.test(brut)) reponses[question.id] = Number(brut);
+    if (question.type === "NOTE" && /^\d{1,2}$/.test(brut)) {
+      const { min, max } = echelle(question);
+      const note = Number(brut);
+      if (note >= min && note <= max) reponses[question.id] = note;
+    }
     if (question.type === "TEXTE" && brut) reponses[question.id] = brut.slice(0, 2000);
     if (question.obligatoire && reponses[question.id] === undefined) manquante ??= question;
   }
@@ -125,13 +168,14 @@ export function analyserReponses(
 }
 
 /// Note de satisfaction générale d'une réponse : la note désignée comme telle,
-/// sinon la moyenne arrondie de toutes les notes données.
+/// sinon la moyenne arrondie des notes données sur l'échelle de 1 à 5 (les
+/// notes sur une autre échelle ne se mélangent pas à la moyenne).
 export function noteGlobale(questions: Question[], reponses: ReponsesQuestionnaire): number | null {
   const designee = questions.find((q) => q.globale);
   const valeur = designee ? reponses[designee.id] : undefined;
   if (typeof valeur === "number") return valeur;
   const notes = questions
-    .filter((q) => q.type === "NOTE")
+    .filter((q) => q.type === "NOTE" && estEchelleParDefaut(q))
     .map((q) => reponses[q.id])
     .filter((n): n is number => typeof n === "number");
   return notes.length > 0 ? Math.round(notes.reduce((t, n) => t + n, 0) / notes.length) : null;

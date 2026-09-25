@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
+  echelle,
+  estEchelleParDefaut,
   LIBELLE_ACQUIS,
   LIBELLES_NOTE,
   RESULTATS_ACQUIS,
@@ -32,7 +34,12 @@ function Intitule({ question }: { question: Question }) {
     <>
       <span className="text-[14px] font-semibold">{question.libelle}</span>{" "}
       {question.type === "CHOIX_MULTIPLE" && <span className="text-[12.5px] font-normal text-texte-doux">(plusieurs réponses possibles)</span>}
-      {!question.obligatoire && <span className="text-[12.5px] font-normal text-texte-tenu"> (facultatif)</span>}
+      {!question.obligatoire && question.type !== "CLASSEMENT" && (
+        <span className="text-[12.5px] font-normal text-texte-tenu"> (facultatif)</span>
+      )}
+      {question.description && (
+        <span className="mt-0.5 block whitespace-pre-line text-[12.5px] font-normal text-texte-doux">{question.description}</span>
+      )}
     </>
   );
 }
@@ -71,6 +78,37 @@ function Choix({ question, valeurs }: { question: Question; valeurs?: Valeurs })
 
 function Note({ question, valeurs }: { question: Question; valeurs?: Valeurs }) {
   const deja = valeurs?.[question.id];
+  // Échelle choisie dans l'éditeur (0 à 10, par exemple) : une case par note,
+  // les bornes rappelées aux extrémités. L'échelle de 1 à 5 garde ses libellés.
+  if (!estEchelleParDefaut(question)) {
+    const { min, max } = echelle(question);
+    const notes = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+    return (
+      <fieldset>
+        <legend className="mb-2">
+          <Intitule question={question} />
+        </legend>
+        <div className="flex flex-wrap gap-1.5">
+          {notes.map((n) => (
+            <label
+              key={n}
+              className="flex min-w-[2.75rem] flex-1 cursor-pointer flex-col items-center gap-1 rounded-lg border border-bordure px-1 py-2 has-[:checked]:border-accent has-[:checked]:bg-accent-pale"
+            >
+              <input
+                type="radio"
+                name={question.id}
+                value={n}
+                required={question.obligatoire}
+                defaultChecked={deja === String(n)}
+                className="case-a-cocher"
+              />
+              <span className="font-mono text-[13px] font-semibold">{n}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
   return (
     <fieldset>
       <legend className="mb-2">
@@ -95,6 +133,53 @@ function Note({ question, valeurs }: { question: Question; valeurs?: Valeurs }) 
           </label>
         ))}
       </div>
+    </fieldset>
+  );
+}
+
+/// Réponses ordonnées : la personne range les éléments du plus au moins
+/// important, avec des flèches (utilisables au doigt comme au clavier).
+/// L'ordre est envoyé tel qu'affiché.
+function Classement({ question, valeurs }: { question: Question; valeurs?: Valeurs }) {
+  const deja = valeurs?.[question.id];
+  const [ordre, setOrdre] = useState<string[]>(Array.isArray(deja) && deja.length > 0 ? deja : (question.options ?? []));
+  const deplacer = (index: number, sens: -1 | 1) =>
+    setOrdre((o) => {
+      const cible = index + sens;
+      if (cible < 0 || cible >= o.length) return o;
+      const copie = [...o];
+      [copie[index], copie[cible]] = [copie[cible], copie[index]];
+      return copie;
+    });
+  const bouton =
+    "grid size-7 place-items-center rounded-md border border-bordure text-[13px] text-texte-doux hover:bg-surface-creuse disabled:opacity-30 disabled:hover:bg-transparent";
+  return (
+    <fieldset>
+      <legend className="mb-1">
+        <Intitule question={question} />
+      </legend>
+      <p className="mb-2 text-[12.5px] text-texte-doux">Classez du premier au dernier avec les flèches.</p>
+      <ol className="flex flex-col gap-1.5">
+        {ordre.map((element, index) => (
+          <li key={element} className="flex items-center gap-2.5 rounded-lg border border-bordure px-3 py-2">
+            <span className="w-5 shrink-0 font-mono text-[13px] font-semibold text-accent-fort">{index + 1}</span>
+            <span className="min-w-0 flex-1 text-[14px]">{element}</span>
+            <input type="hidden" name={question.id} value={element} />
+            <button type="button" onClick={() => deplacer(index, -1)} disabled={index === 0} aria-label={`Monter « ${element} »`} className={bouton}>
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => deplacer(index, 1)}
+              disabled={index === ordre.length - 1}
+              aria-label={`Descendre « ${element} »`}
+              className={bouton}
+            >
+              ↓
+            </button>
+          </li>
+        ))}
+      </ol>
     </fieldset>
   );
 }
@@ -218,6 +303,8 @@ export function FormulaireQuestionnaire({ questions, evaluation, action, jeton, 
               <Note question={q} valeurs={etat.valeurs} />
             ) : q.type === "TEXTE" ? (
               <Texte question={q} valeurs={etat.valeurs} />
+            ) : q.type === "CLASSEMENT" ? (
+              <Classement question={q} valeurs={etat.valeurs} />
             ) : (
               <Choix question={q} valeurs={etat.valeurs} />
             )}

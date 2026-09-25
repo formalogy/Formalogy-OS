@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { modifierQuestionnaire, type EtatEditeur } from "@/app/(app)/questionnaires/modeles/actions";
 import {
+  AVEC_OPTIONS,
+  echelle,
+  estEchelleParDefaut,
   LIBELLE_TYPE_QUESTION,
+  NOTE_BORNE_MAX,
+  NOTE_BORNE_MIN,
   TYPES_QUESTION,
   type CodeQuestionnaire,
   type ContenuQuestionnaire,
@@ -19,8 +24,6 @@ const ETIQUETTE = "block text-[12.5px] font-semibold";
 const PETIT_BOUTON =
   "rounded-md border border-bordure px-2 py-1 text-[12px] font-semibold text-texte-doux hover:bg-surface-creuse disabled:opacity-40 disabled:hover:bg-transparent";
 
-const estChoix = (type: TypeQuestion) => type === "CHOIX_UNIQUE" || type === "CHOIX_MULTIPLE";
-
 /// Identifiant d'une nouvelle question : court, et distinct de tous ceux du
 /// questionnaire, pour que ses réponses ne se mêlent jamais à une autre.
 function nouvelIdentifiant(questions: Question[]): string {
@@ -29,6 +32,110 @@ function nouvelIdentifiant(questions: Question[]): string {
   do id = `q_${Math.random().toString(36).slice(2, 8)}`;
   while (pris.has(id));
   return id;
+}
+
+/// Icône de chaque forme de réponse, dans le menu comme sur son bouton.
+function IconeType({ type }: { type: TypeQuestion }) {
+  const commun = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, "aria-hidden": true };
+  if (type === "CHOIX_UNIQUE")
+    return (
+      <svg {...commun}>
+        <circle cx="8" cy="8" r="6" />
+        <circle cx="8" cy="8" r="2.6" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  if (type === "CHOIX_MULTIPLE")
+    return (
+      <svg {...commun}>
+        <rect x="4.5" y="4.5" width="9" height="9" rx="1.5" />
+        <path d="M2.5 11V3.5A1 1 0 0 1 3.5 2.5H11" />
+        <path d="M6.8 9l1.6 1.6 3-3.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (type === "TEXTE")
+    return (
+      <svg {...commun} strokeLinecap="round">
+        <path d="M2.5 4.5h11M2.5 8h8M2.5 11.5h5" />
+      </svg>
+    );
+  if (type === "CLASSEMENT")
+    return (
+      <svg {...commun} strokeLinecap="round">
+        <path d="M7 4.5h6.5M7 8h6.5M7 11.5h6.5" />
+        <path d="M2.6 3.4l1-.7v3.2M2.4 9.2c.3-.5 1.8-.6 1.8.3 0 .7-1.8 1.4-1.8 2.3h1.9" strokeWidth={1.2} strokeLinejoin="round" />
+      </svg>
+    );
+  return (
+    <svg {...commun}>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M5.3 8.2l1.9 1.9 3.6-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/// Menu de la forme de réponse, à droite de la question.
+function MenuType({ valeur, onChange }: { valeur: TypeQuestion; onChange: (type: TypeQuestion) => void }) {
+  const [ouvert, setOuvert] = useState(false);
+  const cadre = useRef<HTMLDivElement>(null);
+
+  // Un clic ailleurs ou la touche Échap referment le menu.
+  useEffect(() => {
+    if (!ouvert) return;
+    const clic = (e: MouseEvent) => {
+      if (!cadre.current?.contains(e.target as Node)) setOuvert(false);
+    };
+    const touche = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOuvert(false);
+    };
+    document.addEventListener("mousedown", clic);
+    document.addEventListener("keydown", touche);
+    return () => {
+      document.removeEventListener("mousedown", clic);
+      document.removeEventListener("keydown", touche);
+    };
+  }, [ouvert]);
+
+  return (
+    <div ref={cadre} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={ouvert}
+        onClick={() => setOuvert((o) => !o)}
+        className="flex items-center gap-2 rounded-full border border-bordure bg-surface px-3 py-1.5 text-[12.5px] font-semibold hover:bg-surface-creuse"
+      >
+        <IconeType type={valeur} />
+        {LIBELLE_TYPE_QUESTION[valeur]}
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+          <path d="M3 4.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {ouvert && (
+        <ul role="listbox" aria-label="Forme de la réponse" className="absolute right-0 z-20 mt-1.5 w-64 overflow-hidden rounded-xl border border-bordure bg-surface shadow-lg">
+          {TYPES_QUESTION.map((type) => (
+            <li key={type} role="option" aria-selected={type === valeur} className="border-t border-bordure-douce first:border-t-0">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(type);
+                  setOuvert(false);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13.5px] hover:bg-surface-creuse"
+              >
+                <IconeType type={type} />
+                <span className="flex-1">{LIBELLE_TYPE_QUESTION[type]}</span>
+                {type === valeur && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+                    <path d="M2.5 7.5l3 3 6-6.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function CarteQuestion({
@@ -49,34 +156,31 @@ function CarteQuestion({
   supprimer: () => void;
 }) {
   const id = (champ: string) => `${question.id}-${champ}`;
+  const [avecDescription, setAvecDescription] = useState(Boolean(question.description));
+  const avecOptions = AVEC_OPTIONS.includes(question.type);
+  const { min, max } = echelle(question);
 
   function changerType(type: TypeQuestion) {
-    // Une question qui devient « à cases » reçoit un point de départ plutôt
-    // qu'une liste vide ; ses cases éventuelles sont conservées sinon.
-    const options = estChoix(type) && !(question.options ?? []).some((o) => o.trim()) ? ["Oui", "Non"] : question.options;
+    // Une question qui passe à des cases ou à un classement reçoit un point
+    // de départ plutôt qu'une liste vide ; ses éléments sont conservés sinon.
+    const vide = !(question.options ?? []).some((o) => o.trim());
+    const options =
+      AVEC_OPTIONS.includes(type) && vide ? (type === "CLASSEMENT" ? ["Premier élément", "Deuxième élément"] : ["Oui", "Non"]) : question.options;
     modifier({ type, options, globale: type === "NOTE" ? question.globale : undefined });
   }
 
   return (
     <li className="rounded-xl border border-bordure bg-surface p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-texte-tenu">Question {numero}</span>
-        <div className="flex gap-1.5">
-          <button type="button" onClick={() => deplacer(-1)} disabled={numero === 1} className={PETIT_BOUTON} aria-label="Monter la question">
-            ↑ Monter
-          </button>
-          <button type="button" onClick={() => deplacer(1)} disabled={numero === total} className={PETIT_BOUTON} aria-label="Descendre la question">
-            ↓ Descendre
-          </button>
-          <button type="button" onClick={supprimer} disabled={total === 1} className={`${PETIT_BOUTON} text-danger`}>
-            Supprimer
-          </button>
-        </div>
+        <span className="rounded-full border border-bordure px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-texte-tenu">
+          Question {numero}
+        </span>
+        <MenuType valeur={question.type} onChange={changerType} />
       </div>
 
       <div className="mt-3 flex flex-col gap-3">
         <div>
-          <label htmlFor={id("libelle")} className={ETIQUETTE}>
+          <label htmlFor={id("libelle")} className="sr-only">
             Question
           </label>
           <textarea
@@ -85,51 +189,54 @@ function CarteQuestion({
             maxLength={500}
             value={question.libelle}
             onChange={(e) => modifier({ libelle: e.target.value })}
-            className={CHAMP}
+            placeholder="Intitulé de la question"
+            className="w-full rounded-lg border border-bordure bg-surface px-3 py-2 text-[15px] font-bold outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
           />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <div>
-            <label htmlFor={id("type")} className={ETIQUETTE}>
-              Forme de la réponse
-            </label>
-            <select id={id("type")} value={question.type} onChange={(e) => changerType(e.target.value as TypeQuestion)} className={CHAMP}>
-              {TYPES_QUESTION.map((t) => (
-                <option key={t} value={t}>
-                  {LIBELLE_TYPE_QUESTION[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5 pb-2">
-            <label className="flex cursor-pointer items-center gap-2 text-[12.5px]">
-              <input
-                type="checkbox"
-                checked={Boolean(question.obligatoire)}
-                onChange={(e) => modifier({ obligatoire: e.target.checked })}
-                className="size-4 accent-[var(--color-accent)]"
-              />
-              Réponse obligatoire
-            </label>
-            {satisfaction && question.type === "NOTE" && (
-              <label className="flex cursor-pointer items-center gap-2 text-[12.5px]">
-                <input
-                  type="checkbox"
-                  checked={Boolean(question.globale)}
-                  onChange={(e) => modifier({ globale: e.target.checked })}
-                  className="size-4 accent-[var(--color-accent)]"
-                />
-                Note de satisfaction générale
+          {avecDescription ? (
+            <div className="mt-2">
+              <label htmlFor={id("description")} className={ETIQUETTE}>
+                Description <span className="font-normal text-texte-tenu">(sous la question)</span>
               </label>
-            )}
-          </div>
+              <textarea
+                id={id("description")}
+                rows={2}
+                maxLength={1000}
+                value={question.description ?? ""}
+                onChange={(e) => modifier({ description: e.target.value })}
+                placeholder="Précision, consigne ou exemple"
+                className={CHAMP}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setAvecDescription(false);
+                  modifier({ description: undefined });
+                }}
+                className="mt-1 text-[11.5px] font-semibold text-texte-tenu hover:text-danger hover:underline"
+              >
+                Retirer la description
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAvecDescription(true)}
+              className="mt-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-texte-doux hover:text-accent-fort"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                <rect x="5.5" y="3.5" width="8" height="9" rx="1.5" />
+                <path d="M2.5 3v10M1.5 3h2M1.5 13h2M7.8 7h3.4M7.8 9.5h2.2" strokeLinecap="round" />
+              </svg>
+              Ajouter une description
+            </button>
+          )}
         </div>
 
-        {estChoix(question.type) && (
+        {avecOptions && (
           <div>
             <label htmlFor={id("options")} className={ETIQUETTE}>
-              Cases proposées <span className="font-normal text-texte-tenu">(une par ligne)</span>
+              {question.type === "CLASSEMENT" ? "Éléments à classer" : "Cases proposées"}{" "}
+              <span className="font-normal text-texte-tenu">(un par ligne)</span>
             </label>
             <textarea
               id={id("options")}
@@ -143,6 +250,65 @@ function CarteQuestion({
           </div>
         )}
 
+        {question.type === "NOTE" && (
+          <div>
+            <span className={ETIQUETTE}>Échelle de la note</span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px]">
+              de
+              <input
+                type="number"
+                min={NOTE_BORNE_MIN}
+                max={NOTE_BORNE_MAX}
+                value={min}
+                onChange={(e) => modifier({ min: Number(e.target.value) })}
+                aria-label="Note minimale"
+                className="w-16 rounded-lg border border-bordure bg-surface px-2 py-1.5 text-center font-mono outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+              />
+              à
+              <input
+                type="number"
+                min={NOTE_BORNE_MIN}
+                max={NOTE_BORNE_MAX}
+                value={max}
+                onChange={(e) => modifier({ max: Number(e.target.value) })}
+                aria-label="Note maximale"
+                className="w-16 rounded-lg border border-bordure bg-surface px-2 py-1.5 text-center font-mono outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+              />
+              <span className="text-[12px] text-texte-tenu">
+                {estEchelleParDefaut(question)
+                  ? "cases de « Pas du tout » à « Tout à fait »"
+                  : `${max - min + 1} cases numérotées, de ${NOTE_BORNE_MIN} à ${NOTE_BORNE_MAX} au plus`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+          {question.type !== "CLASSEMENT" && (
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px]">
+              <input
+                type="checkbox"
+                checked={Boolean(question.obligatoire)}
+                onChange={(e) => modifier({ obligatoire: e.target.checked })}
+                className="size-4 accent-[var(--color-accent)]"
+              />
+              Réponse obligatoire
+            </label>
+          )}
+          {satisfaction && question.type === "NOTE" && (
+            <label className={`flex items-center gap-2 text-[12.5px] ${estEchelleParDefaut(question) ? "cursor-pointer" : "text-texte-tenu"}`}>
+              <input
+                type="checkbox"
+                checked={Boolean(question.globale)}
+                disabled={!estEchelleParDefaut(question)}
+                onChange={(e) => modifier({ globale: e.target.checked })}
+                className="size-4 accent-[var(--color-accent)]"
+              />
+              Note de satisfaction générale {!estEchelleParDefaut(question) && "(échelle de 1 à 5 seulement)"}
+            </label>
+          )}
+        </div>
+
         <div>
           <label htmlFor={id("section")} className={ETIQUETTE}>
             Intertitre au-dessus de cette question <span className="font-normal text-texte-tenu">(facultatif)</span>
@@ -155,6 +321,18 @@ function CarteQuestion({
             placeholder="Ex. : Vos attentes — ouvre une nouvelle partie du questionnaire"
             className={CHAMP}
           />
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-1.5 border-t border-bordure-douce pt-3">
+          <button type="button" onClick={() => deplacer(-1)} disabled={numero === 1} className={PETIT_BOUTON} aria-label="Monter la question">
+            ↑ Monter
+          </button>
+          <button type="button" onClick={() => deplacer(1)} disabled={numero === total} className={PETIT_BOUTON} aria-label="Descendre la question">
+            ↓ Descendre
+          </button>
+          <button type="button" onClick={supprimer} disabled={total === 1} className={`${PETIT_BOUTON} text-danger`}>
+            Supprimer
+          </button>
         </div>
       </div>
     </li>

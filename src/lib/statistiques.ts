@@ -6,6 +6,7 @@ import { CRENEAUX, joursDeSession } from "@/lib/emargement";
 import { enCentimes } from "@/lib/factures";
 import { prisma } from "@/lib/prisma";
 import { notesDetaillees } from "@/lib/questionnaires-modeles";
+import { echelle } from "@/lib/questionnaires-questions";
 import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 
 /// Sessions retenues dans les statistiques : ni brouillon (rien n'est encore
@@ -194,6 +195,7 @@ function satisfaction(questionnaires: SatisfactionCalcul[]) {
       .map((q) => (q.reponses as Record<string, unknown> | null)?.[question.id])
       .filter((n): n is number => typeof n === "number");
     return {
+      max: echelle(question).max,
       cle: question.id,
       libelle: question.libelle,
       moyenne: valeurs.length > 0 ? valeurs.reduce((t, n) => t + n, 0) / valeurs.length : null,
