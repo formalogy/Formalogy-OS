@@ -13,7 +13,7 @@ import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
 import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
-import { genererFactureHenrriPourSession } from "@/lib/henrri/facturation";
+import { genererFacturesHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme } from "@/lib/organisme";
 import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
@@ -58,8 +58,9 @@ const schemaAction = z.discriminatedUnion("type", [
     priorite: z.enum(["BASSE", "NORMALE", "HAUTE"]),
   }),
   z.object({
-    /// Émet automatiquement la facture Henrri de la session (Phase 16).
-    /// Sans paramètre : le payeur et le montant se déduisent de la session.
+    /// Émet automatiquement les factures Henrri de la session (Phase 16) :
+    /// l'entreprise cliente, sinon une par dossier CPF (Caisse des Dépôts).
+    /// Sans paramètre : payeurs et montant se déduisent de la session.
     type: z.literal("FACTURE_HENRRI"),
   }),
   z.object({
@@ -684,8 +685,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         // remonte telle quelle : message clair dans l'historique de
         // l'automatisation, et dans le journal d'activité (catch global
         // ci-dessous). La facture reste alors « à préparer » à la main.
-        await genererFactureHenrriPourSession(cas.sessionId, undefined);
-        comptes.factures++;
+        comptes.factures += (await genererFacturesHenrriPourSession(cas.sessionId, undefined)).length;
       }
 
       if (action.type === "DOCUMENTS_FIN_FORMATION") {

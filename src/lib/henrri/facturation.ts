@@ -13,10 +13,14 @@ import { prisma } from "@/lib/prisma";
 import { ajouterJours, aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 import { stockage } from "@/lib/stockage";
 
-/// Une facture par session terminée : adressée à l'entreprise cliente si la
-/// session en a une, sinon à l'unique apprenant inscrit. Une session sans
-/// entreprise et avec zéro ou plusieurs apprenants n'a pas de payeur évident
-/// et est signalée en échec plutôt que de deviner.
+/// Factures d'une session terminée :
+/// - session avec une entreprise cliente : une facture, à l'entreprise ;
+/// - sinon, une facture par apprenant financé par le CPF, adressée à la Caisse
+///   des Dépôts (EDOF facture dossier par dossier), avec l'identité de
+///   l'apprenant, son numéro de dossier et le numéro de l'offre dans le corps
+///   de la facture (décision du client du 25/09/2026) ;
+/// - un apprenant hors CPF sans entreprise paie lui-même ; plusieurs dans ce
+///   cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
 export async function chargerSessionPourFacturation(sessionId: string) {
   return prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null },
@@ -25,22 +29,44 @@ export async function chargerSessionPourFacturation(sessionId: string) {
       company: true,
       trainer: { select: { prenom: true, nom: true } },
       inscriptions: { where: { learner: { deletedAt: null } }, select: { learner: true } },
-      factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true } },
+      factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, learnerId: true, origine: true } },
     },
   });
 }
 
 type Session = NonNullable<Awaited<ReturnType<typeof chargerSessionPourFacturation>>>;
 
+type Destinataire =
+  | { type: "ENTREPRISE"; company: Company }
+  | { type: "APPRENANT"; learner: Learner }
+  | { type: "CAISSE_DES_DEPOTS"; learner: Learner };
+
 const IDENTIFIANT_SIRET = /^\d{14}$/;
 
-function payeur(session: Session): { type: "ENTREPRISE"; company: Company } | { type: "APPRENANT"; learner: Learner } | { erreur: string } {
-  if (session.company) return { type: "ENTREPRISE", company: session.company };
+function destinataires(session: Session): { liste: Destinataire[] } | { erreur: string } {
+  if (session.company) return { liste: [{ type: "ENTREPRISE", company: session.company }] };
   const apprenants = session.inscriptions.map((i) => i.learner);
-  if (apprenants.length === 1) return { type: "APPRENANT", learner: apprenants[0] };
   if (apprenants.length === 0) return { erreur: "aucune entreprise cliente et aucun apprenant inscrit : impossible de savoir qui facturer" };
+
+  const cpf = apprenants.filter((a) => a.financement === "CPF");
+  const autres = apprenants.filter((a) => a.financement !== "CPF");
+  if (autres.length > 1) {
+    return {
+      erreur: `aucune entreprise cliente et ${autres.length} apprenants hors CPF : impossible de savoir qui facturer automatiquement (à préparer à la main dans « Factures »)`,
+    };
+  }
+  // Une facture de dossier CPF sans ses références ne sert à rien dans EDOF.
+  const incomplets = cpf.filter((a) => !a.numeroDossierCpf?.trim() || !a.numeroOffreCpf?.trim());
+  if (incomplets.length > 0) {
+    return {
+      erreur: `numéro de dossier ou d'offre CPF manquant sur la fiche de ${incomplets.map((a) => `${a.prenom} ${a.nom}`).join(", ")}`,
+    };
+  }
   return {
-    erreur: `aucune entreprise cliente et ${apprenants.length} apprenants inscrits : impossible de savoir qui facturer automatiquement (à préparer à la main dans « Factures »)`,
+    liste: [
+      ...cpf.map((learner): Destinataire => ({ type: "CAISSE_DES_DEPOTS", learner })),
+      ...autres.map((learner): Destinataire => ({ type: "APPRENANT", learner })),
+    ],
   };
 }
 
@@ -98,6 +124,41 @@ async function clientHenrriApprenant(learner: Learner): Promise<number> {
   });
 
   await prisma.learner.update({ where: { id: learner.id }, data: { henrriCustomerId: client.id } });
+  return client.id;
+}
+
+/// Client unique pour tous les dossiers CPF, créé au premier besoin et
+/// mémorisé sur la fiche de l'organisme. Adresse du siège de la Caisse des
+/// Dépôts ; les références de chaque apprenant figurent dans le corps de la
+/// facture, jamais dans les coordonnées du client.
+const CAISSE_DES_DEPOTS = {
+  nom: "Caisse des Dépôts et Consignations",
+  adresse: "56 rue de Lille",
+  codePostal: "75007",
+  ville: "Paris",
+};
+
+async function clientHenrriCaisseDesDepots(): Promise<number> {
+  const organisme = await prisma.organisme.findFirst({ select: { id: true, henrriCaisseDepotsId: true } });
+  if (organisme?.henrriCaisseDepotsId) return organisme.henrriCaisseDepotsId;
+
+  const client = await henrriFetch<ClientHenrri>("/v1/customers", {
+    method: "POST",
+    body: JSON.stringify({
+      name: CAISSE_DES_DEPOTS.nom,
+      type: "professional",
+      address: {
+        address: CAISSE_DES_DEPOTS.adresse,
+        city: CAISSE_DES_DEPOTS.ville,
+        postCode: CAISSE_DES_DEPOTS.codePostal,
+        country: "France",
+      },
+      // Henrri exige au moins un contact pour un client professionnel.
+      contacts: [{ lastName: CAISSE_DES_DEPOTS.nom }],
+    }),
+  });
+
+  if (organisme) await prisma.organisme.update({ where: { id: organisme.id }, data: { henrriCaisseDepotsId: client.id } });
   return client.id;
 }
 
@@ -217,17 +278,55 @@ async function rangerPdfFacture(params: {
 const TAUX_TVA = "0";
 const MENTION_EXONERATION = "TVA non applicable, article 261-4-4° du Code général des impôts.";
 
-export async function genererFactureHenrriPourSession(sessionId: string, userId?: string): Promise<string> {
+/// Émet les factures d'une session terminée (voir `destinataires`) et
+/// renvoie leurs identifiants. Déjà facturé, un destinataire est passé : une
+/// relance après un échec partiel ne crée que les factures manquantes. Une
+/// facture saisie à la main pour la session reprend la main sur tout.
+export async function genererFacturesHenrriPourSession(sessionId: string, userId?: string): Promise<string[]> {
   const session = await chargerSessionPourFacturation(sessionId);
   if (!session) throw new HenrriError("Session introuvable.");
-  if (session.factures.length > 0) throw new HenrriError("Une facture existe déjà pour cette session.");
+  if (session.factures.some((f) => f.origine === "MANUEL")) {
+    throw new HenrriError("Une facture saisie à la main existe déjà pour cette session.");
+  }
   if (session.prixHT === null) throw new HenrriError("Le prix de la session n'est pas renseigné.");
 
-  const p = payeur(session);
-  if ("erreur" in p) throw new HenrriError(`Facturation automatique impossible : ${p.erreur}.`);
+  const d = destinataires(session);
+  if ("erreur" in d) throw new HenrriError(`Facturation automatique impossible : ${d.erreur}.`);
+  const aEmettre = d.liste.filter((x) =>
+    x.type === "ENTREPRISE" ? session.factures.length === 0 : !session.factures.some((f) => f.learnerId === x.learner.id),
+  );
+  if (aEmettre.length === 0) return [];
 
-  const customerId = p.type === "ENTREPRISE" ? await clientHenrriEntreprise(p.company) : await clientHenrriApprenant(p.learner);
-  const payeurNom = p.type === "ENTREPRISE" ? p.company.raisonSociale : `${p.learner.prenom} ${p.learner.nom}`;
+  const [documentTypeId, ligneTypeId, itemCategoryId] = await Promise.all([
+    idTypeDocumentFacture(),
+    idTypeLigneArticle(),
+    idCategorieArticleService(),
+  ]);
+  const ids: string[] = [];
+  for (const destinataire of aEmettre) {
+    ids.push(await emettreFacture(session, destinataire, { documentTypeId, ligneTypeId, itemCategoryId }, userId));
+  }
+  return ids;
+}
+
+async function emettreFacture(
+  session: Session,
+  d: Destinataire,
+  types: { documentTypeId: number; ligneTypeId: number; itemCategoryId: number },
+  userId?: string,
+): Promise<string> {
+  const customerId =
+    d.type === "ENTREPRISE"
+      ? await clientHenrriEntreprise(d.company)
+      : d.type === "APPRENANT"
+        ? await clientHenrriApprenant(d.learner)
+        : await clientHenrriCaisseDesDepots();
+  const payeurNom =
+    d.type === "ENTREPRISE"
+      ? d.company.raisonSociale
+      : d.type === "APPRENANT"
+        ? `${d.learner.prenom} ${d.learner.nom}`
+        : CAISSE_DES_DEPOTS.nom;
 
   const modalite = LIBELLE_MODALITE[session.modalite];
   const periode = formaterPeriode(session.dateDebut, session.dateFin);
@@ -240,34 +339,34 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
   ]
     .filter(Boolean)
     .join(" · ");
+  // Dossier CPF : les références de l'apprenant dans le corps de la facture
+  // (sous-titre et ligne), là où EDOF et la Caisse des Dépôts les cherchent.
+  const references =
+    d.type === "CAISSE_DES_DEPOTS"
+      ? `Apprenant : ${d.learner.prenom} ${d.learner.nom} · Dossier CPF n° ${d.learner.numeroDossierCpf} · Offre n° ${d.learner.numeroOffreCpf}`
+      : null;
   const echeance = ajouterJours(aujourdhuiUTC(), 30);
-
-  const [documentTypeId, ligneTypeId, itemCategoryId] = await Promise.all([
-    idTypeDocumentFacture(),
-    idTypeLigneArticle(),
-    idCategorieArticleService(),
-  ]);
 
   const document = await henrriFetch<{ id: number }>("/v1/documents", {
     method: "POST",
     body: JSON.stringify({
-      documentTypeId,
+      documentTypeId: types.documentTypeId,
       customerId,
       title: session.formation.titre,
-      subtitle: recapitulatif,
+      subtitle: references ? `${references} — ${recapitulatif}` : recapitulatif,
       footerText: MENTION_EXONERATION,
       date: echeance.toISOString(),
     }),
   });
 
-  const ligneDescription = `${session.formation.titre} — ${recapitulatif}`;
+  const ligneDescription = `${session.formation.titre} — ${references ?? recapitulatif}`;
   // Une ligne facturable exige soit un article du catalogue (itemId), soit un
   // article transmis en ligne — jamais uniquement une description : Henrri
   // refuse sinon la ligne (« requires an itemId or an item object »).
   await henrriFetch(`/v1/documents/${document.id}/lines`, {
     method: "POST",
     body: JSON.stringify({
-      typeId: ligneTypeId,
+      typeId: types.ligneTypeId,
       description: ligneDescription,
       sellingPriceWithoutTax: Number(session.prixHT),
       quantity: 1,
@@ -275,7 +374,7 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
       isTaxIncluded: false,
       item: {
         description: ligneDescription,
-        itemCategoryId,
+        itemCategoryId: types.itemCategoryId,
         sellingPriceWithoutTax: Number(session.prixHT),
         vatPercent: Number(TAUX_TVA),
         isTaxIncluded: false,
@@ -292,16 +391,20 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
     );
   }
 
+  const apprenant = d.type === "ENTREPRISE" ? null : d.learner;
   const montantHT = Number(session.prixHT).toFixed(2);
   const facture = await prisma.facture.create({
     data: {
       numero: finalise.identity,
       henrriId: String(document.id),
-      objet: `${session.formation.titre} — session ${session.numero}`,
+      objet:
+        d.type === "CAISSE_DES_DEPOTS"
+          ? `${session.formation.titre} — session ${session.numero} — ${d.learner.prenom} ${d.learner.nom} (dossier CPF ${d.learner.numeroDossierCpf})`
+          : `${session.formation.titre} — session ${session.numero}`,
       sessionId: session.id,
-      companyId: p.type === "ENTREPRISE" ? p.company.id : null,
-      learnerId: p.type === "APPRENANT" ? p.learner.id : null,
-      payeurType: p.type,
+      companyId: d.type === "ENTREPRISE" ? d.company.id : null,
+      learnerId: apprenant?.id ?? null,
+      payeurType: d.type,
       payeurNom,
       montantHT,
       tauxTva: TAUX_TVA,
@@ -318,18 +421,21 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
   // valide (numéro et montants corrects) — seul le PDF manquera, récupérable
   // à la main depuis Henrri en attendant.
   try {
-    // Le PDF va dans le dossier de l'apprenant (demande du client) : l'apprenant
-    // payeur, ou l'unique inscrit d'une session payée par une entreprise. Une
-    // session à plusieurs apprenants garde sa facture sur la session et
-    // l'entreprise : elle ne concerne aucun apprenant en particulier.
+    // Le PDF va dans le dossier de l'apprenant (demande du client) : celui
+    // de la facture, ou l'unique inscrit d'une session payée par une
+    // entreprise. Une session d'entreprise à plusieurs apprenants garde sa
+    // facture sur la session et l'entreprise.
     const apprenantDuDossier =
-      p.type === "APPRENANT" ? p.learner.id : session.inscriptions.length === 1 ? session.inscriptions[0].learner.id : null;
+      apprenant?.id ?? (session.inscriptions.length === 1 ? session.inscriptions[0].learner.id : null);
     const documentId = await rangerPdfFacture({
       documentHenrriId: document.id,
       numero: finalise.identity,
-      nomAffiche: `Facture ${finalise.identity} — ${payeurNom}`,
+      nomAffiche:
+        d.type === "CAISSE_DES_DEPOTS"
+          ? `Facture ${finalise.identity} — Caisse des Dépôts (${d.learner.prenom} ${d.learner.nom})`
+          : `Facture ${finalise.identity} — ${payeurNom}`,
       session,
-      companyId: p.type === "ENTREPRISE" ? p.company.id : null,
+      companyId: d.type === "ENTREPRISE" ? d.company.id : null,
       learnerId: apprenantDuDossier,
       userId,
     });
@@ -347,7 +453,7 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
 
   await journaliser({
     action: "invoice.auto_issued",
-    summary: `Facture ${finalise.identity} émise automatiquement via Henrri : ${payeurNom} — ${montantTTC(montantHT, TAUX_TVA)} € TTC (session ${session.numero})`,
+    summary: `Facture ${finalise.identity} émise automatiquement via Henrri : ${payeurNom}${apprenant && d.type === "CAISSE_DES_DEPOTS" ? ` (dossier CPF de ${apprenant.prenom} ${apprenant.nom})` : ""} — ${montantTTC(montantHT, TAUX_TVA)} € TTC (session ${session.numero})`,
     entityType: "Facture",
     entityId: facture.id,
     userId,

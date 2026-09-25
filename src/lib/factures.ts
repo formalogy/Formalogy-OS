@@ -1,11 +1,12 @@
 import type { MoyenPaiement, StatutFacture, TypePayeur } from "@prisma/client";
 
-export const TYPES_PAYEUR: TypePayeur[] = ["ENTREPRISE", "OPCO", "APPRENANT", "FRANCE_TRAVAIL", "AUTRE"];
+export const TYPES_PAYEUR: TypePayeur[] = ["ENTREPRISE", "OPCO", "APPRENANT", "CAISSE_DES_DEPOTS", "FRANCE_TRAVAIL", "AUTRE"];
 
 export const LIBELLE_PAYEUR: Record<TypePayeur, string> = {
   ENTREPRISE: "Entreprise",
   OPCO: "OPCO",
   APPRENANT: "Apprenant",
+  CAISSE_DES_DEPOTS: "Caisse des Dépôts (CPF)",
   FRANCE_TRAVAIL: "France Travail",
   AUTRE: "Autre",
 };

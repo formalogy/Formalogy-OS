@@ -56,8 +56,19 @@ type ReponseJeton = {
   expires_in?: number;
 };
 
+/// Une panne réseau (Henrri injoignable ou trop lent) devient une erreur
+/// lisible dans l'historique et au tableau de bord, au lieu du « fetch
+/// failed » technique.
+async function joindre(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new HenrriError("Henrri ne répond pas (serveur injoignable ou trop lent) : réessayez plus tard avec « Relancer ».");
+  }
+}
+
 async function authentifier(): Promise<string> {
-  const reponse = await fetch(`${baseUrl()}/v1/users/authenticate`, {
+  const reponse = await joindre(`${baseUrl()}/v1/users/authenticate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -113,7 +124,7 @@ export async function henrriFetch<T>(chemin: string, init: RequestInit = {}): Pr
   if (!henrriConfigure()) throw new HenrriNonConfigure();
 
   const appel = async (jeton: string) =>
-    fetch(`${baseUrl()}${chemin}`, {
+    joindre(`${baseUrl()}${chemin}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${jeton}`,
@@ -139,7 +150,7 @@ export async function henrriFetch<T>(chemin: string, init: RequestInit = {}): Pr
 /// Télécharge un fichier depuis Henrri (l'URL de téléchargement du PDF exige
 /// aussi le jeton d'accès).
 export async function henrriTelecharger(url: string): Promise<Uint8Array> {
-  const reponse = await fetch(url, { headers: { Authorization: `Bearer ${await jetonValide()}` } });
+  const reponse = await joindre(url, { headers: { Authorization: `Bearer ${await jetonValide()}` } });
   if (!reponse.ok) throw new HenrriError(`Téléchargement du fichier Henrri impossible : HTTP ${reponse.status}`, reponse.status);
   return new Uint8Array(await reponse.arrayBuffer());
 }

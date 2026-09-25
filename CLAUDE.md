@@ -271,14 +271,31 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   hors de portée de l'application. Le modèle d'email `FACTURE` existe mais
   reste désactivé. En cas d'échec (prix manquant, payeur ambigu, Henrri
   injoignable), alerte au tableau de bord et bouton « Relancer ».
-- **Une facture par session**, adressée à l'entreprise cliente si la session
-  en a une, sinon à l'unique apprenant inscrit. Une session sans entreprise et
-  avec zéro ou plusieurs apprenants n'a pas de payeur évident : échec clair
-  plutôt que de deviner (visible dans Paramètres → Automatisations et dans le
-  journal d'activité).
-- Le client Henrri (entreprise ou apprenant) est créé une seule fois : son
-  identifiant est mis en cache sur `companies.henrriCustomerId` /
-  `learners.henrriCustomerId` et réutilisé ensuite.
+- **Destinataires** (`destinataires` dans `lib/henrri/facturation.ts`) :
+  - session avec une entreprise cliente : **une facture**, à l'entreprise ;
+  - sinon, **une facture par apprenant financé par le CPF**, adressée à la
+    **Caisse des Dépôts et Consignations** (décision du client du
+    25/09/2026 : EDOF facture dossier par dossier). L'identité de
+    l'apprenant, son numéro de dossier CPF et le numéro d'offre
+    (`learners.numeroDossierCpf`, `learners.numeroOffreCpf`) figurent dans le
+    **corps** de la facture (sous-titre et ligne), jamais dans les
+    coordonnées du client. Sans ces deux numéros : échec clair, alerte au
+    tableau de bord ;
+  - un apprenant hors CPF sans entreprise paie lui-même ; plusieurs dans ce
+    cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
+  Un destinataire déjà facturé est passé : une relance ne crée que les
+  factures manquantes. Une facture saisie à la main pour la session bloque
+  toute émission automatique. Le montant est le prix de la session, par
+  facture.
+- Pour le CPF, la facture Henrri fournit le numéro à saisir dans EDOF ; la
+  transmission dans EDOF reste manuelle (aucun accès pour un logiciel tiers).
+- Le client Henrri est créé une seule fois : identifiant mis en cache sur
+  `companies.henrriCustomerId`, `learners.henrriCustomerId` et, pour la
+  Caisse des Dépôts, `organisme.henrriCaisseDepotsId`. **Ces identifiants
+  sont ceux du bac à sable** : au passage de Henrri en production, les vider
+  pour que les clients soient recréés dans le vrai compte.
+- Henrri injoignable : message lisible (« Henrri ne répond pas… »), puis
+  « Relancer » une fois le service revenu.
 - Contenu de la facture : thème (titre = intitulé de la formation), sous-titre
   récapitulant session, dates, modalité (présentiel/distanciel/e-learning/
   hybride), lieu et formateur, ligne unique au prix de la session (TVA 0 %,

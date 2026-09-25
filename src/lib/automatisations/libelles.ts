@@ -99,7 +99,7 @@ export function decrireAction(action: unknown): string {
     return `Créer la tâche « ${a.titre} » ${quand}`;
   }
   if (a.type === "FACTURE_HENRRI") {
-    return "Émettre automatiquement la facture dans Henrri (entreprise cliente, ou apprenant unique à défaut) et en récupérer le PDF";
+    return "Émettre automatiquement la facture dans Henrri (entreprise cliente ; sinon une par dossier CPF, à la Caisse des Dépôts ; sinon l'apprenant) et la ranger dans le dossier de l'apprenant";
   }
   if (a.type === "DOCUMENTS_FIN_FORMATION") {
     return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";

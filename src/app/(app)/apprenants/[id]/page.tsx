@@ -208,6 +208,7 @@ export default async function PageApprenant({
               valeur={LIBELLE_FINANCEMENT[apprenant.financement]}
             />
             <Ligne libelle="Numéro de dossier CPF" valeur={apprenant.numeroDossierCpf} />
+            <Ligne libelle="Numéro d'offre CPF" valeur={apprenant.numeroOffreCpf} />
             <Ligne libelle="Notes" valeur={apprenant.notes} />
           </dl>
 

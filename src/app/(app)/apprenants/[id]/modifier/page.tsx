@@ -37,6 +37,7 @@ export default async function PageModifierApprenant({ params }: { params: Promis
     financement: apprenant.financement,
     statut: apprenant.statut,
     numeroDossierCpf: apprenant.numeroDossierCpf ?? "",
+    numeroOffreCpf: apprenant.numeroOffreCpf ?? "",
     notes: apprenant.notes ?? "",
   };
 

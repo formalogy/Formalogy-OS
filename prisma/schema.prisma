@@ -404,6 +404,9 @@ model Learner {
   /// Numéro du dossier CPF (moncompteformation.gouv.fr), pour un financement
   /// personnel via le compte personnel de formation.
   numeroDossierCpf String?
+  /// Numéro de l'offre CPF achetée (EDOF). Avec le numéro de dossier et
+  /// l'identité, il figure sur la facture adressée à la Caisse des Dépôts.
+  numeroOffreCpf String?
 
   notes String?
 
@@ -1204,6 +1207,10 @@ model Organisme {
   qualiopiExpireAt       DateTime?
   qualiopiProchainAuditAt DateTime?
 
+  /// Client « Caisse des Dépôts » chez Henrri, créé une fois pour toutes :
+  /// destinataire des factures des dossiers CPF.
+  henrriCaisseDepotsId Int?
+
   updatedAt DateTime @updatedAt
 
   @@map("organisme")
@@ -1357,6 +1364,8 @@ enum TypePayeur {
   ENTREPRISE
   OPCO
   APPRENANT
+  /// Caisse des Dépôts, pour un dossier CPF (une facture par dossier)
+  CAISSE_DES_DEPOTS
   FRANCE_TRAVAIL
   AUTRE
 }
