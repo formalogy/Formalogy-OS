@@ -109,9 +109,9 @@ export default async function PageStatistiques({ searchParams }: { searchParams:
             )}
           </Bloc>
 
-          <Bloc titre="Assiduité" precision="Demi-journées saisies sur les feuilles d'émargement.">
+          <Bloc titre="Assiduité" precision="Demi-journées déjà passées : présentes sauf absence signalée.">
             {assiduite.total === 0 ? (
-              <Vide message="Aucune présence saisie sur cette année." />
+              <Vide message="Aucune demi-journée de formation passée sur cette année." />
             ) : (
               <>
                 <p className="font-mono text-3xl font-semibold tabular-nums">{formaterPourcent(assiduite.taux)}</p>

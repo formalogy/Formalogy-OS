@@ -7,16 +7,20 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { genererConvention, genererConvocationApprenant } from "@/lib/conventions";
+import { sessionEmargementAutomatique } from "@/lib/emargement-acces";
+import { genererFeuillesEmargement } from "@/lib/emargement-pdf";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
 import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
 import { genererFactureHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
+import { lireOrganisme } from "@/lib/organisme";
 import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
+import { appliquerStatutSession } from "@/lib/sessions-statut";
 import { stockage } from "@/lib/stockage";
 
 // ---------------------------------------------------------------------------
@@ -31,16 +35,21 @@ const schemaAction = z.discriminatedUnion("type", [
     type: z.literal("EMAIL"),
     modele: z.string().min(1),
     /// APPRENANT : l'apprenant concerné ; APPRENANTS_SESSION : tous les
-    /// inscrits de la session ; FORMATEURS_ACTIFS et FINANCEURS_ANNEE : les
-    /// destinataires des campagnes annuelles, sans lien avec une session.
-    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE"]),
+    /// inscrits de la session ; FORMATEUR_SESSION : le formateur de la
+    /// session ; PAYEUR : le payeur de la facture émise pour la session
+    /// (entreprise, ou apprenant) ; FORMATEURS_ACTIFS et FINANCEURS_ANNEE :
+    /// les destinataires des campagnes annuelles, sans lien avec une session.
+    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEUR_SESSION", "PAYEUR", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE"]),
     /// Documents joints à l'email. CONVENTION fabrique la convention de
     /// l'apprenant à partir du modèle déposé, la range dans les documents de
     /// la session et l'attache. CONVOCATION produit le document de
-    /// convocation. ATTESTATION et CERTIFICAT reprennent les
-    /// documents déjà produits pour cet apprenant : si l'un manque — présences
-    /// ou évaluation incomplètes — il est simplement omis.
-    joindre: z.array(z.enum(["CONVENTION", "CONVOCATION", "ATTESTATION", "CERTIFICAT"])).optional(),
+    /// convocation. ATTESTATION et CERTIFICAT reprennent les documents déjà
+    /// produits pour cet apprenant : si l'un manque (évaluation des acquis pas
+    /// encore transmise), l'email attend et part à un passage suivant, une
+    /// fois les documents prêts. EMARGEMENT produit la feuille du jour
+    /// (formateur) ; FACTURE reprend le PDF de la facture (payeur), sans
+    /// lequel rien ne part.
+    joindre: z.array(z.enum(["CONVENTION", "CONVOCATION", "ATTESTATION", "CERTIFICAT", "EMARGEMENT", "FACTURE"])).optional(),
   }),
   z.object({
     type: z.literal("TACHE"),
@@ -71,10 +80,12 @@ const schemaParametres = z.object({
   /// SESSION_AVANT_DEBUT : jours avant le début ; SESSION_AVANT_FIN : jours
   /// avant la fin ; SESSION_APRES_FIN : jours après la fin.
   jours: z.number().int().min(0).max(60).optional(),
-  /// CAMPAGNE_ANNUELLE : date fixe dans l'année, et heure à partir de
-  /// laquelle l'envoi est autorisé.
+  /// CAMPAGNE_ANNUELLE : date fixe dans l'année.
   jour: z.number().int().min(1).max(31).optional(),
   mois: z.number().int().min(1).max(12).optional(),
+  /// Heure de Paris à partir de laquelle l'envoi est autorisé le jour prévu
+  /// (campagnes et déclencheurs de session) : le mail de fin part en fin de
+  /// journée, la feuille d'émargement le matin.
   heure: z.number().int().min(0).max(23).optional(),
 });
 
@@ -112,6 +123,29 @@ function heureDeParis(instant: Date): number {
 }
 
 type ComptesEnvoi = { emails: number; simules: number; sansAdresse: number; ignores: number };
+
+/// Bilan d'un cas, détaillé dans l'historique de l'automatisation.
+type Comptes = ComptesEnvoi & {
+  dejaServis: number;
+  taches: number;
+  factures: number;
+  documents: number;
+  conventions: number;
+  documentsAbsents: number;
+  sansFormateur: number;
+  factureAbsente: number;
+};
+
+/// Le jour prévu, un envoi attend l'heure dite (heure de Paris). Un réveil
+/// manqué ne fait rien perdre : passé ce jour-là, l'envoi part sans attendre.
+function avantLHeure(jourPrevu: Date, heure: number | undefined): boolean {
+  if (heure === undefined) return false;
+  return aujourdhuiUTC().getTime() === jourPrevu.getTime() && heureDeParis(new Date()) < heure;
+}
+
+/// Sessions qu'un déclencheur de session peut regarder : ni supprimées, ni
+/// suspendues par une alerte du client.
+const SESSIONS_EN_ROUTE = { deletedAt: null, deroulementSuspenduAt: null } as const;
 
 /// Envoi d'une campagne annuelle : à tous les formateurs actifs, ou à tous
 /// les financeurs de l'année écoulée. Un destinataire sans adresse est
@@ -241,6 +275,170 @@ async function empreinteInscrits(sessionId: string): Promise<string> {
   return createHash("sha256").update(ids).digest("hex").slice(0, 10);
 }
 
+/// Empreinte des évaluations des acquis d'une session. Elle entre dans la clé
+/// des automatisations « après la fin » : l'évaluation arrive du formateur
+/// en fin de parcours, parfois après le lendemain de la session ; chaque
+/// évaluation reçue rouvre le cas, et les documents partent pour les
+/// apprenants désormais prêts (les autres, déjà servis, ne reçoivent rien).
+async function empreinteEvaluations(sessionId: string): Promise<string> {
+  const evaluations = await prisma.evaluationAcquis.findMany({ where: { sessionId }, select: { learnerId: true, resultat: true } });
+  const cles = evaluations.map((e) => `${e.learnerId}:${e.resultat}`).sort().join(",");
+  return createHash("sha256").update(cles).digest("hex").slice(0, 10);
+}
+
+type ModeleEmail = { id: string; sujet: string; corps: string };
+
+/// Email au formateur de la session : feuille d'émargement du jour, bilan de
+/// fin de session avec l'évaluation des acquis. Un formateur ne reçoit qu'une
+/// fois le même modèle pour une session (une fois par jour pour un envoi
+/// quotidien), même si le cas est rouvert par une inscription tardive.
+async function envoyerAuFormateur(p: {
+  automation: Automation;
+  cas: Cas;
+  modele: ModeleEmail;
+  joindre?: string[];
+  executionId: string;
+  comptes: Comptes;
+}) {
+  const { cas, modele, executionId, comptes } = p;
+  if (!cas.sessionId) return;
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: cas.sessionId },
+    select: { trainer: { select: { id: true, email: true, deletedAt: true } } },
+  });
+  const formateur = session?.trainer && !session.trainer.deletedAt ? session.trainer : null;
+  if (!formateur) {
+    comptes.sansFormateur++;
+    return;
+  }
+  if (!formateur.email) {
+    comptes.sansAdresse++;
+    return;
+  }
+
+  const deja = await prisma.email.count({
+    where: {
+      templateId: modele.id,
+      sessionId: cas.sessionId,
+      destinataire: formateur.email,
+      statut: { not: "ECHEC" },
+      automationRunId: { not: null },
+      ...(p.automation.declencheur === "SESSION_JOUR" ? { envoyeAt: { gte: aujourdhuiUTC() } } : {}),
+    },
+  });
+  if (deja > 0) {
+    comptes.dejaServis++;
+    return;
+  }
+
+  let lienChaudFormateur: string | undefined;
+  if (`${modele.sujet}${modele.corps}`.includes("{{questionnaire.lienChaudFormateur}}")) {
+    const lien = await preparerLienQuestionnaireQualite({ type: "CHAUD_FORMATEUR", sessionId: cas.sessionId, trainerId: formateur.id });
+    // Déjà répondu : rien à redemander.
+    if (!lien) {
+      comptes.dejaServis++;
+      return;
+    }
+    lienChaudFormateur = lien;
+  }
+
+  const piecesJointes: PieceJointe[] = [];
+  if (p.joindre?.includes("EMARGEMENT")) {
+    const session = await sessionEmargementAutomatique(cas.sessionId);
+    if (session) {
+      const jour = aujourdhuiUTC();
+      piecesJointes.push({
+        nom: `Emargement-${session.numero}-${jour.toISOString().slice(0, 10)}.pdf`,
+        contenu: await genererFeuillesEmargement(session, (await lireOrganisme()).raisonSociale, jour, { seulementCeJour: true }),
+        typeMime: "application/pdf",
+      });
+    }
+  }
+
+  const contexte = await construireContexte({ trainerId: formateur.id, sessionId: cas.sessionId, lienChaudFormateur });
+  const email = await envoyerEmail({
+    destinataire: formateur.email,
+    sujet: rendre(modele.sujet, contexte).resultat,
+    corps: rendre(modele.corps, contexte).resultat,
+    corpsJournal: lienChaudFormateur
+      ? rendre(modele.corps, { ...contexte, "questionnaire.lienChaudFormateur": "[lien personnel masqué]" }).resultat
+      : undefined,
+    templateId: modele.id,
+    sessionId: cas.sessionId,
+    automationRunId: executionId,
+    piecesJointes: piecesJointes.length > 0 ? piecesJointes : undefined,
+  });
+  if (email.statut === "SIMULE") comptes.simules++;
+  else if (email.statut === "ECHEC") throw new Error(`Email au formateur (${formateur.email}) : ${email.erreur}`);
+  else comptes.emails++;
+}
+
+/// Email au payeur de la facture émise pour la session, avec son PDF. Sans
+/// facture émise, sans PDF ou sans adresse, rien ne part : le tableau de
+/// bord le signale, pour une intervention à la main.
+async function envoyerAuPayeur(p: { cas: Cas; modele: ModeleEmail; joindre?: string[]; executionId: string; comptes: Comptes }) {
+  const { cas, modele, executionId, comptes } = p;
+  if (!cas.sessionId) return;
+  const facture = await prisma.facture.findFirst({
+    where: { sessionId: cas.sessionId, statut: { not: "ANNULEE" }, numero: { not: null } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      company: { select: { email: true } },
+      learner: { select: { email: true } },
+      document: { include: { versions: { orderBy: { numero: "desc" }, take: 1 } } },
+    },
+  });
+  if (!facture) {
+    comptes.factureAbsente++;
+    return;
+  }
+  const adresse =
+    facture.payeurType === "ENTREPRISE" ? facture.company?.email : facture.payeurType === "APPRENANT" ? facture.learner?.email : null;
+  if (!adresse) {
+    comptes.sansAdresse++;
+    return;
+  }
+  const deja = await prisma.email.count({
+    where: { templateId: modele.id, sessionId: cas.sessionId, destinataire: adresse, statut: { not: "ECHEC" }, automationRunId: { not: null } },
+  });
+  if (deja > 0) {
+    comptes.dejaServis++;
+    return;
+  }
+
+  const piecesJointes: PieceJointe[] = [];
+  if (p.joindre?.includes("FACTURE")) {
+    const version = facture.document?.versions[0];
+    if (!version) {
+      comptes.documentsAbsents++;
+      return;
+    }
+    const blob = await stockage().lire(version.cheminStockage);
+    piecesJointes.push({ nom: version.nomFichier, contenu: new Uint8Array(await blob.arrayBuffer()), typeMime: version.typeMime });
+  }
+
+  const contexte = await construireContexte({
+    sessionId: cas.sessionId,
+    companyId: facture.companyId ?? undefined,
+    learnerId: facture.learnerId ?? undefined,
+    factureId: facture.id,
+  });
+  const email = await envoyerEmail({
+    destinataire: adresse,
+    sujet: rendre(modele.sujet, contexte).resultat,
+    corps: rendre(modele.corps, contexte).resultat,
+    templateId: modele.id,
+    sessionId: cas.sessionId,
+    companyId: facture.companyId ?? undefined,
+    learnerId: facture.learnerId ?? undefined,
+    automationRunId: executionId,
+    piecesJointes: piecesJointes.length > 0 ? piecesJointes : undefined,
+  });
+  if (email.statut === "SIMULE") comptes.simules++;
+  else if (email.statut === "ECHEC") throw new Error(`Email au payeur (${adresse}) : ${email.erreur}`);
+  else comptes.emails++;
+}
+
 /// Traite un cas une seule fois. La réservation se fait par l'insertion de la
 /// trace d'exécution, dont la clé est unique en base : si deux exécutions
 /// concurrentes visent le même cas, la seconde échoue à l'insertion et s'arrête.
@@ -263,7 +461,20 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     throw erreur;
   }
 
-  const comptes = { emails: 0, simules: 0, sansAdresse: 0, ignores: 0, dejaServis: 0, taches: 0, factures: 0, documents: 0, conventions: 0, documentsAbsents: 0 };
+  const comptes: Comptes = {
+    emails: 0,
+    simules: 0,
+    sansAdresse: 0,
+    ignores: 0,
+    dejaServis: 0,
+    taches: 0,
+    factures: 0,
+    documents: 0,
+    conventions: 0,
+    documentsAbsents: 0,
+    sansFormateur: 0,
+    factureAbsente: 0,
+  };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
   const conventionsEchouees = new Set<string>();
@@ -288,6 +499,14 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             executionId,
             comptes,
           });
+          continue;
+        }
+        if (action.destinataires === "FORMATEUR_SESSION") {
+          await envoyerAuFormateur({ automation, cas, modele, joindre: action.joindre, executionId, comptes });
+          continue;
+        }
+        if (action.destinataires === "PAYEUR") {
+          await envoyerAuPayeur({ cas, modele, joindre: action.joindre, executionId, comptes });
           continue;
         }
 
@@ -335,6 +554,23 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             comptes.sansAdresse++;
             continue;
           }
+
+          // Attestation et certificat : sans eux, l'email n'a pas d'objet. Il
+          // attend (l'apprenant n'est pas compté comme servi) et partira à un
+          // passage suivant, dès que ses documents existeront.
+          const piecesJointes: PieceJointe[] = [];
+          let documentManquant = false;
+          for (const typeCode of ["ATTESTATION", "CERTIFICAT"] as const) {
+            if (!action.joindre?.includes(typeCode) || !cas.sessionId) continue;
+            const piece = await pieceJointeDocument(typeCode, cas.sessionId, apprenant.id);
+            if (piece) piecesJointes.push(piece);
+            else documentManquant = true;
+          }
+          if (documentManquant) {
+            comptes.documentsAbsents++;
+            continue;
+          }
+
           // Modèle avec lien personnel vers un questionnaire : un lien par
           // apprenant, et rien à envoyer à qui a déjà répondu. La recherche
           // porte sur la variable complète (avec ses accolades) : un modèle
@@ -365,16 +601,9 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             continue;
           }
 
-          // Pièces jointes demandées par l'action. Une convention qui ne peut
-          // pas être fabriquée (modèle absent) n'empêche pas l'email de
+          // Convention et convocation, fabriquées à l'envoi. Une convention
+          // qui ne peut pas l'être (modèle absent) n'empêche pas l'email de
           // partir : le message reste utile, le document se dépose à la main.
-          const piecesJointes: PieceJointe[] = [];
-          for (const typeCode of ["ATTESTATION", "CERTIFICAT"] as const) {
-            if (!action.joindre?.includes(typeCode) || !cas.sessionId) continue;
-            const piece = await pieceJointeDocument(typeCode, cas.sessionId, apprenant.id);
-            if (piece) piecesJointes.push(piece);
-            else comptes.documentsAbsents++;
-          }
           for (const [type, produire] of [
             ["CONVENTION", genererConvention],
             ["CONVOCATION", genererConvocationApprenant],
@@ -476,11 +705,13 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.taches && `${comptes.taches} tâche(s) créée(s)`,
       comptes.factures && `${comptes.factures} facture(s) émise(s) via Henrri`,
       comptes.documents && `${comptes.documents} document(s) généré(s)`,
-      comptes.conventions && `${comptes.conventions} convention(s) jointe(s)`,
-      comptes.documentsAbsents && `${comptes.documentsAbsents} document(s) attendu(s) mais absent(s)`,
+      comptes.conventions && `${comptes.conventions} document(s) fabriqué(s) et joint(s)`,
+      comptes.documentsAbsents && `${comptes.documentsAbsents} envoi(s) en attente d'un document (évaluation des acquis ou PDF de facture pas encore disponible)`,
+      comptes.sansFormateur && "aucun formateur affecté à la session",
+      comptes.factureAbsente && "aucune facture émise pour la session",
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
-      comptes.dejaServis && `${comptes.dejaServis} apprenant(s) déjà destinataires`,
-      comptes.sansAdresse && `${comptes.sansAdresse} apprenant(s) sans adresse email`,
+      comptes.dejaServis && `${comptes.dejaServis} destinataire(s) déjà servi(s)`,
+      comptes.sansAdresse && `${comptes.sansAdresse} destinataire(s) sans adresse email`,
       comptes.ignores && `${comptes.ignores} apprenant(s) hors conditions`,
     ].filter(Boolean);
     const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures + comptes.documents === 0;
@@ -503,6 +734,55 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
   return "traite";
 }
 
+/// Reconstitue le cas d'une exécution passée, à partir de ce qu'elle a
+/// enregistré (type et identifiant de l'entité, clé d'unicité).
+async function casDepuisExecution(run: { cleUnicite: string; entityType: string; entityId: string }): Promise<Cas | { erreur: string }> {
+  const base = { cle: run.cleUnicite, entityType: run.entityType, entityId: run.entityId };
+  if (run.entityType === "TrainingSession" || run.entityType === "SessionLearner") {
+    const [sessionId, learnerId] = run.entityId.split(":");
+    const session = await prisma.trainingSession.findFirst({
+      where: { id: sessionId, deletedAt: null },
+      select: { companyId: true, deroulementSuspenduAt: true },
+    });
+    if (!session) return { erreur: "La session n'existe plus." };
+    if (session.deroulementSuspenduAt) return { erreur: "Le déroulement de cette session est suspendu : reprenez-le d'abord." };
+    return { ...base, sessionId, learnerId, companyId: session.companyId ?? undefined };
+  }
+  if (run.entityType === "Learner") {
+    const apprenant = await prisma.learner.findFirst({ where: { id: run.entityId, deletedAt: null }, select: { companyId: true } });
+    if (!apprenant) return { erreur: "L'apprenant n'existe plus." };
+    return { ...base, learnerId: run.entityId, companyId: apprenant.companyId ?? undefined };
+  }
+  if (run.entityType === "Prospect") {
+    const prospect = await prisma.prospect.findFirst({ where: { id: run.entityId, deletedAt: null }, select: { companyId: true } });
+    if (!prospect) return { erreur: "Le prospect n'existe plus." };
+    return { ...base, prospectId: run.entityId, companyId: prospect.companyId ?? undefined };
+  }
+  if (run.entityType === "Automation") return base;
+  return { erreur: "Ce cas ne peut pas être relancé." };
+}
+
+/// Relance un cas en échec, une fois sa cause corrigée (prix de la session
+/// saisi, Henrri de nouveau joignable, informations de l'organisme
+/// complétées…). La trace d'échec est retirée et le cas retraité sous la même
+/// clé. Ce qui avait abouti avant l'échec ne se refait pas : une facture déjà
+/// émise bloque toute nouvelle émission, un destinataire déjà servi ne
+/// reçoit rien de plus, un document inchangé ne change pas de version.
+export async function relancerExecution(executionId: string): Promise<{ erreur?: string; detail?: string }> {
+  const execution = await prisma.automationRun.findUnique({ where: { id: executionId }, include: { automation: true } });
+  if (!execution) return { erreur: "Exécution introuvable." };
+  if (execution.statut !== "ECHEC") return { erreur: "Seule une exécution en échec peut être relancée." };
+  const cas = await casDepuisExecution(execution);
+  if ("erreur" in cas) return { erreur: cas.erreur };
+
+  await prisma.automationRun.delete({ where: { id: execution.id } });
+  await traiterCas(execution.automation, cas);
+  const nouvelle = await prisma.automationRun.findUnique({ where: { cleUnicite: execution.cleUnicite } });
+  return {
+    detail: `« ${execution.automation.nom} » : ${nouvelle?.statut === "ECHEC" ? "nouvel échec" : "réussie"} — ${nouvelle?.detail ?? "aucun détail"}`,
+  };
+}
+
 async function automationsActives(declencheur: DeclencheurAutomatisation) {
   return prisma.automation.findMany({ where: { actif: true, declencheur } });
 }
@@ -521,6 +801,15 @@ type Evenement =
 /// déclenchée.
 export async function declencher(evenement: Evenement): Promise<void> {
   try {
+    if ("sessionId" in evenement) {
+      const session = await prisma.trainingSession.findUnique({
+        where: { id: evenement.sessionId },
+        select: { deroulementSuspenduAt: true },
+      });
+      // Alerte du client : la session ne déclenche plus rien. Une session
+      // terminée pendant la suspension retrouve ses suites à la reprise.
+      if (session?.deroulementSuspenduAt) return;
+    }
     for (const automation of await automationsActives(evenement.type)) {
       if (evenement.type === "APPRENANT_CREE") {
         const apprenant = await prisma.learner.findUnique({ where: { id: evenement.learnerId } });
@@ -561,25 +850,53 @@ export async function declencher(evenement: Evenement): Promise<void> {
 // Déclencheurs planifiés (réveil quotidien)
 // ---------------------------------------------------------------------------
 
+/// Statuts qui précèdent le début d'une session lancée (« Prête » et « En
+/// attente de documents » ne se choisissent plus, mais peuvent subsister).
+const STATUTS_LANCES = ["A_PREPARER", "DOCUMENTS_EN_ATTENTE", "PRETE"] as const;
+
+/// Le calendrier fait avancer les sessions lancées, sans intervention :
+/// « En cours » dès le premier jour, « Terminée » le lendemain du dernier.
+/// C'est ce passage à « Terminée » qui déclenche les suites de fin de session
+/// (facture). Une session en brouillon, annulée ou suspendue ne bouge pas.
+async function avancerSessions(aujourdhui: Date): Promise<number> {
+  const aTerminer = await prisma.trainingSession.findMany({
+    where: { ...SESSIONS_EN_ROUTE, statut: { in: [...STATUTS_LANCES, "EN_COURS"] }, dateFin: { lt: aujourdhui } },
+    select: { id: true },
+  });
+  for (const session of aTerminer) {
+    await appliquerStatutSession(session.id, "TERMINEE");
+    await declencher({ type: "SESSION_TERMINEE", sessionId: session.id });
+  }
+  const aDemarrer = await prisma.trainingSession.findMany({
+    where: { ...SESSIONS_EN_ROUTE, statut: { in: [...STATUTS_LANCES] }, dateDebut: { lte: aujourdhui }, dateFin: { gte: aujourdhui } },
+    select: { id: true },
+  });
+  for (const session of aDemarrer) await appliquerStatutSession(session.id, "EN_COURS");
+  return aTerminer.length + aDemarrer.length;
+}
+
 /// Traite tous les cas planifiés dus. Peut être lancé plusieurs fois par jour
 /// sans risque : les cas déjà traités sont reconnus et ignorés.
-export async function executerPlanifiees(): Promise<{ traites: number; dejaTraites: number }> {
-  const bilan = { traites: 0, dejaTraites: 0 };
+export async function executerPlanifiees(): Promise<{ traites: number; dejaTraites: number; sessionsAvancees: number }> {
+  const bilan = { traites: 0, dejaTraites: 0, sessionsAvancees: 0 };
   const compter = (r: "traite" | "deja") => (r === "traite" ? bilan.traites++ : bilan.dejaTraites++);
   const aujourdhui = aujourdhuiUTC();
 
+  bilan.sessionsAvancees = await avancerSessions(aujourdhui);
+
   for (const automation of await automationsActives("SESSION_AVANT_DEBUT")) {
-    const jours = lireRegle(automation).parametres.jours ?? 2;
+    const { jours = 2, heure } = lireRegle(automation).parametres;
     // Toute session démarrant d'ici « jours » jours : si le réveil a manqué une
     // journée, le rappel part quand même, avec un jour d'avance en moins.
     const sessions = await prisma.trainingSession.findMany({
       where: {
-        deletedAt: null,
+        ...SESSIONS_EN_ROUTE,
         statut: { notIn: ["ANNULEE", "CLOTUREE", "BROUILLON"] },
         dateDebut: { gte: aujourdhui, lte: ajouterJours(aujourdhui, jours) },
       },
     });
     for (const session of sessions) {
+      if (avantLHeure(ajouterJours(session.dateDebut, -jours), heure)) continue;
       compter(
         await traiterCas(automation, {
           // La date et la liste des inscrits font partie de la clé : une
@@ -597,16 +914,17 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
   }
 
   for (const automation of await automationsActives("SESSION_AVANT_FIN")) {
-    const jours = lireRegle(automation).parametres.jours ?? 0;
+    const { jours = 0, heure } = lireRegle(automation).parametres;
     // 0 jour = le dernier jour de la session lui-même.
     const sessions = await prisma.trainingSession.findMany({
       where: {
-        deletedAt: null,
+        ...SESSIONS_EN_ROUTE,
         statut: { notIn: ["ANNULEE", "BROUILLON"] },
         dateFin: { gte: aujourdhui, lte: ajouterJours(aujourdhui, jours) },
       },
     });
     for (const session of sessions) {
+      if (avantLHeure(ajouterJours(session.dateFin, -jours), heure)) continue;
       compter(
         await traiterCas(automation, {
           cle: `${automation.id}:session:${session.id}:${session.dateFin.toISOString().slice(0, 10)}:${await empreinteInscrits(session.id)}`,
@@ -649,7 +967,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
   }
 
   for (const automation of await automationsActives("SESSION_APRES_FIN")) {
-    const jours = lireRegle(automation).parametres.jours ?? 1;
+    const { jours = 1, heure } = lireRegle(automation).parametres;
     // Pas de borne dans le passé, mais une borne à l'activation : le moment
     // du déclenchement (fin de session + N jours) doit tomber après
     // l'allumage de l'automatisation. Une session dont l'échéance est déjà
@@ -660,15 +978,41 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     const finMinimale = automation.activeeAt ? ajouterJours(automation.activeeAt, -jours) : null;
     const sessions = await prisma.trainingSession.findMany({
       where: {
-        deletedAt: null,
+        ...SESSIONS_EN_ROUTE,
         statut: { notIn: ["ANNULEE", "BROUILLON"] },
         dateFin: { lte: ajouterJours(aujourdhui, -jours), ...(finMinimale ? { gte: finMinimale } : {}) },
       },
     });
     for (const session of sessions) {
+      if (avantLHeure(ajouterJours(session.dateFin, jours), heure)) continue;
       compter(
         await traiterCas(automation, {
-          cle: `${automation.id}:session:${session.id}:${await empreinteInscrits(session.id)}`,
+          cle: `${automation.id}:session:${session.id}:${await empreinteInscrits(session.id)}:${await empreinteEvaluations(session.id)}`,
+          entityType: "TrainingSession",
+          entityId: session.id,
+          sessionId: session.id,
+          companyId: session.companyId ?? undefined,
+        }),
+      );
+    }
+  }
+
+  // Chaque jour de session, du premier au dernier : un cas par session et par
+  // jour (feuille d'émargement du jour envoyée au formateur).
+  for (const automation of await automationsActives("SESSION_JOUR")) {
+    if (avantLHeure(aujourdhui, lireRegle(automation).parametres.heure)) continue;
+    const sessions = await prisma.trainingSession.findMany({
+      where: {
+        ...SESSIONS_EN_ROUTE,
+        statut: { notIn: ["ANNULEE", "CLOTUREE", "BROUILLON"] },
+        dateDebut: { lte: aujourdhui },
+        dateFin: { gte: aujourdhui },
+      },
+    });
+    for (const session of sessions) {
+      compter(
+        await traiterCas(automation, {
+          cle: `${automation.id}:session:${session.id}:jour:${aujourdhui.toISOString().slice(0, 10)}`,
           entityType: "TrainingSession",
           entityId: session.id,
           sessionId: session.id,

@@ -133,7 +133,8 @@ export function listeDeControle(session: {
   conventionSignee: boolean;
   programmeDisponible: boolean;
   convocationsEnvoyees: boolean;
-  presencesCompletes: boolean;
+  /// Session passée : ses présences sont acquises (présumées, sauf absence signalée)
+  sessionPassee: boolean;
   feuilleEmargementDeposee: boolean;
   evaluationsCompletes: boolean;
   attestationsCompletes: boolean;
@@ -148,7 +149,7 @@ export function listeDeControle(session: {
     { libelle: "Convention signée", fait: session.conventionSignee },
     { libelle: "Programme déposé", fait: session.programmeDisponible },
     { libelle: "Convocations envoyées", fait: session.convocationsEnvoyees },
-    { libelle: "Présences saisies", fait: session.presencesCompletes },
+    { libelle: "Présences (sauf absences signalées)", fait: session.sessionPassee },
     { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
     { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },
     { libelle: "Attestations", fait: session.attestationsCompletes },

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { executerPlanifiees, lireRegle } from "@/lib/automatisations/moteur";
+import { executerPlanifiees, lireRegle, relancerExecution } from "@/lib/automatisations/moteur";
 import { variablesInconnues } from "@/lib/emails/modeles";
 import { journaliser } from "@/lib/journal";
 import { CHAMPS_IMAGE, cheminLogo, cheminSignature, verifierSignature, type ImageOrganisme } from "@/lib/organisme-signature";
@@ -113,22 +113,42 @@ export async function basculerAutomatisation(_precedent: EtatFormulaire, donnees
   return {};
 }
 
+/// Délai en jours et heure d'envoi d'une automatisation de session. L'heure
+/// vide retire la contrainte : l'envoi part au premier réveil du jour prévu.
 export async function modifierDelai(donnees: FormData): Promise<void> {
   await exigerRole("ADMIN");
   const r = z
-    .object({ id: z.string().min(1), jours: z.coerce.number().int().min(0).max(60) })
+    .object({
+      id: z.string().min(1),
+      jours: z.coerce.number().int().min(0).max(60).optional(),
+      heure: z.union([z.literal(""), z.coerce.number().int().min(0).max(23)]).optional(),
+    })
     .safeParse(Object.fromEntries(donnees));
   if (!r.success) return;
 
   const DECLENCHEURS_A_DELAI = ["SESSION_AVANT_DEBUT", "SESSION_AVANT_FIN", "SESSION_APRES_FIN"];
+  const DECLENCHEURS_A_HEURE = [...DECLENCHEURS_A_DELAI, "SESSION_JOUR"];
   const automation = await prisma.automation.findUnique({ where: { id: r.data.id } });
-  if (!automation || !DECLENCHEURS_A_DELAI.includes(automation.declencheur)) return;
+  if (!automation || !DECLENCHEURS_A_HEURE.includes(automation.declencheur)) return;
 
-  await prisma.automation.update({
-    where: { id: r.data.id },
-    data: { parametres: { ...(automation.parametres as object), jours: r.data.jours } },
-  });
+  const parametres: Record<string, unknown> = { ...(automation.parametres as object) };
+  if (r.data.jours !== undefined && DECLENCHEURS_A_DELAI.includes(automation.declencheur)) parametres.jours = r.data.jours;
+  if (r.data.heure === "") delete parametres.heure;
+  else if (r.data.heure !== undefined) parametres.heure = r.data.heure;
+
+  await prisma.automation.update({ where: { id: r.data.id }, data: { parametres: parametres as object } });
   revalidatePath("/parametres/automatisations");
+}
+
+/// Relance une exécution en échec, une fois sa cause corrigée.
+export async function relancerExecutionAutomatisation(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN");
+  const r = await relancerExecution(String(donnees.get("id") ?? ""));
+  if (r.erreur) return { erreur: r.erreur };
+  await journaliser({ action: "automation.retried", summary: `Exécution relancée à la main — ${r.detail}`, userId: utilisateur.id });
+  revalidatePath("/parametres/automatisations");
+  revalidatePath("/tableau-de-bord");
+  return { succes: r.detail };
 }
 
 export async function lancerAutomatisations(_precedent: EtatFormulaire): Promise<EtatFormulaire> {

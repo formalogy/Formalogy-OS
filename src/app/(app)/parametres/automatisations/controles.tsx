@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import {
   basculerAutomatisation,
   lancerAutomatisations,
+  relancerExecutionAutomatisation,
   type EtatFormulaire,
 } from "@/app/(app)/parametres/actions";
 
@@ -37,6 +38,28 @@ export function InterrupteurAutomatisation({ id, actif, modifiable }: { id: stri
       <input type="hidden" name="id" value={id} />
       <BoutonInterrupteur actif={actif} modifiable={modifiable} />
       {etat.erreur && <p role="alert" className="max-w-xs text-right text-[11.5px] text-danger">{etat.erreur}</p>}
+    </form>
+  );
+}
+
+function BoutonRelance() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className="rounded-md border border-bordure px-2 py-0.5 text-[11.5px] font-semibold text-accent-fort hover:bg-surface-creuse disabled:opacity-60">
+      {pending ? "Relance…" : "Relancer"}
+    </button>
+  );
+}
+
+/// Relance d'une exécution en échec, une fois sa cause corrigée.
+export function RelanceExecution({ id }: { id: string }) {
+  const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(relancerExecutionAutomatisation, {});
+  return (
+    <form action={envoyer} className="mt-1 flex flex-wrap items-center gap-2">
+      <input type="hidden" name="id" value={id} />
+      <BoutonRelance />
+      {etat.erreur && <span className="text-[11.5px] text-danger">{etat.erreur}</span>}
+      {etat.succes && <span className="text-[11.5px] font-semibold text-succes">{etat.succes}</span>}
     </form>
   );
 }

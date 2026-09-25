@@ -33,11 +33,14 @@ const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "num
 /// formateur en bas.
 ///
 /// Seules les demi-journées déjà commencées sont produites : une feuille ne
-/// se fait signer que le jour même, jamais à l'avance.
+/// se fait signer que le jour même, jamais à l'avance. `seulementCeJour` ne
+/// garde que les deux demi-journées du jour (feuille envoyée au formateur
+/// chaque matin de session).
 export async function genererFeuillesEmargement(
   session: Session,
   organisme: string,
   aujourdhui: Date,
+  options: { seulementCeJour?: boolean } = {},
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Émargement ${session.numero}`);
@@ -51,7 +54,9 @@ export async function genererFeuillesEmargement(
   const apprenants = session.inscriptions.map((i) => i.learner);
   const formateur = session.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : "non renseigné";
   const horaires = horairesDemiJournees(session.horaires);
-  const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui);
+  const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui).filter(
+    ({ jour }) => !options.seulementCeJour || jour.getTime() === aujourdhui.getTime(),
+  );
 
   for (const { jour, creneau } of demiJournees) {
     // Au moins une page par jour, même sans inscrit (feuille vierge à compléter).

@@ -12,7 +12,6 @@ import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import { clePresence, joursDeSession, presencesCompletes } from "@/lib/emargement";
 import {
   aujourdhuiUTC,
   formaterPeriode,
@@ -40,7 +39,6 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     include: {
       company: { select: { id: true, raisonSociale: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
-      presences: { select: { learnerId: true, jour: true, creneau: true } },
       evaluations: { select: { learnerId: true } },
       factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, statut: true, numero: true } },
       dossiers: { select: { id: true, financeurNom: true } },
@@ -108,14 +106,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       session.formation._count.documents > 0 || session.documents.some((d) => d.type?.code === "PROGRAMME"),
     convocationsEnvoyees:
       session.inscriptions.length > 0 && session.inscriptions.every((i) => session.emails.some((e) => e.learnerId === i.learner.id)),
-    presencesCompletes:
-      session.dateFin <= aujourdhuiUTC() &&
-      presencesCompletes({
-        jours: joursDeSession(session.dateDebut, session.dateFin),
-        aujourdhui: aujourdhuiUTC(),
-        idsApprenants: session.inscriptions.map((i) => i.learner.id),
-        saisies: new Set(session.presences.map((p) => clePresence(p.learnerId, p.jour, p.creneau))),
-      }).complet,
+    sessionPassee: session.dateFin < aujourdhuiUTC(),
     feuilleEmargementDeposee: session.documents.some((d) => d.type?.code === "EMARGEMENT"),
     factureEmise: session.factures.some((f) => f.statut === "EMISE" || f.statut === "PAYEE"),
     // La ligne n'apparaît que si un dossier de financement existe.
@@ -198,7 +189,11 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       )}
 
       <div className="mb-4 empty:mb-0">
-        <LancementSession sessionId={session.id} brouillon={session.statut === "BROUILLON"} />
+        <LancementSession
+          sessionId={session.id}
+          statut={session.statut}
+          suspenduLe={session.deroulementSuspenduAt?.toISOString() ?? null}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

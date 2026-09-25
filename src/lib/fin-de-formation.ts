@@ -56,7 +56,8 @@ export type EtatApprenant = {
   nom: string;
   entreprise: string | null;
   demiJourneesPresent: number;
-  presencesManquantes: number;
+  /// Demi-journées sans saisie, comptées présentes (présomption de présence)
+  presencesPresumees: number;
   heures: number | null;
   evaluation: Session["evaluations"][number] | null;
   attestationId: string | null;
@@ -67,6 +68,12 @@ export type EtatApprenant = {
 
 /// Bilan de fin de formation : pour chaque apprenant, ce qui est prêt et ce
 /// qui manque avant de pouvoir établir ses documents.
+///
+/// Présomption de présence (décision du client du 25/09/2026) : une
+/// demi-journée sans saisie compte comme une présence. Seules les absences
+/// signalées réduisent les heures suivies ; il n'y a rien à saisir quand tout
+/// se passe bien. L'évaluation des acquis, elle, vient du formateur en fin
+/// de parcours et reste indispensable.
 export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
   const jours = joursDeSession(session.dateDebut, session.dateFin);
   const total = jours.length * CRENEAUX.length;
@@ -81,24 +88,25 @@ export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
 
   const apprenants: EtatApprenant[] = session.inscriptions.map(({ learner }) => {
     let present = 0;
-    let manquantes = 0;
+    let presumees = 0;
     for (const jour of jours)
       for (const creneau of CRENEAUX) {
         const statut = presences.get(clePresence(learner.id, jour, creneau));
-        if (!statut) manquantes++;
-        else if (statut === "PRESENT") present++;
+        if (!statut) {
+          presumees++;
+          present++;
+        } else if (statut === "PRESENT") present++;
       }
     const evaluation = session.evaluations.find((e) => e.learnerId === learner.id) ?? null;
     const doc = (code: string) => session.documents.find((d) => d.learnerId === learner.id && d.type?.code === code)?.id ?? null;
     const blocages: string[] = [];
-    if (manquantes > 0) blocages.push(`${manquantes} demi-journée(s) sans présence saisie`);
-    if (!evaluation) blocages.push("évaluation des acquis non saisie");
+    if (!evaluation) blocages.push("évaluation des acquis pas encore transmise par le formateur");
     return {
       learnerId: learner.id,
       nom: `${learner.prenom} ${learner.nom}`,
       entreprise: learner.company?.raisonSociale ?? null,
       demiJourneesPresent: present,
-      presencesManquantes: manquantes,
+      presencesPresumees: presumees,
       heures: heuresPrevues === null ? null : heuresSuivies(heuresPrevues, total, present),
       evaluation,
       attestationId: doc("ATTESTATION"),

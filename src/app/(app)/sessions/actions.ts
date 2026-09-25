@@ -11,12 +11,8 @@ import { genererConvention } from "@/lib/conventions";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import {
-  formaterPeriode,
-  jourDepuisSaisie,
-  LIBELLE_STATUT_SESSION,
-  STATUTS_SESSION,
-} from "@/lib/sessions-libelles";
+import { appliquerStatutSession } from "@/lib/sessions-statut";
+import { formaterPeriode, jourDepuisSaisie, STATUTS_SESSION } from "@/lib/sessions-libelles";
 
 export type EtatConventions = { erreur?: string; succes?: string; manquants?: string[] };
 
@@ -242,73 +238,12 @@ export async function modifierSession(
   redirect(`/sessions/${id}`);
 }
 
-/// Change le statut d'une session et répercute l'avancement sur les apprenants :
-/// une session qui démarre fait passer ses inscrits « en formation » ; une
-/// session terminée les fait passer « terminé », sauf s'ils suivent encore une
-/// autre session en cours.
-async function appliquerStatut(
-  sessionId: string,
-  statut: (typeof STATUTS_SESSION)[number],
-  userId: string,
-) {
-  const session = await prisma.trainingSession.update({
-    where: { id: sessionId },
-    data: { statut },
-    include: { inscriptions: { select: { learnerId: true } } },
-  });
-  const ids = session.inscriptions.map((i) => i.learnerId);
-  let apprenantsMisAJour = 0;
-
-  if (statut === "EN_COURS" && ids.length) {
-    const r = await prisma.learner.updateMany({
-      where: { id: { in: ids }, statut: { in: ["PROSPECT", "INSCRIT"] } },
-      data: { statut: "EN_FORMATION" },
-    });
-    apprenantsMisAJour = r.count;
-  }
-
-  if ((statut === "TERMINEE" || statut === "CLOTUREE") && ids.length) {
-    // Un apprenant qui suit encore une autre session non achevée n'a pas
-    // terminé son parcours : on ne le passe pas « terminé ».
-    const autresSessionsEnCours = await prisma.sessionLearner.findMany({
-      where: {
-        learnerId: { in: ids },
-        sessionId: { not: sessionId },
-        session: { deletedAt: null, statut: { notIn: ["TERMINEE", "CLOTUREE", "ANNULEE"] } },
-      },
-      select: { learnerId: true },
-    });
-    const exclus = new Set(autresSessionsEnCours.map((i) => i.learnerId));
-    // Une session peut passer directement de « Prête » à « Terminée » sans que
-    // son statut ait été mis « En cours » : ses inscrits sont alors encore
-    // « Inscrit », et doivent aussi passer « Terminé ».
-    const r = await prisma.learner.updateMany({
-      where: {
-        id: { in: ids.filter((id) => !exclus.has(id)) },
-        statut: { in: ["PROSPECT", "INSCRIT", "EN_FORMATION"] },
-      },
-      data: { statut: "TERMINE" },
-    });
-    apprenantsMisAJour = r.count;
-  }
-
-  if (statut === "TERMINEE" || statut === "CLOTUREE") {
-    // Une session clôturée sans être passée par « terminée » déclenche aussi
-    // ses suites ; une session passée par les deux ne les déclenche qu'une fois.
-    after(() => declencher({ type: "SESSION_TERMINEE", sessionId }));
-  }
-
-  await journaliser({
-    action: "session.status_changed",
-    summary:
-      `Session ${session.numero} — statut passé à « ${LIBELLE_STATUT_SESSION[statut]} »` +
-      (apprenantsMisAJour
-        ? ` (${apprenantsMisAJour} apprenant${apprenantsMisAJour > 1 ? "s" : ""} mis à jour)`
-        : ""),
-    entityType: "TrainingSession",
-    entityId: session.id,
-    userId,
-  });
+/// Change le statut d'une session (voir lib/sessions-statut.ts). Une session qui
+/// s'achève déclenche ses suites ; une session passée par « terminée » puis
+/// « clôturée » ne les déclenche qu'une fois.
+async function appliquerStatut(sessionId: string, statut: (typeof STATUTS_SESSION)[number], userId: string) {
+  const { acheve } = await appliquerStatutSession(sessionId, statut, userId);
+  if (acheve) after(() => declencher({ type: "SESSION_TERMINEE", sessionId }));
 }
 
 export async function changerStatutSession(donnees: FormData): Promise<void> {
@@ -549,4 +484,59 @@ export async function lancerDeroulementSession(
       ? `Session en route. ${traites} Attention : personne n'est encore inscrit, les envois aux apprenants ne partiront qu'une fois les inscriptions faites.`
       : `Session en route. ${traites}`,
   };
+}
+
+/// Alerte du client sur une session lancée : « suspendre » arrête tout ce qui
+/// devait partir (envois, documents, changement de statut, facture) ;
+/// « reprendre » relance le déroulement là où il en est. Une session terminée
+/// pendant la suspension retrouve ses suites (facture) à la reprise, sans
+/// doublon possible.
+export async function piloterDeroulementSession(
+  _precedent: EtatDeroulement,
+  donnees: FormData,
+): Promise<EtatDeroulement> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const id = String(donnees.get("id") ?? "");
+  const operation = donnees.get("operation");
+
+  const session = await prisma.trainingSession.findFirst({ where: { id, deletedAt: null } });
+  if (!session) return { erreur: "Session introuvable." };
+
+  if (operation === "suspendre") {
+    if (session.deroulementSuspenduAt) return { succes: "Le déroulement était déjà suspendu." };
+    await prisma.trainingSession.update({ where: { id }, data: { deroulementSuspenduAt: new Date() } });
+    await journaliser({
+      action: "session.suspended",
+      summary: `Déroulement automatique suspendu pour la session ${session.numero}`,
+      entityType: "TrainingSession",
+      entityId: id,
+      userId: utilisateur.id,
+    });
+    revalidatePath(`/sessions/${id}`);
+    return { succes: "Déroulement suspendu : plus rien ne part pour cette session tant que vous ne le reprenez pas." };
+  }
+
+  if (operation === "reprendre") {
+    if (!session.deroulementSuspenduAt) return { succes: "Le déroulement n'était pas suspendu." };
+    await prisma.trainingSession.update({ where: { id }, data: { deroulementSuspenduAt: null } });
+    await journaliser({
+      action: "session.resumed",
+      summary: `Déroulement automatique repris pour la session ${session.numero}`,
+      entityType: "TrainingSession",
+      entityId: id,
+      userId: utilisateur.id,
+    });
+    if (session.statut === "TERMINEE" || session.statut === "CLOTUREE") {
+      await declencher({ type: "SESSION_TERMINEE", sessionId: id });
+    }
+    // Ce qui est dû part sans attendre le prochain réveil.
+    const bilan = await executerPlanifiees();
+    revalidatePath(`/sessions/${id}`);
+    revalidatePath("/sessions");
+    return {
+      succes: `Déroulement repris. ${bilan.traites > 0 ? `${bilan.traites} envoi(s) ou document(s) déclenché(s).` : "Rien d'autre à envoyer pour l'instant."}`,
+    };
+  }
+
+  return { erreur: "Opération inconnue." };
 }

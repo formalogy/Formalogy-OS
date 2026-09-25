@@ -18,6 +18,8 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "prospect.nomComplet": "Prénom et nom du prospect",
   "dossier.financeur": "Nom du financeur (dossier de prise en charge)",
   "dossier.reference": "Numéro du dossier de financement",
+  "facture.numero": "Numéro de la facture (email d'envoi de la facture)",
+  "facture.montant": "Montant TTC de la facture",
   "questionnaire.lien": "Lien personnel vers le questionnaire de satisfaction (emails de fin de session)",
   "questionnaire.lienPositionnement": "Lien personnel vers le questionnaire de positionnement (avant la formation)",
   "questionnaire.lienFroid": "Lien personnel vers le questionnaire à froid (60 jours après la formation)",

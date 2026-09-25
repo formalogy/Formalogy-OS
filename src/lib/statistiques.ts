@@ -2,9 +2,11 @@ import "server-only";
 
 import type { ResultatAcquis, StatutFacture, StatutPresence, StatutSession } from "@prisma/client";
 
+import { CRENEAUX, joursDeSession } from "@/lib/emargement";
 import { enCentimes } from "@/lib/factures";
 import { prisma } from "@/lib/prisma";
 import { notesDetaillees } from "@/lib/questionnaires-modeles";
+import { aujourdhuiUTC } from "@/lib/sessions-libelles";
 
 /// Sessions retenues dans les statistiques : ni brouillon (rien n'est encore
 /// décidé) ni annulée (elle n'a pas eu lieu).
@@ -58,6 +60,8 @@ export async function calculerStatistiques(annee: number) {
       select: {
         id: true,
         placesMax: true,
+        dateDebut: true,
+        dateFin: true,
         formation: { select: { dureeHeures: true } },
         inscriptions: { select: { learnerId: true } },
       },
@@ -84,7 +88,7 @@ export async function calculerStatistiques(annee: number) {
     annee,
     chiffreAffaires: chiffreAffaires(factures, paiements),
     activite: activite(sessions),
-    assiduite: assiduite(presences),
+    assiduite: assiduite(sessions, presences),
     satisfaction: satisfaction(satisfactions),
     resultats: resultats(evaluations),
   };
@@ -151,10 +155,23 @@ function activite(sessions: SessionCalcul[]) {
 
 // ---------------------------------------------------------------- Assiduité
 
-function assiduite(lignes: { statut: StatutPresence; _count: { _all: number } }[]) {
+/// Présomption de présence : toute demi-journée déjà passée compte comme une
+/// présence, sauf absence signalée. Les demi-journées attendues se déduisent
+/// donc du calendrier des sessions et de leurs inscrits, pas des saisies.
+function assiduite(
+  sessions: { dateDebut: Date; dateFin: Date; inscriptions: unknown[] }[],
+  lignes: { statut: StatutPresence; _count: { _all: number } }[],
+) {
+  const aujourdhui = aujourdhuiUTC();
+  const attendues = sessions.reduce(
+    (t, s) => t + joursDeSession(s.dateDebut, s.dateFin).filter((j) => j <= aujourdhui).length * CRENEAUX.length * s.inscriptions.length,
+    0,
+  );
   const parStatut = { PRESENT: 0, ABSENT_JUSTIFIE: 0, ABSENT: 0 } satisfies Record<StatutPresence, number>;
-  for (const l of lignes) parStatut[l.statut] = l._count._all;
-  const total = parStatut.PRESENT + parStatut.ABSENT_JUSTIFIE + parStatut.ABSENT;
+  for (const l of lignes) if (l.statut !== "PRESENT") parStatut[l.statut] = l._count._all;
+  const absences = parStatut.ABSENT_JUSTIFIE + parStatut.ABSENT;
+  parStatut.PRESENT = Math.max(0, attendues - absences);
+  const total = parStatut.PRESENT + absences;
   return { parStatut, total, taux: total > 0 ? parStatut.PRESENT / total : null };
 }
 

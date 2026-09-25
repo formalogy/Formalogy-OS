@@ -38,7 +38,20 @@ export default async function PageApercuQuestionnaire({ params }: { params: Prom
           prenom="Prénom"
           introduction={contenu.introduction}
         />
-        <FormulaireQuestionnaire questions={contenu.questions} />
+        <FormulaireQuestionnaire
+          questions={contenu.questions}
+          evaluation={
+            code === "CHAUD_FORMATEUR"
+              ? {
+                  apprenants: [
+                    { id: "exemple-1", nom: "Premier apprenant (exemple)" },
+                    { id: "exemple-2", nom: "Second apprenant (exemple)" },
+                  ],
+                  existantes: {},
+                }
+              : undefined
+          }
+        />
       </div>
     </>
   );

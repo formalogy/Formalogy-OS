@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { clePresence, joursDeSession, presencesCompletes } from "@/lib/emargement";
+import { nombreAbsences } from "@/lib/emargement";
 import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -30,7 +30,7 @@ export default async function PageEmargements() {
       formation: { select: { titre: true } },
       trainer: { select: { prenom: true, nom: true } },
       inscriptions: { where: { learner: { deletedAt: null } }, select: { learnerId: true } },
-      presences: { select: { learnerId: true, jour: true, creneau: true } },
+      presences: { where: { statut: { not: "PRESENT" } }, select: { statut: true } },
       _count: { select: { documents: { where: { deletedAt: null, type: { code: "EMARGEMENT" } } } } },
     },
   });
@@ -54,18 +54,13 @@ export default async function PageEmargements() {
                 <tr className="bg-surface-creuse text-left text-[10.8px] uppercase tracking-wider text-texte-tenu">
                   <th className="px-4 py-2.5 font-semibold">Session</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Formateur</th>
-                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Présences saisies</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Absences signalées</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Feuille signée</th>
                 </tr>
               </thead>
               <tbody>
                 {sessions.map((s) => {
-                  const suivi = presencesCompletes({
-                    jours: joursDeSession(s.dateDebut, s.dateFin),
-                    aujourdhui,
-                    idsApprenants: s.inscriptions.map((i) => i.learnerId),
-                    saisies: new Set(s.presences.map((p) => clePresence(p.learnerId, p.jour, p.creneau))),
-                  });
+                  const absences = nombreAbsences(s.presences);
                   return (
                     <tr key={s.id} className="border-t border-bordure-douce hover:bg-surface-creuse">
                       <td className="px-4 py-2.5">
@@ -77,8 +72,8 @@ export default async function PageEmargements() {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">{nomFormateur(s.trainer) ?? "—"}</td>
-                      <td className={`whitespace-nowrap px-4 py-2.5 font-mono tabular-nums ${suivi.complet ? "text-succes" : "font-semibold text-alerte"}`}>
-                        {suivi.attendues === 0 ? "—" : `${suivi.saisies} / ${suivi.attendues}`}
+                      <td className={`whitespace-nowrap px-4 py-2.5 font-mono tabular-nums ${absences ? "font-semibold text-alerte" : "text-texte-tenu"}`}>
+                        {s.dateDebut > aujourdhui ? "—" : absences}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5">
                         {s._count.documents > 0 ? (

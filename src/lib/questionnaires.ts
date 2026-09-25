@@ -2,13 +2,13 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
-import type { TypeQuestionnaire } from "@prisma/client";
+import type { ResultatAcquis, TypeQuestionnaire } from "@prisma/client";
 
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
 import { prisma } from "@/lib/prisma";
-import { LIBELLE_TYPE_QUESTIONNAIRE } from "@/lib/questionnaires-questions";
+import { LIBELLE_TYPE_QUESTIONNAIRE, RESULTATS_ACQUIS, type EvaluationDemandee } from "@/lib/questionnaires-questions";
 import { empreinteJeton } from "@/lib/satisfaction";
 
 /// Durée de validité d'un lien de questionnaire, comme pour la satisfaction.
@@ -79,12 +79,52 @@ export async function questionnaireQualiteParJeton(jeton: string) {
       learner: { select: { prenom: true, nom: true, deletedAt: true } },
       trainer: { select: { prenom: true, nom: true, deletedAt: true } },
       dossier: { select: { financeurNom: true } },
-      session: { select: { dateDebut: true, dateFin: true, deletedAt: true, formation: { select: { titre: true } } } },
+      session: { select: { numero: true, dateDebut: true, dateFin: true, deletedAt: true, formation: { select: { titre: true } } } },
     },
   });
   if (!q) return null;
   if (q.learner?.deletedAt || q.trainer?.deletedAt || q.session?.deletedAt) return null;
   return q;
+}
+
+/// Le bilan de fin de session du formateur porte l'évaluation des acquis de
+/// chaque inscrit (décision du client : elle est transmise par le formateur
+/// en fin de parcours). Null pour tout autre questionnaire.
+export async function evaluationDemandee(q: { type: TypeQuestionnaire; sessionId: string | null }): Promise<EvaluationDemandee | null> {
+  if (q.type !== "CHAUD_FORMATEUR" || !q.sessionId) return null;
+  const [inscriptions, evaluations] = await Promise.all([
+    prisma.sessionLearner.findMany({
+      where: { sessionId: q.sessionId, learner: { deletedAt: null } },
+      orderBy: [{ learner: { nom: "asc" } }, { learner: { prenom: "asc" } }],
+      select: { learner: { select: { id: true, prenom: true, nom: true } } },
+    }),
+    prisma.evaluationAcquis.findMany({ where: { sessionId: q.sessionId }, select: { learnerId: true, resultat: true, commentaire: true } }),
+  ]);
+  return {
+    apprenants: inscriptions.map((i) => ({ id: i.learner.id, nom: `${i.learner.prenom} ${i.learner.nom}` })),
+    existantes: Object.fromEntries(evaluations.map((e) => [e.learnerId, { resultat: e.resultat, commentaire: e.commentaire }])),
+  };
+}
+
+/// Lit l'évaluation des acquis envoyée par le formateur : un résultat par
+/// apprenant, obligatoire, et un commentaire facultatif.
+export function lireEvaluation(
+  evaluation: EvaluationDemandee,
+  donnees: FormData,
+): { lignes: { learnerId: string; resultat: ResultatAcquis; commentaire: string | null }[] } | { erreur: string; valeurs: Record<string, string> } {
+  const valeurs: Record<string, string> = {};
+  const lignes: { learnerId: string; resultat: ResultatAcquis; commentaire: string | null }[] = [];
+  let manquant: string | undefined;
+  for (const apprenant of evaluation.apprenants) {
+    const resultat = String(donnees.get(`acquis_${apprenant.id}`) ?? "");
+    const commentaire = String(donnees.get(`commentaire_${apprenant.id}`) ?? "").trim().slice(0, 300);
+    valeurs[`acquis_${apprenant.id}`] = resultat;
+    valeurs[`commentaire_${apprenant.id}`] = commentaire;
+    if (!RESULTATS_ACQUIS.includes(resultat as ResultatAcquis)) manquant ??= apprenant.nom;
+    else lignes.push({ learnerId: apprenant.id, resultat: resultat as ResultatAcquis, commentaire: commentaire || null });
+  }
+  if (manquant) return { erreur: `Merci d'évaluer les acquis de ${manquant}.`, valeurs };
+  return { lignes };
 }
 
 /// Variable de contexte email portant le lien, par type de questionnaire —

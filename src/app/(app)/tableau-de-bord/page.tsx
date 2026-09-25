@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { alertesDeroulement } from "@/lib/deroulement-alertes";
 import { enCentimes, formaterMontant, situationFacture } from "@/lib/factures";
 import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,7 @@ export default async function PageTableauDeBord() {
     facturesAnnee,
     entrantsAujourdhui,
     sortantsAujourdhui,
+    alertes,
   ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
@@ -194,6 +196,9 @@ export default async function PageTableauDeBord() {
           session: { select: { id: true, numero: true, formation: { select: { titre: true } } } },
         },
       }),
+      // Ce qui bloque le déroulement automatique : le seul endroit où
+      // intervenir quand tout ne se passe pas bien.
+      alertesDeroulement(),
     ]);
 
   const caAnnee = facturesAnnee.reduce((t, f) => t + enCentimes(f.montantHT), 0);
@@ -254,6 +259,37 @@ export default async function PageTableauDeBord() {
           precision={nombreFormations > 1 ? "formations actives" : "formation active"}
           href="/formations"
         />
+      </section>
+
+      <section
+        className={`mt-4 overflow-hidden rounded-xl border bg-surface shadow-sm ${alertes.length > 0 ? "border-alerte/60" : "border-bordure"}`}
+      >
+        <div className="flex items-center justify-between border-b border-bordure-douce px-4 py-3">
+          <h2 className="text-[14.5px] font-bold">À surveiller — déroulement automatique</h2>
+          <span
+            className={`rounded-full px-2 py-0.5 font-mono text-[11px] ${alertes.length > 0 ? "bg-danger-pale text-danger" : "bg-surface-creuse text-texte-tenu"}`}
+          >
+            {alertes.length}
+          </span>
+        </div>
+        {alertes.length === 0 ? (
+          <p className="px-4 py-4 text-[12.8px] text-texte-doux">Rien à signaler : les sessions lancées se déroulent seules.</p>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto">
+            {alertes.map((a, i) => (
+              <li key={i} className="border-t border-bordure-douce first:border-t-0">
+                <Link href={a.lien} className="flex items-start gap-2.5 px-4 py-2.5 text-[12.8px] hover:bg-surface-creuse">
+                  <span
+                    className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${a.niveau === "bloquant" ? "bg-danger-pale text-danger" : "bg-alerte/12 text-alerte"}`}
+                  >
+                    {a.niveau === "bloquant" ? "À régler" : "En attente"}
+                  </span>
+                  <span>{a.texte}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <div className="mt-4 flex flex-col gap-4">

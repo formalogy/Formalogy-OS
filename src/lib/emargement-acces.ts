@@ -1,8 +1,30 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
+
 import { formateurDuCompte } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import type { UtilisateurConnecte } from "@/lib/session";
+
+/// Ce qu'il faut d'une session pour l'émargement : feuilles et saisie.
+const SELECTION_EMARGEMENT = {
+  id: true,
+  numero: true,
+  dateDebut: true,
+  dateFin: true,
+  horaires: true,
+  lieu: true,
+  statut: true,
+  formation: { select: { titre: true } },
+  company: { select: { raisonSociale: true } },
+  trainer: { select: { prenom: true, nom: true } },
+  inscriptions: {
+    where: { learner: { deletedAt: null } },
+    orderBy: [{ learner: { nom: "asc" } }, { learner: { prenom: "asc" } }],
+    select: { learner: { select: { id: true, prenom: true, nom: true, company: { select: { raisonSociale: true } } } } },
+  },
+  presences: { select: { learnerId: true, jour: true, creneau: true, statut: true } },
+} satisfies Prisma.TrainingSessionSelect;
 
 /// Session dont l'utilisateur peut consulter et saisir l'émargement :
 /// toutes pour l'équipe, uniquement les siennes (hors brouillon) pour un
@@ -19,23 +41,13 @@ export async function sessionPourEmargement(utilisateur: UtilisateurConnecte, se
 
   return prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null, ...filtreFormateur },
-    select: {
-      id: true,
-      numero: true,
-      dateDebut: true,
-      dateFin: true,
-      horaires: true,
-      lieu: true,
-      statut: true,
-      formation: { select: { titre: true } },
-      company: { select: { raisonSociale: true } },
-      trainer: { select: { prenom: true, nom: true } },
-      inscriptions: {
-        where: { learner: { deletedAt: null } },
-        orderBy: [{ learner: { nom: "asc" } }, { learner: { prenom: "asc" } }],
-        select: { learner: { select: { id: true, prenom: true, nom: true, company: { select: { raisonSociale: true } } } } },
-      },
-      presences: { select: { learnerId: true, jour: true, creneau: true, statut: true } },
-    },
+    select: SELECTION_EMARGEMENT,
   });
 }
+
+/// Même session, sans contrôle d'utilisateur : réservé aux traitements
+/// automatiques (feuille du jour envoyée au formateur).
+export async function sessionEmargementAutomatique(sessionId: string) {
+  return prisma.trainingSession.findFirst({ where: { id: sessionId, deletedAt: null }, select: SELECTION_EMARGEMENT });
+}
+

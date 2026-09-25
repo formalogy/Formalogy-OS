@@ -73,14 +73,22 @@ et que le projet peut migrer ailleurs en quelques heures.
 - Inngest a été écarté au profit d'un moteur interne, jugé suffisant pour le
   volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
-- Les automatisations livrées sont **désactivées** : leur activation est une
-  décision du client. Au 24/09/2026 il en a activé 11 sur 14 ; restent
-  éteintes les deux campagnes annuelles et « Convocation à l'inscription »
-  (même modèle d'email que la convocation de J-7 mais sans le PDF : active,
-  elle partait la première et bloquait l'envoi de la vraie convocation).
+- Activation : décision du client, qui a demandé que **toutes** les
+  automatisations soient actives. Au 25/09/2026 : 14 actives sur 15 ; seule
+  « Convocation à l'inscription » est éteinte (même modèle d'email que la
+  convocation de J-7 mais sans le PDF : active, elle partait la première et
+  bloquait l'envoi de la vraie convocation). Une automatisation nouvelle est
+  livrée active.
 - Destinataires d'une action EMAIL : `APPRENANT`, `APPRENANTS_SESSION`,
-  `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
+  `FORMATEUR_SESSION` (le formateur de la session ; un seul envoi du même
+  modèle par session, un par jour pour `SESSION_JOUR`), `PAYEUR` (payeur de
+  la facture émise pour la session, avec son PDF — rien ne part sans facture
+  ni PDF), `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
   financement des 365 derniers jours, dédoublonnés par adresse).
+- Paramètre `heure` (heure de Paris) sur tous les déclencheurs datés : le
+  jour prévu, l'envoi attend cette heure ; passé ce jour (réveil manqué), il
+  part sans attendre. Accueil à 8 h, feuille d'émargement à 7 h, fin de
+  formation et bilan du formateur à 16 h.
 - **Un envoi par apprenant** : la clé d'un cas de session contient une
   empreinte de la liste des inscrits (`empreinteInscrits`). Une inscription
   tardive rouvre le cas ; ceux qui ont déjà reçu le même modèle pour la même
@@ -100,6 +108,47 @@ et que le projet peut migrer ailleurs en quelques heures.
   automatisations planifiées. Attention : cette exécution porte sur **toutes**
   les sessions, pas seulement celle qu'on lance. Le déclencheur
   `INSCRIPTION_SESSION`, lui, part à l'inscription quel que soit le statut.
+- Une exécution en échec se relance depuis Paramètres → Automatisations
+  (bouton « Relancer », admin) une fois la cause corrigée (`relancerExecution`) :
+  même clé, rien de ce qui avait abouti ne se refait.
+
+## Déroulement sans intervention (principe du client, 25/09/2026)
+
+Après « Lancer le déroulement automatique », une session se déroule seule
+jusqu'à la facture. **On présume que tout se passe bien** ; le client
+n'intervient qu'en cas de problème (absence, report, annulation…).
+
+- **Statuts par le calendrier** (`avancerSessions`, au début de chaque
+  réveil) : « En cours » dès le premier jour, « Terminée » le lendemain du
+  dernier, ce qui déclenche `SESSION_TERMINEE` (facture). Même règle que le
+  changement manuel (`lib/sessions-statut.ts`).
+- **Calendrier d'une session** : J-15 positionnement + convention ; J-7
+  convocation PDF ; J-2 rappel ; chaque matin de session, feuille
+  d'émargement du jour au formateur (déclencheur `SESSION_JOUR`) ; J0 8 h
+  accueil ; dernier jour 16 h, mail de fin avec le lien du questionnaire de
+  satisfaction, et bilan du formateur avec **l'évaluation des acquis** de
+  chaque apprenant ; J+1 passage à « Terminée », facture Henrri émise et
+  envoyée au payeur, attestation et certificat envoyés aux apprenants
+  évalués ; J+60 questionnaire à froid.
+- **Présomption de présence** : une demi-journée sans saisie compte comme une
+  présence (heures suivies, statistiques d'assiduité). Seules les absences se
+  signalent ; la grille affiche « Présumé présent ».
+- **Évaluation des acquis** : transmise par le formateur dans son bilan de
+  fin de session (section fixe du questionnaire `CHAUD_FORMATEUR`, non
+  modifiable depuis l'éditeur ; `lib/questionnaires.ts`,
+  `evaluationDemandee`). Sans elle, l'attestation attend : la clé des
+  déclencheurs « après la fin » contient une empreinte des évaluations, si
+  bien que chaque évaluation reçue rouvre le cas, et un email dont
+  l'attestation ou le certificat manque n'est pas envoyé (il attend).
+- **Alerte du client** : bouton « Suspendre le déroulement » sur la fiche
+  session (`sessions.deroulementSuspenduAt`) ; tant qu'il est posé, aucun
+  déclencheur ne regarde la session (ni envoi, ni statut, ni facture). La
+  reprise relance ce qui est dû, et les suites de fin si la session a été
+  terminée entre-temps. « Annulée » arrête tout définitivement.
+- **Ce qui bloque** s'affiche au tableau de bord, bloc « À surveiller »
+  (`lib/deroulement-alertes.ts`) : session suspendue, formateur absent ou
+  sans email, apprenant sans email, évaluation attendue, facture non émise,
+  PDF non récupéré ou facture non envoyée, automatisation en échec.
 - Le réveil quotidien exige `Authorization: Bearer <CRON_SECRET>` ; le
   planificateur sera configuré à la mise en ligne (Phase 18).
 
@@ -142,9 +191,10 @@ et que le projet peut migrer ailleurs en quelques heures.
   jours déjà arrivés sont produits (jamais à l'avance). Les
   horaires de la session se saisissent « matin / après-midi », séparés par
   une barre oblique.
-- Les présences (`presences`, une ligne par apprenant et demi-journée) sont
-  saisies par l'équipe ou par le formateur de la session, jamais pour un jour
-  à venir. Elles serviront aux attestations (Phase 12).
+- Les présences (`presences`, une ligne par apprenant et demi-journée) ne se
+  saisissent que pour une absence (présomption de présence, voir
+  « Déroulement sans intervention »), par l'équipe ou par le formateur de la
+  session, jamais pour un jour à venir.
 
 ## Fin de formation
 
@@ -152,12 +202,14 @@ et que le projet peut migrer ailleurs en quelques heures.
   (`lib/attestations-pdf.ts`), rangés comme documents ; régénérer un document
   inchangé ne crée pas de version (métadonnées PDF fixes).
 - Préalables : session terminée, informations de l'organisme complètes
-  (Paramètres → Organisme), durée en heures de la formation, présences
-  complètes et évaluation des acquis de l'apprenant.
+  (Paramètres → Organisme), durée en heures de la formation et évaluation
+  des acquis de l'apprenant (transmise par le formateur). Les présences sont
+  présumées : seule une absence signalée réduit les heures.
 - Heures suivies = durée × demi-journées présentes / demi-journées de la session.
 - L'automatisation « Documents de fin de formation » (J+1 après la fin)
   génère attestation et certificat (action `DOCUMENTS_FIN_FORMATION`) puis
-  les envoie en pièces jointes (modèle `DOCUMENTS_FIN`).
+  les envoie en pièces jointes (modèle `DOCUMENTS_FIN`) ; un apprenant pas
+  encore évalué les reçoit dès que l'évaluation du formateur arrive.
 
 ## Factures et paiements
 
@@ -208,10 +260,14 @@ et que le projet peut migrer ailleurs en quelques heures.
 
 ## Facturation automatique en fin de session (Phase 16)
 
-- Nouvelle action d'automatisation `FACTURE_HENRRI`, déclenchée par
-  `SESSION_TERMINEE` (même mécanisme que les autres automatisations : réservée
-  par un `AutomationRun` à clé unique, ne s'exécute jamais deux fois pour la
-  même session). **Livrée désactivée**, comme toutes les automatisations.
+- Action d'automatisation `FACTURE_HENRRI`, déclenchée par `SESSION_TERMINEE`,
+  c'est-à-dire le lendemain du dernier jour (passage automatique à
+  « Terminée ») ou au passage manuel (même mécanisme que les autres
+  automatisations : réservée par un `AutomationRun` à clé unique, ne
+  s'exécute jamais deux fois pour la même session). Elle est suivie de
+  l'envoi de la facture au payeur (modèle `FACTURE`, destinataire `PAYEUR`,
+  PDF joint). En cas d'échec (prix manquant, payeur ambigu, Henrri
+  injoignable), alerte au tableau de bord et bouton « Relancer ».
 - **Une facture par session**, adressée à l'entreprise cliente si la session
   en a une, sinon à l'unique apprenant inscrit. Une session sans entreprise et
   avec zéro ou plusieurs apprenants n'a pas de payeur évident : échec clair
@@ -260,9 +316,10 @@ et que le projet peut migrer ailleurs en quelques heures.
   brouillon, à préparer, en cours, terminée, clôturée, annulée.
   `DOCUMENTS_EN_ATTENTE` et `PRETE` restent dans l'énumération (données
   existantes) mais ne se choisissent plus.
-- Une session se crée en brouillon, sans choix de statut ; le statut ne se
-  modifie qu'ensuite. Le bouton « Lancer le déroulement automatique » la met
-  en route (voir Emails et automatisations).
+- Une session se crée en brouillon, sans choix de statut. Le bouton « Lancer
+  le déroulement automatique » la met en route ; ensuite le calendrier la
+  fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans
+  intervention »). Le changement manuel de statut reste possible.
 - Tableau de bord : « Entrées / Sorties de formation aujourd'hui » listent
   chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
   session annulée).
@@ -326,9 +383,12 @@ et que le projet peut migrer ailleurs en quelques heures.
   sinon la moyenne arrondie des notes. Statistiques et page « Fin de
   formation » lisent les notes détaillées dans les questions figées
   (`notesDetaillees`).
-- Envoi : POSITIONNEMENT à J-15 (avec la convention), FROID à J+60,
-  campagnes annuelles pour formateurs et financeurs ; CHAUD_FORMATEUR à la
-  main depuis `/questionnaires`.
+- Envoi : POSITIONNEMENT à J-15 (avec la convention), satisfaction à chaud
+  le dernier jour à 16 h (lien dans le mail de fin de formation),
+  CHAUD_FORMATEUR le dernier jour à 16 h (avec l'évaluation des acquis),
+  FROID à J+60, campagnes annuelles pour formateurs et financeurs. Tous
+  s'envoient aussi à la main depuis `/questionnaires` (la satisfaction depuis
+  la page « Fin de formation » de la session).
 - Les réponses s'affichent dans `/questionnaires` et sur les fiches
   apprenant, formateur et dossier de financement.
 - Bibliothèque : six types de documents `QUESTIONNAIRE_*` (positionnement,

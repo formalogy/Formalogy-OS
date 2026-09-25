@@ -562,6 +562,11 @@ model TrainingSession {
   modalite ModaliteFormation
   statut   StatutSession     @default(BROUILLON)
 
+  /// Alerte du client : tant qu'elle est posée, plus rien ne part pour cette
+  /// session (envois, documents, changement de statut, facture). Le
+  /// déroulement reprend là où il en est dès qu'elle est levée.
+  deroulementSuspenduAt DateTime?
+
   /// Formateur principal de la session
   trainerId String?
   trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
@@ -880,6 +885,8 @@ enum DeclencheurAutomatisation {
   /// Quelques jours après la fin d'une session
   SESSION_APRES_FIN
   SESSION_TERMINEE
+  /// Chaque jour de la session, du premier au dernier (feuille d'émargement du jour)
+  SESSION_JOUR
   RELANCE_PROSPECT_DUE
   /// Campagne annuelle à date fixe (jour et mois en paramètres), sans lien
   /// avec une session : questionnaires annuels aux formateurs et financeurs.

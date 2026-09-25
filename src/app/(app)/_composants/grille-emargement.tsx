@@ -130,7 +130,7 @@ export function GrilleEmargement({ sessionId, jours, apprenants, presences }: Pr
                             onChange={(e) => changer(a.id, j.cle, c, e.target.value)}
                             className={`w-full min-w-[96px] cursor-pointer rounded-md border-0 px-1.5 py-1 text-[11.5px] font-semibold outline-none focus:ring-2 focus:ring-accent-pale ${statut ? TON_PRESENCE[statut] : "bg-surface-creuse text-texte-tenu"}`}
                           >
-                            <option value="">—</option>
+                            <option value="">Présumé présent</option>
                             {STATUTS_PRESENCE.map((s) => (
                               <option key={s} value={s}>
                                 {LIBELLE_PRESENCE[s]}

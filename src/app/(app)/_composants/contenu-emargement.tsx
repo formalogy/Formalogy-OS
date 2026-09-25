@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { GrilleEmargement } from "@/app/(app)/_composants/grille-emargement";
-import { clePresence, joursDeSession, presencesCompletes } from "@/lib/emargement";
+import { clePresence, joursDeSession, nombreAbsences } from "@/lib/emargement";
 import type { sessionPourEmargement } from "@/lib/emargement-acces";
 import { aujourdhuiUTC, formaterPeriode, jourVersSaisie } from "@/lib/sessions-libelles";
 
@@ -19,12 +19,8 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
   const aujourdhui = aujourdhuiUTC();
   const jours = joursDeSession(session.dateDebut, session.dateFin);
   const presences = Object.fromEntries(session.presences.map((p) => [clePresence(p.learnerId, p.jour, p.creneau), p.statut]));
-  const suivi = presencesCompletes({
-    jours,
-    aujourdhui,
-    idsApprenants: session.inscriptions.map((i) => i.learner.id),
-    saisies: new Set(Object.keys(presences)),
-  });
+  const absences = nombreAbsences(session.presences);
+  const commencee = session.dateDebut <= aujourdhui;
 
   return (
     <>
@@ -64,12 +60,13 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
           )}
         </p>
         <p className="rounded-xl border border-bordure bg-surface px-4 py-3 text-[12.5px] text-texte-doux shadow-sm">
-          <strong className="text-texte">2. Reporter les présences</strong> ci-dessous, demi-journée par demi-journée.{" "}
-          {suivi.attendues === 0 ? (
+          <strong className="text-texte">2. Signaler les absences</strong> ci-dessous. Une demi-journée sans saisie compte
+          comme une présence : quand tout le monde est là, il n&apos;y a rien à faire.{" "}
+          {!commencee ? (
             "La session n'a pas encore commencé."
           ) : (
-            <span className={suivi.complet ? "font-semibold text-succes" : "font-semibold text-alerte"}>
-              {suivi.saisies} / {suivi.attendues} saisies à ce jour.
+            <span className={absences ? "font-semibold text-alerte" : "font-semibold text-succes"}>
+              {absences === 0 ? "Aucune absence signalée." : `${absences} absence${absences > 1 ? "s" : ""} signalée${absences > 1 ? "s" : ""}.`}
             </span>
           )}
         </p>

@@ -1,5 +1,5 @@
 import { BandeauModeEnvoi } from "@/app/(app)/_composants/bandeau-envoi";
-import { InterrupteurAutomatisation, LancementManuel } from "@/app/(app)/parametres/automatisations/controles";
+import { InterrupteurAutomatisation, LancementManuel, RelanceExecution } from "@/app/(app)/parametres/automatisations/controles";
 import { modifierDelai } from "@/app/(app)/parametres/actions";
 import {
   decrireAction,
@@ -75,22 +75,41 @@ export default async function PageAutomatisations() {
                   )}
                   {(a.declencheur === "SESSION_AVANT_DEBUT" ||
                     a.declencheur === "SESSION_AVANT_FIN" ||
-                    a.declencheur === "SESSION_APRES_FIN") && (
-                    <form action={modifierDelai} className="mt-2 flex items-center gap-2">
+                    a.declencheur === "SESSION_APRES_FIN" ||
+                    a.declencheur === "SESSION_JOUR") && (
+                    <form action={modifierDelai} className="mt-2 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={a.id} />
-                      <input
-                        type="number"
-                        name="jours"
-                        min={0}
-                        max={60}
-                        defaultValue={jours ?? 2}
+                      {a.declencheur !== "SESSION_JOUR" && (
+                        <>
+                          <input
+                            type="number"
+                            name="jours"
+                            min={0}
+                            max={60}
+                            defaultValue={jours ?? 2}
+                            disabled={!admin}
+                            aria-label="Nombre de jours"
+                            className="w-16 rounded-lg border border-bordure bg-surface px-2 py-1 text-[13px] disabled:bg-surface-creuse"
+                          />
+                          <span className="text-texte-doux">
+                            {a.declencheur === "SESSION_APRES_FIN" ? "jours après la fin" : a.declencheur === "SESSION_AVANT_FIN" ? "jours avant la fin" : "jours avant"}
+                          </span>
+                        </>
+                      )}
+                      <select
+                        name="heure"
+                        defaultValue={parametres.heure ?? ""}
                         disabled={!admin}
-                        aria-label="Nombre de jours"
-                        className="w-16 rounded-lg border border-bordure bg-surface px-2 py-1 text-[13px] disabled:bg-surface-creuse"
-                      />
-                      <span className="text-texte-doux">
-                        {a.declencheur === "SESSION_APRES_FIN" ? "jours après la fin" : a.declencheur === "SESSION_AVANT_FIN" ? "jours avant la fin" : "jours avant"}
-                      </span>
+                        aria-label="Heure d'envoi"
+                        className="rounded-lg border border-bordure bg-surface px-2 py-1 text-[13px] disabled:bg-surface-creuse"
+                      >
+                        <option value="">dès le premier réveil du jour</option>
+                        {Array.from({ length: 24 }, (_, h) => (
+                          <option key={h} value={h}>
+                            à partir de {h} h
+                          </option>
+                        ))}
+                      </select>
                       {admin && (
                         <button type="submit" className="rounded-lg border border-bordure px-2 py-1 text-[12px] font-semibold">
                           Enregistrer
@@ -152,6 +171,7 @@ export default async function PageAutomatisations() {
                           <span className="font-mono tabular-nums text-texte-tenu">{horodatage.format(e.createdAt)}</span>{" "}
                           <span className={`font-semibold ${TON_STATUT_EXECUTION[e.statut]}`}>{LIBELLE_STATUT_EXECUTION[e.statut]}</span>
                           {e.detail ? <span className="text-texte-doux"> — {e.detail}</span> : null}
+                          {e.statut === "ECHEC" && admin && <RelanceExecution id={e.id} />}
                         </li>
                       ))}
                     </ul>

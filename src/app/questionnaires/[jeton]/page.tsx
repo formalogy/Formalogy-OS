@@ -4,7 +4,7 @@ import { EnTeteQuestionnaire } from "@/app/_composants/en-tete-questionnaire";
 import { FormulaireQuestionnaire } from "@/app/_composants/formulaire-questionnaire";
 import { repondreQuestionnaireQualite } from "@/app/questionnaires/actions";
 import { lireOrganisme } from "@/lib/organisme";
-import { questionnaireQualiteParJeton } from "@/lib/questionnaires";
+import { evaluationDemandee, questionnaireQualiteParJeton } from "@/lib/questionnaires";
 import { lireContenuQuestionnaire } from "@/lib/questionnaires-modeles";
 import { formaterPeriode } from "@/lib/sessions-libelles";
 
@@ -51,7 +51,7 @@ export default async function PageQuestionnaireQualite({ params }: { params: Pro
     );
   }
 
-  const { contenu } = await lireContenuQuestionnaire(q.type);
+  const [{ contenu }, evaluation] = await Promise.all([lireContenuQuestionnaire(q.type), evaluationDemandee(q)]);
   return cadre(
     <>
       <EnTeteQuestionnaire
@@ -60,7 +60,12 @@ export default async function PageQuestionnaireQualite({ params }: { params: Pro
         prenom={nomDestinataire(q)}
         introduction={contenu.introduction}
       />
-      <FormulaireQuestionnaire questions={contenu.questions} action={repondreQuestionnaireQualite} jeton={jeton} />
+      <FormulaireQuestionnaire
+        questions={contenu.questions}
+        evaluation={evaluation ?? undefined}
+        action={repondreQuestionnaireQualite}
+        jeton={jeton}
+      />
     </>,
   );
 }

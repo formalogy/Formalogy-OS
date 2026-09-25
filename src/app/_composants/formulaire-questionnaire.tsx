@@ -3,7 +3,14 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { LIBELLES_NOTE, type EtatReponse, type Question } from "@/lib/questionnaires-questions";
+import {
+  LIBELLE_ACQUIS,
+  LIBELLES_NOTE,
+  RESULTATS_ACQUIS,
+  type EtatReponse,
+  type EvaluationDemandee,
+  type Question,
+} from "@/lib/questionnaires-questions";
 
 type Valeurs = NonNullable<EtatReponse["valeurs"]>;
 
@@ -109,8 +116,63 @@ function Texte({ question, valeurs }: { question: Question; valeurs?: Valeurs })
   );
 }
 
+/// Évaluation des acquis, apprenant par apprenant (bilan du formateur).
+function Evaluation({ evaluation, valeurs }: { evaluation: EvaluationDemandee; valeurs?: Valeurs }) {
+  return (
+    <section className="mt-5 border-t border-bordure pt-5">
+      <h2 className="pb-1 text-[12px] font-bold uppercase tracking-wider text-accent-fort">Évaluation des acquis</h2>
+      <p className="mb-1 text-[13px] text-texte-doux">
+        Pour chaque apprenant, les objectifs de la formation sont-ils atteints ? Cette évaluation figure sur son attestation
+        de fin de formation.
+      </p>
+      {evaluation.apprenants.length === 0 && (
+        <p className="py-4 text-[13px] text-texte-tenu">Aucun apprenant inscrit à cette session.</p>
+      )}
+      {evaluation.apprenants.map((apprenant) => {
+        const existante = evaluation.existantes[apprenant.id];
+        const deja = valeurs?.[`acquis_${apprenant.id}`] ?? existante?.resultat;
+        const commentaire = valeurs?.[`commentaire_${apprenant.id}`] ?? existante?.commentaire ?? "";
+        // Le filet est porté par un conteneur : sur un <fieldset>, la légende
+        // coupe la bordure.
+        return (
+          <div key={apprenant.id} className="border-t border-bordure-douce py-4 first-of-type:border-t-0">
+            <fieldset>
+              <legend className="mb-2 text-[14px] font-semibold">{apprenant.nom}</legend>
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                {RESULTATS_ACQUIS.map((resultat) => (
+                  <label key={resultat} className="flex cursor-pointer items-start gap-2.5 text-[14px]">
+                    <input
+                      type="radio"
+                      name={`acquis_${apprenant.id}`}
+                      value={resultat}
+                      required
+                      defaultChecked={deja === resultat}
+                      className="case-a-cocher mt-px"
+                    />
+                    <span>{LIBELLE_ACQUIS[resultat]}</span>
+                  </label>
+                ))}
+              </div>
+              <input
+                name={`commentaire_${apprenant.id}`}
+                maxLength={300}
+                defaultValue={typeof commentaire === "string" ? commentaire : ""}
+                placeholder="Commentaire, repris sur l'attestation (facultatif)"
+                aria-label={`Commentaire sur l'évaluation de ${apprenant.nom}`}
+                className="mt-2 w-full rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+              />
+            </fieldset>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 type Props = {
   questions: Question[];
+  /// Bilan du formateur : évaluation des acquis de chaque apprenant.
+  evaluation?: EvaluationDemandee;
   /// Réponse enregistrée par le serveur. Absente en aperçu.
   action?: (etat: EtatReponse, donnees: FormData) => Promise<EtatReponse>;
   jeton?: string;
@@ -122,7 +184,7 @@ const sansEnvoi = async (etat: EtatReponse): Promise<EtatReponse> => etat;
 /// Formulaire en ligne d'un questionnaire, commun à tous les questionnaires
 /// (satisfaction, positionnement, à froid, formateurs, financeurs) et à
 /// l'aperçu montré dans l'application.
-export function FormulaireQuestionnaire({ questions, action, jeton, messageMerci }: Props) {
+export function FormulaireQuestionnaire({ questions, evaluation, action, jeton, messageMerci }: Props) {
   const apercu = !action;
   const [etat, envoyer] = useActionState<EtatReponse, FormData>(action ?? sansEnvoi, {});
 
@@ -162,6 +224,7 @@ export function FormulaireQuestionnaire({ questions, action, jeton, messageMerci
           </div>
         </div>
       ))}
+      {evaluation && <Evaluation evaluation={evaluation} valeurs={etat.valeurs} />}
       {etat.erreur && (
         <p role="alert" className="mt-2 rounded-lg bg-danger-pale px-3 py-2 text-[13px] text-danger">
           {etat.erreur}

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Contexte } from "@/lib/emails/modeles";
+import { formaterMontant } from "@/lib/factures";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +16,7 @@ export async function construireContexte(ids: {
   companyId?: string;
   prospectId?: string;
   dossierId?: string;
+  factureId?: string;
   lienQuestionnaire?: string;
   lienPositionnement?: string;
   lienFroid?: string;
@@ -22,7 +24,7 @@ export async function construireContexte(ids: {
   lienFinanceur?: string;
   lienSatisfactionFormateur?: string;
 }): Promise<Contexte> {
-  const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier] = await Promise.all([
+  const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier, facture] = await Promise.all([
     lireOrganisme(),
     ids.learnerId ? prisma.learner.findUnique({ where: { id: ids.learnerId } }) : null,
     ids.trainerId ? prisma.trainer.findUnique({ where: { id: ids.trainerId } }) : null,
@@ -39,6 +41,7 @@ export async function construireContexte(ids: {
     ids.companyId ? prisma.company.findUnique({ where: { id: ids.companyId } }) : null,
     ids.prospectId ? prisma.prospect.findUnique({ where: { id: ids.prospectId } }) : null,
     ids.dossierId ? prisma.dossierFinancement.findUnique({ where: { id: ids.dossierId } }) : null,
+    ids.factureId ? prisma.facture.findUnique({ where: { id: ids.factureId } }) : null,
   ]);
 
   return {
@@ -58,6 +61,8 @@ export async function construireContexte(ids: {
     "prospect.nomComplet": prospect ? `${prospect.prenom} ${prospect.nom}` : undefined,
     "dossier.financeur": dossier?.financeurNom,
     "dossier.reference": dossier?.reference,
+    "facture.numero": facture?.numero,
+    "facture.montant": facture ? formaterMontant(facture.montantTTC) : undefined,
     "questionnaire.lien": ids.lienQuestionnaire,
     "questionnaire.lienPositionnement": ids.lienPositionnement,
     "questionnaire.lienFroid": ids.lienFroid,

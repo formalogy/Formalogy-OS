@@ -41,22 +41,11 @@ export function joursDeSession(debut: Date, fin: Date): Date[] {
 export const clePresence = (learnerId: string, jour: Date, creneau: Creneau) =>
   `${learnerId}|${jour.toISOString().slice(0, 10)}|${creneau}`;
 
-/// Les présences sont-elles saisies pour tous les inscrits, sur toutes les
-/// demi-journées déjà passées ou en cours ? Une session pas encore commencée
-/// n'est jamais « complète ».
-export function presencesCompletes(params: {
-  jours: Date[];
-  aujourdhui: Date;
-  idsApprenants: string[];
-  saisies: Set<string>;
-}): { attendues: number; saisies: number; complet: boolean } {
-  const passes = params.jours.filter((j) => j <= params.aujourdhui);
-  let saisies = 0;
-  for (const jour of passes)
-    for (const creneau of CRENEAUX)
-      for (const id of params.idsApprenants) if (params.saisies.has(clePresence(id, jour, creneau))) saisies++;
-  const attendues = passes.length * CRENEAUX.length * params.idsApprenants.length;
-  return { attendues, saisies, complet: attendues > 0 && saisies === attendues };
+/// Absences signalées (justifiées ou non). Présomption de présence : une
+/// demi-journée sans saisie compte comme une présence, seules les absences
+/// sont à signaler.
+export function nombreAbsences(presences: { statut: StatutPresence }[]): number {
+  return presences.filter((p) => p.statut !== "PRESENT").length;
 }
 
 /// Horaires réels de chaque demi-journée, lus dans le champ libre de la

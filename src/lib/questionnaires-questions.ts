@@ -1,4 +1,4 @@
-import type { TypeQuestionnaire } from "@prisma/client";
+import type { ResultatAcquis, TypeQuestionnaire } from "@prisma/client";
 
 /// Questionnaires modifiables depuis l'application : les cinq types qualité,
 /// plus le questionnaire de satisfaction à chaud des apprenants (« SATISFACTION »),
@@ -175,6 +175,22 @@ export const QUESTIONNAIRES_ORIGINE: Record<CodeQuestionnaire, ContenuQuestionna
       { id: "remarques", type: "TEXTE", libelle: "Remarques ou suggestions" },
     ],
   },
+};
+
+/// Évaluation des acquis demandée au formateur dans son bilan de fin de
+/// session : une ligne par apprenant inscrit. Elle figure sur l'attestation
+/// de fin de formation ; les documents de fin partent dès sa réception.
+export type EvaluationDemandee = {
+  apprenants: { id: string; nom: string }[];
+  existantes: Record<string, { resultat: ResultatAcquis; commentaire: string | null }>;
+};
+
+export const RESULTATS_ACQUIS: ResultatAcquis[] = ["ACQUIS", "PARTIELLEMENT_ACQUIS", "NON_ACQUIS"];
+
+export const LIBELLE_ACQUIS: Record<ResultatAcquis, string> = {
+  ACQUIS: "Acquis",
+  PARTIELLEMENT_ACQUIS: "Partiellement acquis",
+  NON_ACQUIS: "Non acquis",
 };
 
 /// Réponse lisible par un humain, pour les fiches et les tableaux.
