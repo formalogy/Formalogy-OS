@@ -318,13 +318,19 @@ export async function genererFactureHenrriPourSession(sessionId: string, userId?
   // valide (numéro et montants corrects) — seul le PDF manquera, récupérable
   // à la main depuis Henrri en attendant.
   try {
+    // Le PDF va dans le dossier de l'apprenant (demande du client) : l'apprenant
+    // payeur, ou l'unique inscrit d'une session payée par une entreprise. Une
+    // session à plusieurs apprenants garde sa facture sur la session et
+    // l'entreprise : elle ne concerne aucun apprenant en particulier.
+    const apprenantDuDossier =
+      p.type === "APPRENANT" ? p.learner.id : session.inscriptions.length === 1 ? session.inscriptions[0].learner.id : null;
     const documentId = await rangerPdfFacture({
       documentHenrriId: document.id,
       numero: finalise.identity,
       nomAffiche: `Facture ${finalise.identity} — ${payeurNom}`,
       session,
       companyId: p.type === "ENTREPRISE" ? p.company.id : null,
-      learnerId: p.type === "APPRENANT" ? p.learner.id : null,
+      learnerId: apprenantDuDossier,
       userId,
     });
     await prisma.facture.update({ where: { id: facture.id }, data: { documentId } });

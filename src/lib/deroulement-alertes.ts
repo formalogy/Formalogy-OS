@@ -42,10 +42,6 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
         where: { statut: { not: "ANNULEE" } },
         select: { id: true, numero: true, statut: true, documentId: true },
       },
-      emails: {
-        where: { statut: { not: "ECHEC" }, template: { code: "FACTURE" } },
-        select: { id: true },
-      },
     },
   });
 
@@ -90,8 +86,6 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
           alertes.push({ niveau: "bloquant", texte: `${s.numero} : facture non émise.`, lien: "/factures" });
         } else if (!facture.documentId) {
           alertes.push({ niveau: "bloquant", texte: `${s.numero} : PDF de la facture ${facture.numero} non récupéré depuis Henrri.`, lien: `/factures/${facture.id}` });
-        } else if (s.emails.length === 0) {
-          alertes.push({ niveau: "bloquant", texte: `${s.numero} : facture ${facture.numero} non envoyée au payeur.`, lien: `/factures/${facture.id}` });
         }
       }
     }

@@ -83,7 +83,8 @@ et que le projet peut migrer ailleurs en quelques heures.
   `FORMATEUR_SESSION` (le formateur de la session ; un seul envoi du même
   modèle par session, un par jour pour `SESSION_JOUR`), `PAYEUR` (payeur de
   la facture émise pour la session, avec son PDF — rien ne part sans facture
-  ni PDF), `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
+  ni PDF ; disponible mais **non utilisé** : le client ne veut pas d'envoi de
+  facture, voir Facturation automatique), `FORMATEURS_ACTIFS`, `FINANCEURS_ANNEE` (contacts des dossiers de
   financement des 365 derniers jours, dédoublonnés par adresse).
 - Paramètre `heure` (heure de Paris) sur tous les déclencheurs datés : le
   jour prévu, l'envoi attend cette heure ; passé ce jour (réveil manqué), il
@@ -128,8 +129,8 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   accueil ; dernier jour 16 h, mail de fin avec le lien du questionnaire de
   satisfaction, et bilan du formateur avec **l'évaluation des acquis** de
   chaque apprenant ; J+1 passage à « Terminée », facture Henrri émise et
-  envoyée au payeur, attestation et certificat envoyés aux apprenants
-  évalués ; J+60 questionnaire à froid.
+  rangée dans le dossier de l'apprenant (pas envoyée), attestation et
+  certificat envoyés aux apprenants évalués ; J+60 questionnaire à froid.
 - **Présomption de présence** : une demi-journée sans saisie compte comme une
   présence (heures suivies, statistiques d'assiduité). Seules les absences se
   signalent ; la grille affiche « Présumé présent ».
@@ -148,7 +149,7 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 - **Ce qui bloque** s'affiche au tableau de bord, bloc « À surveiller »
   (`lib/deroulement-alertes.ts`) : session suspendue, formateur absent ou
   sans email, apprenant sans email, évaluation attendue, facture non émise,
-  PDF non récupéré ou facture non envoyée, automatisation en échec.
+  PDF de facture non récupéré, automatisation en échec.
 - Le réveil quotidien exige `Authorization: Bearer <CRON_SECRET>` ; le
   planificateur sera configuré à la mise en ligne (Phase 18).
 
@@ -264,9 +265,11 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   c'est-à-dire le lendemain du dernier jour (passage automatique à
   « Terminée ») ou au passage manuel (même mécanisme que les autres
   automatisations : réservée par un `AutomationRun` à clé unique, ne
-  s'exécute jamais deux fois pour la même session). Elle est suivie de
-  l'envoi de la facture au payeur (modèle `FACTURE`, destinataire `PAYEUR`,
-  PDF joint). En cas d'échec (prix manquant, payeur ambigu, Henrri
+  s'exécute jamais deux fois pour la même session). **La facture n'est
+  envoyée à personne** (décision du client du 25/09/2026) : pour le CPF, le
+  payeur est la Caisse des Dépôts, qui se facture sur sa propre plateforme,
+  hors de portée de l'application. Le modèle d'email `FACTURE` existe mais
+  reste désactivé. En cas d'échec (prix manquant, payeur ambigu, Henrri
   injoignable), alerte au tableau de bord et bouton « Relancer ».
 - **Une facture par session**, adressée à l'entreprise cliente si la session
   en a une, sinon à l'unique apprenant inscrit. Une session sans entreprise et
@@ -283,8 +286,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   d'exonération en pied de page.
 - Le document est **finalisé** (numéro définitif, verrouillé côté Henrri) dès
   la création : irréversible. Le PDF est ensuite récupéré et rangé comme
-  document (catégorie FINANCE, type FACTURE, rattaché à la session et à
-  l'entreprise/l'apprenant) — un échec de cette seule étape n'invalide pas la
+  document (catégorie FINANCE, type FACTURE, rattaché à la session, à
+  l'entreprise payeuse et **au dossier de l'apprenant** : l'apprenant payeur,
+  ou l'unique inscrit d'une session payée par une entreprise ; une session à
+  plusieurs apprenants garde la facture sur la session et l'entreprise) — un échec de cette seule étape n'invalide pas la
   facture, déjà enregistrée avec son numéro.
 - Une facture déjà existante pour la session (manuelle ou automatique, hors
   annulée) bloque une nouvelle émission automatique.
