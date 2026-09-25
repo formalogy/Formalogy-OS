@@ -6,6 +6,7 @@ import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
 import { LancementSession } from "@/app/(app)/sessions/[id]/lancement";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
+import { TarifInscription } from "@/app/(app)/sessions/[id]/tarif-inscription";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
 import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
 import { formaterEuros } from "@/lib/crm-libelles";
@@ -40,7 +41,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
       company: { select: { id: true, raisonSociale: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
       evaluations: { select: { learnerId: true } },
-      factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, statut: true, numero: true } },
+      factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, statut: true, numero: true, learnerId: true } },
       dossiers: { select: { id: true, financeurNom: true } },
       // Convocations réellement parties (les envois simulés ne comptent pas)
       emails: {
@@ -259,7 +260,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               <p className="mb-4 text-[12.8px] text-texte-doux">Aucun apprenant inscrit pour le moment.</p>
             ) : (
               <ul className="mb-4">
-                {session.inscriptions.map(({ learner }) => (
+                {session.inscriptions.map(({ learner, prixHT }) => (
                   <li
                     key={learner.id}
                     className="flex items-center justify-between gap-3 border-t border-bordure-douce py-2 first:border-t-0"
@@ -273,6 +274,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
+                      <TarifInscription
+                        sessionId={session.id}
+                        learnerId={learner.id}
+                        prix={prixHT === null ? null : String(prixHT)}
+                        modifiable={!session.factures.some((f) => f.learnerId === learner.id)}
+                      />
                     </div>
                     <form action={desinscrireApprenant}>
                       <input type="hidden" name="sessionId" value={session.id} />
@@ -292,6 +299,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
             {!complete && session.statut !== "ANNULEE" && session.statut !== "CLOTUREE" && (
               <FormulaireInscription
                 sessionId={session.id}
+                prixParDefaut={session.prixHT === null ? null : String(session.prixHT)}
                 candidats={candidatsTries.map((c) => ({
                   id: c.id,
                   libelle: `${c.nom} ${c.prenom}${c.company ? ` — ${c.company.raisonSociale}` : ""}`,

@@ -8,10 +8,12 @@ import { inscrireApprenant, type EtatFormulaire } from "@/app/(app)/sessions/act
 
 type Props = {
   sessionId: string;
+  /// Prix de la session, proposé comme tarif de l'apprenant
+  prixParDefaut: string | null;
   candidats: { id: string; libelle: string }[];
 };
 
-export function FormulaireInscription({ sessionId, candidats }: Props) {
+export function FormulaireInscription({ sessionId, prixParDefaut, candidats }: Props) {
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(inscrireApprenant, {});
 
   if (candidats.length === 0) {
@@ -48,6 +50,19 @@ export function FormulaireInscription({ sessionId, candidats }: Props) {
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 text-[12.5px] text-texte-doux">
+          Tarif
+          <input
+            key={candidats.length}
+            name="prixHT"
+            inputMode="decimal"
+            required
+            defaultValue={prixParDefaut?.replace(".", ",") ?? ""}
+            aria-label="Tarif HT de l'apprenant"
+            className="w-24 rounded-lg border border-bordure bg-surface px-2 py-2 text-right font-mono text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale"
+          />
+          € HT
+        </label>
         <BoutonEnvoyer libelle="Inscrire" />
       </div>
       <div className="mt-2">

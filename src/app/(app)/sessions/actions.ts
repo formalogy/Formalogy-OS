@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
+import { lireMontant } from "@/lib/factures";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -270,6 +271,7 @@ export async function changerStatutSession(donnees: FormData): Promise<void> {
 async function inscrire(
   sessionId: string,
   learnerId: string,
+  prixHT: string,
   utilisateur: { id: string },
 ): Promise<EtatFormulaire> {
   const [session, apprenant] = await Promise.all([
@@ -291,7 +293,7 @@ async function inscrire(
 
   try {
     await prisma.sessionLearner.create({
-      data: { sessionId: session.id, learnerId: apprenant.id },
+      data: { sessionId: session.id, learnerId: apprenant.id, prixHT },
     });
   } catch (erreur) {
     if (erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === "P2002") {
@@ -309,7 +311,7 @@ async function inscrire(
 
   await journaliser({
     action: "session.learner_added",
-    summary: `${apprenant.prenom} ${apprenant.nom} inscrit à la session ${session.numero}`,
+    summary: `${apprenant.prenom} ${apprenant.nom} inscrit à la session ${session.numero} (${prixHT.replace(".", ",")} € HT)`,
     entityType: "TrainingSession",
     entityId: session.id,
     userId: utilisateur.id,
@@ -323,9 +325,15 @@ async function inscrire(
   return {};
 }
 
+/// Le tarif de l'apprenant est indiqué à l'inscription (décision du client) :
+/// c'est le montant de sa facture personnelle.
 const schemaInscription = z.object({
   sessionId: z.string().min(1),
   learnerId: z.string().min(1, "Choisissez un apprenant."),
+  prixHT: z
+    .string()
+    .transform((saisie) => lireMontant(saisie))
+    .refine((montant): montant is string => montant !== null, "Indiquez le tarif HT de l'apprenant (par exemple 1200 ou 1 200,50)."),
 });
 
 export async function inscrireApprenant(
@@ -335,7 +343,7 @@ export async function inscrireApprenant(
   const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
   const r = schemaInscription.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
-  return inscrire(r.data.sessionId, r.data.learnerId, utilisateur);
+  return inscrire(r.data.sessionId, r.data.learnerId, r.data.prixHT, utilisateur);
 }
 
 /// Même inscription, mais depuis la fiche d'un apprenant qui vient d'être
@@ -348,7 +356,7 @@ export async function inscrireApprenantEtVoirFiche(
   const r = schemaInscription.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
 
-  const resultat = await inscrire(r.data.sessionId, r.data.learnerId, utilisateur);
+  const resultat = await inscrire(r.data.sessionId, r.data.learnerId, r.data.prixHT, utilisateur);
   if (resultat.erreur) return resultat;
 
   redirect(`/apprenants/${r.data.learnerId}`);
@@ -539,4 +547,32 @@ export async function piloterDeroulementSession(
   }
 
   return { erreur: "Opération inconnue." };
+}
+
+/// Corrige le tarif d'un apprenant inscrit. Impossible une fois sa facture
+/// personnelle émise : le montant facturé ne doit plus diverger.
+export async function modifierTarifInscription(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const r = schemaInscription.safeParse(Object.fromEntries(donnees));
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
+  const { sessionId, learnerId, prixHT } = r.data;
+
+  const inscription = await prisma.sessionLearner.findUnique({
+    where: { sessionId_learnerId: { sessionId, learnerId } },
+    include: { learner: { select: { prenom: true, nom: true } }, session: { select: { numero: true } } },
+  });
+  if (!inscription) return { erreur: "Inscription introuvable." };
+  const facturee = await prisma.facture.count({ where: { sessionId, learnerId, statut: { not: "ANNULEE" } } });
+  if (facturee > 0) return { erreur: "Sa facture est déjà émise : le tarif ne peut plus changer." };
+
+  await prisma.sessionLearner.update({ where: { id: inscription.id }, data: { prixHT } });
+  await journaliser({
+    action: "session.learner_price_changed",
+    summary: `Tarif de ${inscription.learner.prenom} ${inscription.learner.nom} pour la session ${inscription.session.numero} : ${prixHT.replace(".", ",")} € HT`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+    userId: utilisateur.id,
+  });
+  revalidatePath(`/sessions/${sessionId}`);
+  return {};
 }

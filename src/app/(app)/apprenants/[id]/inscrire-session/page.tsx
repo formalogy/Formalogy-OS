@@ -41,6 +41,7 @@ export default async function PageInscrireSession({
   const candidats = disponibles.map((s) => ({
     id: s.id,
     libelle: `${s.formation.titre} — ${formaterPeriode(s.dateDebut, s.dateFin)} (${s.numero})`,
+    prix: s.prixHT === null ? null : String(s.prixHT),
   }));
 
   return (

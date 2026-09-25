@@ -285,8 +285,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
     cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
   Un destinataire déjà facturé est passé : une relance ne crée que les
   factures manquantes. Une facture saisie à la main pour la session bloque
-  toute émission automatique. Le montant est le prix de la session, par
-  facture.
+  toute émission automatique. Montant : le prix de la session pour la
+  facture d'entreprise ; pour une facture personnelle (CPF, apprenant
+  payeur), **le tarif indiqué à l'inscription** (`session_learners.prixHT`),
+  à défaut le prix de la session.
 - Pour le CPF, la facture Henrri fournit le numéro à saisir dans EDOF ; la
   transmission dans EDOF reste manuelle (aucun accès pour un logiciel tiers).
 - Le client Henrri est créé une seule fois : identifiant mis en cache sur
@@ -342,6 +344,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans
   intervention »). Le changement manuel de statut reste possible.
+- **Tarif à l'inscription** (décision du client du 25/09/2026) : inscrire un
+  apprenant demande son tarif HT, proposé d'après le prix de la session
+  (depuis la session comme depuis la fiche apprenant). Il se corrige dans la
+  liste des inscrits tant que sa facture personnelle n'est pas émise.
 - Tableau de bord : « Entrées / Sorties de formation aujourd'hui » listent
   chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
   session annulée).

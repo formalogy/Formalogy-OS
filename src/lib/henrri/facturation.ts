@@ -28,7 +28,7 @@ export async function chargerSessionPourFacturation(sessionId: string) {
       formation: { select: { titre: true } },
       company: true,
       trainer: { select: { prenom: true, nom: true } },
-      inscriptions: { where: { learner: { deletedAt: null } }, select: { learner: true } },
+      inscriptions: { where: { learner: { deletedAt: null } }, select: { learner: true, prixHT: true } },
       factures: { where: { statut: { not: "ANNULEE" } }, select: { id: true, learnerId: true, origine: true } },
     },
   });
@@ -36,16 +36,31 @@ export async function chargerSessionPourFacturation(sessionId: string) {
 
 type Session = NonNullable<Awaited<ReturnType<typeof chargerSessionPourFacturation>>>;
 
+/// `montantHT` : prix de la session pour l'entreprise ; pour une facture
+/// personnelle, le tarif indiqué à l'inscription de l'apprenant.
 type Destinataire =
-  | { type: "ENTREPRISE"; company: Company }
-  | { type: "APPRENANT"; learner: Learner }
-  | { type: "CAISSE_DES_DEPOTS"; learner: Learner };
+  | { type: "ENTREPRISE"; company: Company; montantHT: string }
+  | { type: "APPRENANT"; learner: Learner; montantHT: string }
+  | { type: "CAISSE_DES_DEPOTS"; learner: Learner; montantHT: string };
 
 const IDENTIFIANT_SIRET = /^\d{14}$/;
 
 function destinataires(session: Session): { liste: Destinataire[] } | { erreur: string } {
-  if (session.company) return { liste: [{ type: "ENTREPRISE", company: session.company }] };
+  if (session.company) {
+    if (session.prixHT === null) return { erreur: "le prix de la session n'est pas renseigné" };
+    return { liste: [{ type: "ENTREPRISE", company: session.company, montantHT: Number(session.prixHT).toFixed(2) }] };
+  }
   const apprenants = session.inscriptions.map((i) => i.learner);
+  // Tarif de l'inscription ; à défaut (inscription antérieure au tarif), le
+  // prix de la session.
+  const tarif = (learner: Learner) => {
+    const prix = session.inscriptions.find((i) => i.learner.id === learner.id)?.prixHT ?? session.prixHT;
+    return prix === null ? null : Number(prix).toFixed(2);
+  };
+  const sansTarif = apprenants.filter((a) => tarif(a) === null);
+  if (sansTarif.length > 0) {
+    return { erreur: `tarif non renseigné pour ${sansTarif.map((a) => `${a.prenom} ${a.nom}`).join(", ")} (liste des inscrits de la session)` };
+  }
   if (apprenants.length === 0) return { erreur: "aucune entreprise cliente et aucun apprenant inscrit : impossible de savoir qui facturer" };
 
   const cpf = apprenants.filter((a) => a.financement === "CPF");
@@ -64,8 +79,8 @@ function destinataires(session: Session): { liste: Destinataire[] } | { erreur: 
   }
   return {
     liste: [
-      ...cpf.map((learner): Destinataire => ({ type: "CAISSE_DES_DEPOTS", learner })),
-      ...autres.map((learner): Destinataire => ({ type: "APPRENANT", learner })),
+      ...cpf.map((learner): Destinataire => ({ type: "CAISSE_DES_DEPOTS", learner, montantHT: tarif(learner)! })),
+      ...autres.map((learner): Destinataire => ({ type: "APPRENANT", learner, montantHT: tarif(learner)! })),
     ],
   };
 }
@@ -288,8 +303,6 @@ export async function genererFacturesHenrriPourSession(sessionId: string, userId
   if (session.factures.some((f) => f.origine === "MANUEL")) {
     throw new HenrriError("Une facture saisie à la main existe déjà pour cette session.");
   }
-  if (session.prixHT === null) throw new HenrriError("Le prix de la session n'est pas renseigné.");
-
   const d = destinataires(session);
   if ("erreur" in d) throw new HenrriError(`Facturation automatique impossible : ${d.erreur}.`);
   const aEmettre = d.liste.filter((x) =>
@@ -368,14 +381,14 @@ async function emettreFacture(
     body: JSON.stringify({
       typeId: types.ligneTypeId,
       description: ligneDescription,
-      sellingPriceWithoutTax: Number(session.prixHT),
+      sellingPriceWithoutTax: Number(d.montantHT),
       quantity: 1,
       vatPercent: Number(TAUX_TVA),
       isTaxIncluded: false,
       item: {
         description: ligneDescription,
         itemCategoryId: types.itemCategoryId,
-        sellingPriceWithoutTax: Number(session.prixHT),
+        sellingPriceWithoutTax: Number(d.montantHT),
         vatPercent: Number(TAUX_TVA),
         isTaxIncluded: false,
       },
@@ -392,7 +405,7 @@ async function emettreFacture(
   }
 
   const apprenant = d.type === "ENTREPRISE" ? null : d.learner;
-  const montantHT = Number(session.prixHT).toFixed(2);
+  const montantHT = d.montantHT;
   const facture = await prisma.facture.create({
     data: {
       numero: finalise.identity,

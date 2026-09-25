@@ -619,6 +619,11 @@ model SessionLearner {
   learnerId String
   learner   Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
 
+  /// Tarif HT de cet apprenant pour cette session, indiqué à l'inscription
+  /// (pré-rempli avec le prix de la session). C'est le montant de sa facture
+  /// personnelle (dossier CPF, apprenant qui paie lui-même).
+  prixHT Decimal? @db.Decimal(10, 2)
+
   createdAt DateTime @default(now())
 
   @@unique([sessionId, learnerId])
