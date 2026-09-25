@@ -276,11 +276,11 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   - sinon, **une facture par apprenant financé par le CPF**, adressée à la
     **Caisse des Dépôts et Consignations** (décision du client du
     25/09/2026 : EDOF facture dossier par dossier). L'identité de
-    l'apprenant, son numéro de dossier CPF et le numéro d'offre
-    (`learners.numeroDossierCpf`, `learners.numeroOffreCpf`) figurent dans le
-    **corps** de la facture (sous-titre et ligne), jamais dans les
-    coordonnées du client. Sans ces deux numéros : échec clair, alerte au
-    tableau de bord ;
+    l'apprenant et son numéro de dossier CPF (`learners.numeroDossierCpf`)
+    figurent dans le **corps** de la facture (sous-titre et ligne), jamais
+    dans les coordonnées du client. Le numéro d'offre, référence interne,
+    n'y figure pas (choix du client). Sans numéro de dossier : échec clair,
+    alerte au tableau de bord ;
   - un apprenant hors CPF sans entreprise paie lui-même ; plusieurs dans ce
     cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
   Un destinataire déjà facturé est passé : une relance ne crée que les

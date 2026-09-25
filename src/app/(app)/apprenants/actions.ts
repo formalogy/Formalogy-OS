@@ -62,7 +62,6 @@ const schemaApprenant = z.object({
   statut: z.enum(STATUTS),
   financement: z.enum(TYPES),
   numeroDossierCpf: texteFacultatif,
-  numeroOffreCpf: texteFacultatif,
   notes: texteFacultatif,
 });
 

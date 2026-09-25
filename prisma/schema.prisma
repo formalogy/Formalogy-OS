@@ -403,10 +403,9 @@ model Learner {
 
   /// Numéro du dossier CPF (moncompteformation.gouv.fr), pour un financement
   /// personnel via le compte personnel de formation.
+  /// Avec l'identité de l'apprenant, il figure sur la facture adressée à la
+  /// Caisse des Dépôts.
   numeroDossierCpf String?
-  /// Numéro de l'offre CPF achetée (EDOF). Avec le numéro de dossier et
-  /// l'identité, il figure sur la facture adressée à la Caisse des Dépôts.
-  numeroOffreCpf String?
 
   notes String?
 

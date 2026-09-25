@@ -111,14 +111,8 @@ export function FormulaireApprenant({ entreprises, initiales }: Props) {
         <Champ
           nom="numeroDossierCpf"
           libelle="Numéro de dossier CPF"
-          aide="Pour un financement personnel via moncompteformation.gouv.fr."
+          aide="Pour un financement CPF : il figure sur la facture adressée à la Caisse des Dépôts."
           valeurParDefaut={v("numeroDossierCpf")}
-        />
-        <Champ
-          nom="numeroOffreCpf"
-          libelle="Numéro d'offre CPF"
-          aide="Figure avec le numéro de dossier sur la facture adressée à la Caisse des Dépôts."
-          valeurParDefaut={v("numeroOffreCpf")}
         />
         <div className="sm:col-span-2">
           <ChampLong nom="notes" libelle="Notes" valeurParDefaut={v("notes")} />

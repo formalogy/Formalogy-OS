@@ -17,8 +17,8 @@ import { stockage } from "@/lib/stockage";
 /// - session avec une entreprise cliente : une facture, à l'entreprise ;
 /// - sinon, une facture par apprenant financé par le CPF, adressée à la Caisse
 ///   des Dépôts (EDOF facture dossier par dossier), avec l'identité de
-///   l'apprenant, son numéro de dossier et le numéro de l'offre dans le corps
-///   de la facture (décision du client du 25/09/2026) ;
+///   l'apprenant et son numéro de dossier CPF dans le corps de la facture
+///   (décision du client du 25/09/2026) ;
 /// - un apprenant hors CPF sans entreprise paie lui-même ; plusieurs dans ce
 ///   cas n'ont pas de payeur évident : échec clair plutôt que de deviner.
 export async function chargerSessionPourFacturation(sessionId: string) {
@@ -56,10 +56,10 @@ function destinataires(session: Session): { liste: Destinataire[] } | { erreur: 
     };
   }
   // Une facture de dossier CPF sans ses références ne sert à rien dans EDOF.
-  const incomplets = cpf.filter((a) => !a.numeroDossierCpf?.trim() || !a.numeroOffreCpf?.trim());
+  const incomplets = cpf.filter((a) => !a.numeroDossierCpf?.trim());
   if (incomplets.length > 0) {
     return {
-      erreur: `numéro de dossier ou d'offre CPF manquant sur la fiche de ${incomplets.map((a) => `${a.prenom} ${a.nom}`).join(", ")}`,
+      erreur: `numéro de dossier CPF manquant sur la fiche de ${incomplets.map((a) => `${a.prenom} ${a.nom}`).join(", ")}`,
     };
   }
   return {
@@ -343,7 +343,7 @@ async function emettreFacture(
   // (sous-titre et ligne), là où EDOF et la Caisse des Dépôts les cherchent.
   const references =
     d.type === "CAISSE_DES_DEPOTS"
-      ? `Apprenant : ${d.learner.prenom} ${d.learner.nom} · Dossier CPF n° ${d.learner.numeroDossierCpf} · Offre n° ${d.learner.numeroOffreCpf}`
+      ? `Apprenant : ${d.learner.prenom} ${d.learner.nom} · Dossier CPF n° ${d.learner.numeroDossierCpf}`
       : null;
   const echeance = ajouterJours(aujourdhuiUTC(), 30);
 

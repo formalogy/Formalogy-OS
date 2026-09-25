@@ -40,7 +40,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       inscriptions: {
         where: { learner: { deletedAt: null } },
         select: {
-          learner: { select: { id: true, prenom: true, nom: true, email: true, financement: true, numeroDossierCpf: true, numeroOffreCpf: true } },
+          learner: { select: { id: true, prenom: true, nom: true, email: true, financement: true, numeroDossierCpf: true } },
         },
       },
       evaluations: { select: { learnerId: true } },
@@ -73,16 +73,16 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       }
     }
 
-    // Dossiers CPF : sans numéro de dossier et d'offre, pas de facture à la
-    // Caisse des Dépôts. À compléter avant la fin, tant que rien n'est émis.
+    // Dossiers CPF : sans numéro de dossier, pas de facture à la Caisse des
+    // Dépôts. À compléter avant la fin, tant que rien n'est émis.
     if (!s.companyId && s.factures.length === 0) {
       const incomplets = s.inscriptions
         .map((i) => i.learner)
-        .filter((l) => l.financement === "CPF" && (!l.numeroDossierCpf?.trim() || !l.numeroOffreCpf?.trim()));
+        .filter((l) => l.financement === "CPF" && !l.numeroDossierCpf?.trim());
       for (const l of incomplets) {
         alertes.push({
           niveau: achevee ? "bloquant" : "attente",
-          texte: `${s.numero} : numéro de dossier ou d'offre CPF à compléter pour ${l.prenom} ${l.nom} (facture à la Caisse des Dépôts).`,
+          texte: `${s.numero} : numéro de dossier CPF à compléter pour ${l.prenom} ${l.nom} (facture à la Caisse des Dépôts).`,
           lien: `/apprenants/${l.id}/modifier`,
         });
       }
