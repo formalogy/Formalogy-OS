@@ -50,21 +50,29 @@ export default async function PageEntreprise({
 
   return (
     <>
-      <header className="mb-6">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link
+            href="/entreprises"
+            className="text-[12.5px] font-semibold text-accent-fort hover:underline"
+          >
+            ← Entreprises
+          </Link>
+          <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
+            {entreprise.raisonSociale}
+          </h1>
+          {entreprise.createdBy && (
+            <p className="mt-1 text-[12px] text-texte-tenu">
+              Fiche créée par {entreprise.createdBy.name}
+            </p>
+          )}
+        </div>
         <Link
-          href="/entreprises"
-          className="text-[12.5px] font-semibold text-accent-fort hover:underline"
+          href={`/entreprises/${entreprise.id}/modifier`}
+          className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[12.5px] font-semibold text-accent-fort shadow-sm hover:bg-surface-creuse"
         >
-          ← Entreprises
+          Modifier
         </Link>
-        <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
-          {entreprise.raisonSociale}
-        </h1>
-        {entreprise.createdBy && (
-          <p className="mt-1 text-[12px] text-texte-tenu">
-            Fiche créée par {entreprise.createdBy.name}
-          </p>
-        )}
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -72,6 +80,7 @@ export default async function PageEntreprise({
           <h2 className="mb-3 text-[14.5px] font-bold">Informations</h2>
           <dl>
             <Ligne libelle="SIRET" valeur={entreprise.siret} />
+            <Ligne libelle="Code APE" valeur={entreprise.codeApe} />
             <Ligne
               libelle="Adresse"
               valeur={[entreprise.adresse, [entreprise.codePostal, entreprise.ville].filter(Boolean).join(" ")]

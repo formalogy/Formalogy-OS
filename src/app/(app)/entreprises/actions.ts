@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { normaliserCodeApe, rechercherEntreprise, type EntrepriseTrouvee } from "@/lib/annuaire-entreprises";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -38,6 +39,9 @@ const schemaEntreprise = z.object({
     (valeur) => valeur === undefined || /^\d{14}$/.test(valeur.replace(/\s/g, "")),
     "Le SIRET doit comporter exactement 14 chiffres.",
   ),
+  codeApe: texteFacultatif
+    .refine((valeur) => valeur === undefined || /^\d{2}\.?\d{2}[A-Za-z]$/.test(valeur.replace(/\s/g, "")), "Le code APE s'écrit 4 chiffres et une lettre, par exemple 8559A.")
+    .transform((valeur) => (valeur === undefined ? undefined : normaliserCodeApe(valeur))),
   adresse: texteFacultatif,
   codePostal: texteFacultatif,
   ville: texteFacultatif,
@@ -142,4 +146,67 @@ export async function creerContact(
 
   revalidatePath(`/entreprises/${entreprise.id}`);
   return {};
+}
+
+/// Modifie une fiche entreprise existante. Un SIRET ne peut appartenir qu'à
+/// une seule entreprise.
+export async function modifierEntreprise(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const id = String(donnees.get("id") ?? "");
+  const existante = await prisma.company.findFirst({ where: { id, deletedAt: null } });
+  if (!existante) return { erreur: "Entreprise introuvable." };
+
+  const resultat = schemaEntreprise.safeParse(Object.fromEntries(donnees));
+  if (!resultat.success) {
+    return { erreur: resultat.error.issues[0]?.message ?? "Saisie invalide.", valeurs: saisie(donnees) };
+  }
+  const donneesValides = resultat.data;
+  const siret = donneesValides.siret?.replace(/\s/g, "");
+  if (siret) {
+    const doublon = await prisma.company.findFirst({ where: { siret, deletedAt: null, id: { not: id } } });
+    if (doublon) return { erreur: `Ce SIRET est déjà enregistré pour ${doublon.raisonSociale}.`, valeurs: saisie(donnees) };
+  }
+
+  // Un champ vidé dans le formulaire s'efface en base.
+  const vide = (valeur: string | undefined) => valeur ?? null;
+  await prisma.company.update({
+    where: { id },
+    data: {
+      raisonSociale: donneesValides.raisonSociale,
+      siret: siret ?? null,
+      codeApe: vide(donneesValides.codeApe),
+      adresse: vide(donneesValides.adresse),
+      codePostal: vide(donneesValides.codePostal),
+      ville: vide(donneesValides.ville),
+      telephone: vide(donneesValides.telephone),
+      email: vide(donneesValides.email),
+      siteWeb: vide(donneesValides.siteWeb),
+      notes: vide(donneesValides.notes),
+    },
+  });
+  await journaliser({
+    action: "company.updated",
+    summary: `Entreprise modifiée : ${donneesValides.raisonSociale}`,
+    entityType: "Company",
+    entityId: id,
+    userId: utilisateur.id,
+  });
+  revalidatePath("/entreprises");
+  revalidatePath(`/entreprises/${id}`);
+  redirect(`/entreprises/${id}`);
+}
+
+export type ResultatRecherche = { entreprise?: EntrepriseTrouvee; erreur?: string };
+
+/// Recherche dans l'annuaire public des entreprises, depuis le formulaire,
+/// pour en pré-remplir les champs à la saisie du SIRET.
+export async function rechercherEntrepriseParSiret(siret: string): Promise<ResultatRecherche> {
+  await exigerRole("ADMIN", "GESTIONNAIRE");
+  try {
+    const entreprise = await rechercherEntreprise(siret);
+    if (!entreprise) return { erreur: "Aucune entreprise trouvée pour ce numéro dans l'annuaire des entreprises." };
+    return { entreprise };
+  } catch (erreur) {
+    return { erreur: erreur instanceof Error ? erreur.message : "Recherche impossible pour le moment." };
+  }
 }

@@ -365,14 +365,27 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
   session annulée).
 
+## Entreprises
+
+- Fiche entreprise : création et **modification** (`/entreprises/[id]/modifier`),
+  avec un champ **code APE** (`companies.codeApe`, forme « 8559A »), repris
+  dans la convention (marqueur `«CODE_APE»`).
+- **Recherche par SIRET** : à la saisie des 14 chiffres (ou via « Rechercher »,
+  qui accepte aussi un SIREN), le serveur interroge l'**annuaire public des
+  entreprises** de l'État (`recherche-entreprises.api.gouv.fr`, gratuit, sans
+  clé ; `lib/annuaire-entreprises.ts`) et remplit les champs **encore vides**
+  (raison sociale, adresse de l'établissement, code postal, ville, code APE) ;
+  « Remplacer par les données de l'annuaire » écrase les autres. Un
+  établissement fermé est signalé.
+
 ## Documents générés
 
 - **Conventions** : modèles Word déposés dans Documents, types
   `MODELE_CONVENTION_PARTICULIER` et `MODELE_CONVENTION_ENTREPRISE` (session
   avec ou sans entreprise). Marqueurs `«NOM»` remplis par
   `lib/conventions-docx.ts` (valeurs dans `lib/conventions.ts`). Les
-  `MARQUEURS_SANS_SOURCE` (civilité, moyens pédagogiques, code APE,
-  représentant légal…) n'ont aucune donnée en base : ils restent visibles
+  `MARQUEURS_SANS_SOURCE` (civilité, moyens pédagogiques, représentant
+  légal…) n'ont aucune donnée en base : ils restent visibles
   tels quels (`«CIVILITE»`) dans la convention, à compléter à la main ; `«TRAIT»`
   est un marqueur de mise en page (filet). Le Word rempli est converti en PDF
   par un moteur maison (`lib/docx-vers-pdf.ts`, sans LibreOffice : aucune

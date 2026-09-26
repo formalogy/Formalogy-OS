@@ -233,6 +233,9 @@ model Company {
   /// 14 chiffres. Non obligatoire : une entreprise peut être créée avant
   /// que l'on dispose de son SIRET.
   siret         String?
+  /// Code APE (activité principale, nomenclature NAF), ex. « 8559A ».
+  /// Repris dans la convention de formation.
+  codeApe       String?
   adresse       String?
   codePostal    String?
   ville         String?
