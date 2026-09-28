@@ -1,5 +1,6 @@
 import "server-only";
 
+import { joursDeSession } from "@/lib/emargement";
 import { prisma } from "@/lib/prisma";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
 
@@ -14,6 +15,7 @@ export type AlerteDeroulement = {
 };
 
 const jour = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" });
+const jourCourt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 /// Au-delà, une session achevée ne fait plus l'objet d'alertes.
 const JOURS_DE_SUIVI = 90;
@@ -35,6 +37,8 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       statut: true,
       dateFin: true,
       deroulementSuspenduAt: true,
+      dateDebut: true,
+      feuillesSignees: { select: { jour: true } },
       trainer: { select: { prenom: true, nom: true, email: true } },
       inscriptions: {
         where: { learner: { deletedAt: null } },
@@ -84,6 +88,20 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
         niveau: achevee ? "bloquant" : "attente",
         texte: `${s.numero} : numéro de dossier CPF à compléter pour ${l.prenom} ${l.nom} (facture à la Caisse des Dépôts).`,
         lien: `/apprenants/${l.id}/modifier`,
+      });
+    }
+
+    // Feuilles d'émargement signées : le formateur est relancé chaque soir ;
+    // passé le lendemain de la fin, une feuille manquante devient à régler
+    // (preuve de présence exigée par Qualiopi et les financeurs).
+    const manquantes = joursDeSession(s.dateDebut, s.dateFin).filter(
+      (j) => j < aujourdhui && !s.feuillesSignees.some((f) => f.jour.getTime() === j.getTime()),
+    );
+    if (manquantes.length > 0) {
+      alertes.push({
+        niveau: s.dateFin < ajouterJours(aujourdhui, -1) ? "bloquant" : "attente",
+        texte: `${s.numero} : feuille${manquantes.length > 1 ? "s" : ""} d'émargement signée${manquantes.length > 1 ? "s" : ""} pas encore reçue${manquantes.length > 1 ? "s" : ""} (${manquantes.map((j) => jourCourt.format(j)).join(", ")}).`,
+        lien: `/sessions/${s.id}/emargement`,
       });
     }
 

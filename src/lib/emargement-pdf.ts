@@ -35,12 +35,13 @@ const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "num
 /// Seules les demi-journées déjà commencées sont produites : une feuille ne
 /// se fait signer que le jour même, jamais à l'avance. `seulementCeJour` ne
 /// garde que les deux demi-journées du jour (feuille envoyée au formateur
-/// chaque matin de session).
+/// chaque matin de session) ; `jours` ne garde que les jours donnés (feuilles
+/// manquantes renvoyées avec une relance).
 export async function genererFeuillesEmargement(
   session: Session,
   organisme: string,
   aujourdhui: Date,
-  options: { seulementCeJour?: boolean } = {},
+  options: { seulementCeJour?: boolean; jours?: Date[] } = {},
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Émargement ${session.numero}`);
@@ -55,7 +56,9 @@ export async function genererFeuillesEmargement(
   const formateur = session.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : "non renseigné";
   const horaires = horairesDemiJournees(session.horaires);
   const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui).filter(
-    ({ jour }) => !options.seulementCeJour || jour.getTime() === aujourdhui.getTime(),
+    ({ jour }) =>
+      (!options.seulementCeJour || jour.getTime() === aujourdhui.getTime()) &&
+      (!options.jours || options.jours.some((j) => j.getTime() === jour.getTime())),
   );
 
   for (const { jour, creneau } of demiJournees) {

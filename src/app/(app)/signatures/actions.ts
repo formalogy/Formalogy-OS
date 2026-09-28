@@ -172,8 +172,11 @@ export async function releverBoiteMaintenant(): Promise<EtatReleve> {
   const bilan = await releverBoite();
   if (bilan.erreur) return { erreur: bilan.erreur };
   revalidatePath("/signatures");
-  if (bilan.examines === 0) return { message: "Aucun nouvel email de BoldSign." };
+  const feuilles = bilan.feuillesEmargement
+    ? ` ${bilan.feuillesEmargement} feuille(s) d'émargement signée(s) rangée(s).`
+    : "";
+  if (bilan.examines === 0) return { message: `Aucun nouvel email de BoldSign.${feuilles}` };
   return {
-    message: `${bilan.examines} email(s) examiné(s) : ${bilan.rapproches} document(s) signé(s) enregistré(s)${bilan.aVerifier ? `, ${bilan.aVerifier} à vérifier` : ""}.`,
+    message: `${bilan.examines} email(s) examiné(s) : ${bilan.rapproches} document(s) signé(s) enregistré(s)${bilan.aVerifier ? `, ${bilan.aVerifier} à vérifier` : ""}.${feuilles}`,
   };
 }

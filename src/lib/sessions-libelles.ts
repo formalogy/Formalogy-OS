@@ -150,7 +150,7 @@ export function listeDeControle(session: {
     { libelle: "Programme déposé", fait: session.programmeDisponible },
     { libelle: "Convocations envoyées", fait: session.convocationsEnvoyees },
     { libelle: "Présences (sauf absences signalées)", fait: session.sessionPassee },
-    { libelle: "Feuilles d'émargement déposées", fait: session.feuilleEmargementDeposee },
+    { libelle: "Feuilles d'émargement signées reçues", fait: session.feuilleEmargementDeposee },
     { libelle: "Évaluations des acquis", fait: session.evaluationsCompletes },
     { libelle: "Attestations", fait: session.attestationsCompletes },
     ...(session.financementEnregistre === null ? [] : [{ libelle: "Financement enregistré", fait: session.financementEnregistre }]),

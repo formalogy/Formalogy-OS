@@ -27,3 +27,24 @@ export function emailAuthentifieBoldSign(lignes: readonly { key: string; line: s
         /\bheader\.(?:i|d)=@?(?:[a-z0-9-]+\.)*boldsign\.com(?=\s|$)/i.test(partie),
     );
 }
+
+/// Vérifie qu'un email reçu par Gmail vient réellement du domaine de son
+/// expéditeur (formateur qui renvoie sa feuille d'émargement, par exemple) :
+/// signature DKIM valide pour ce domaine, ou à défaut autorisation SPF de
+/// son serveur d'envoi. Même règle que pour BoldSign : seul le premier en-tête
+/// « Authentication-Results », ajouté par Gmail, fait foi.
+export function emailAuthentifiePour(lignes: readonly { key: string; line: string }[], domaine: string): boolean {
+  const premier = lignes.find((l) => l.key === "authentication-results");
+  if (!premier || !domaine) return false;
+
+  const valeur = premier.line.replace(/^authentication-results:\s*/i, "").replace(/\s+/g, " ");
+  if (!/^mx\.google\.com\s*;/i.test(valeur)) return false;
+
+  const echappe = domaine.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const dkim = new RegExp(`\\bheader\\.(?:i|d)=@?(?:[a-z0-9-]+\\.)*${echappe}(?=\\s|$)`, "i");
+  const spf = new RegExp(`\\bsmtp\\.mailfrom=(?:[^\\s@]+@)?(?:[a-z0-9-]+\\.)*${echappe}(?=\\s|$)`, "i");
+  return valeur
+    .split(";")
+    .map((partie) => partie.trim())
+    .some((partie) => (/^dkim=pass\b/i.test(partie) && dkim.test(partie)) || (/^spf=pass\b/i.test(partie) && spf.test(partie)));
+}

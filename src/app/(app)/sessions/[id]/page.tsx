@@ -9,6 +9,7 @@ import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-stat
 import { FacturationInscription } from "@/app/(app)/sessions/[id]/facturation-inscription";
 import { desinscrireApprenant } from "@/app/(app)/sessions/actions";
 import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
+import { joursDeSession } from "@/lib/emargement";
 import { financeursConnus } from "@/lib/financeurs-connus";
 import { decrirePayeur, type PayeurInscription } from "@/lib/inscriptions-facturation";
 import { formaterEuros } from "@/lib/crm-libelles";
@@ -60,6 +61,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           dossierFinancement: { select: { financeurNom: true, reference: true, email: true } },
         },
       },
+      feuillesSignees: { select: { jour: true } },
       documents: {
         ...SELECTION_DOCUMENT_RESUME,
         select: {
@@ -114,7 +116,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     convocationsEnvoyees:
       session.inscriptions.length > 0 && session.inscriptions.every((i) => session.emails.some((e) => e.learnerId === i.learner.id)),
     sessionPassee: session.dateFin < aujourdhuiUTC(),
-    feuilleEmargementDeposee: session.documents.some((d) => d.type?.code === "EMARGEMENT"),
+    // Chaque jour passé de la session a sa feuille signée.
+    feuilleEmargementDeposee:
+      session.dateDebut <= aujourdhuiUTC() &&
+      joursDeSession(session.dateDebut, session.dateFin)
+        .filter((j) => j <= aujourdhuiUTC())
+        .every((j) => session.feuillesSignees.some((f) => f.jour.getTime() === j.getTime())),
     factureEmise: session.factures.some((f) => f.statut === "EMISE" || f.statut === "PAYEE"),
     // La ligne n'apparaît que si un dossier de financement existe.
     financementEnregistre: session.dossiers.length === 0 ? null : true,

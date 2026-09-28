@@ -8,6 +8,8 @@ import { z } from "zod";
 
 import { genererConvention, genererConvocationApprenant } from "@/lib/conventions";
 import { sessionEmargementAutomatique } from "@/lib/emargement-acces";
+import { joursDeSession } from "@/lib/emargement";
+import { joursSansFeuille, libelleJour } from "@/lib/emargement-feuilles";
 import { genererFeuillesEmargement } from "@/lib/emargement-pdf";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
@@ -62,6 +64,13 @@ const schemaAction = z.discriminatedUnion("type", [
     /// l'entreprise cliente, sinon une par dossier CPF (Caisse des Dépôts).
     /// Sans paramètre : payeurs et montant se déduisent de la session.
     type: z.literal("FACTURE_HENRRI"),
+  }),
+  z.object({
+    /// Relance le formateur quand des feuilles d'émargement signées manquent
+    /// (automatisation A-05) : jours concernés dans l'email (modèle
+    /// EMARGEMENT_RELANCE), feuilles jointes à nouveau. Rien ne part quand
+    /// tout est arrivé.
+    type: z.literal("RELANCE_EMARGEMENT"),
   }),
   z.object({
     /// Génère l'attestation et le certificat de réalisation des apprenants
@@ -135,6 +144,7 @@ type Comptes = ComptesEnvoi & {
   documentsAbsents: number;
   sansFormateur: number;
   factureAbsente: number;
+  feuillesRecues: number;
 };
 
 /// Le jour prévu, un envoi attend l'heure dite (heure de Paris). Un réveil
@@ -374,6 +384,79 @@ async function envoyerAuFormateur(p: {
   else comptes.emails++;
 }
 
+/// Relance du formateur pour les feuilles d'émargement signées pas encore
+/// arrivées (A-05) : jours passés de la session sans feuille, jusqu'à
+/// aujourd'hui compris. Une relance au plus par jour et par formateur ; les
+/// feuilles manquantes sont jointes à nouveau, prêtes à imprimer.
+async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: Comptes }) {
+  const { cas, executionId, comptes } = p;
+  if (!cas.sessionId) return;
+  const modele = await prisma.emailTemplate.findUnique({ where: { code: "EMARGEMENT_RELANCE" } });
+  if (!modele?.actif) throw new Error("Modèle d'email « EMARGEMENT_RELANCE » introuvable ou désactivé.");
+
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: cas.sessionId },
+    select: { id: true, dateDebut: true, dateFin: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
+  });
+  if (!session) return;
+  const manquants = await joursSansFeuille(session, aujourdhuiUTC());
+  if (manquants.length === 0) {
+    comptes.feuillesRecues++;
+    return;
+  }
+  const formateur = session.trainer && !session.trainer.deletedAt ? session.trainer : null;
+  if (!formateur) {
+    comptes.sansFormateur++;
+    return;
+  }
+  if (!formateur.email) {
+    comptes.sansAdresse++;
+    return;
+  }
+  const deja = await prisma.email.count({
+    where: {
+      templateId: modele.id,
+      sessionId: session.id,
+      destinataire: formateur.email,
+      statut: { not: "ECHEC" },
+      automationRunId: { not: null },
+      envoyeAt: { gte: aujourdhuiUTC() },
+    },
+  });
+  if (deja > 0) {
+    comptes.dejaServis++;
+    return;
+  }
+
+  const emargement = await sessionEmargementAutomatique(session.id);
+  const piecesJointes: PieceJointe[] = emargement
+    ? [
+        {
+          nom: `Emargement-${emargement.numero}-a-renvoyer.pdf`,
+          contenu: await genererFeuillesEmargement(emargement, (await lireOrganisme()).raisonSociale, aujourdhuiUTC(), { jours: manquants }),
+          typeMime: "application/pdf",
+        },
+      ]
+    : [];
+  const contexte = await construireContexte({
+    trainerId: formateur.id,
+    sessionId: session.id,
+    joursEmargement: manquants.map(libelleJour).join(", "),
+  });
+  const email = await envoyerEmail({
+    destinataire: formateur.email,
+    sujet: rendre(modele.sujet, contexte).resultat,
+    corps: rendre(modele.corps, contexte).resultat,
+    templateId: modele.id,
+    sessionId: session.id,
+    automationRunId: executionId,
+    piecesJointes,
+  });
+  if (email.statut === "SIMULE") comptes.simules++;
+  else if (email.statut === "ECHEC") throw new Error(`Relance au formateur (${formateur.email}) : ${email.erreur}`);
+  else comptes.emails++;
+}
+
 /// Email au payeur de la facture émise pour la session, avec son PDF. Sans
 /// facture émise, sans PDF ou sans adresse, rien ne part : le tableau de
 /// bord le signale, pour une intervention à la main.
@@ -475,6 +558,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     documentsAbsents: 0,
     sansFormateur: 0,
     factureAbsente: 0,
+    feuillesRecues: 0,
   };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
@@ -688,6 +772,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         comptes.factures += (await genererFacturesHenrriPourSession(cas.sessionId, undefined)).length;
       }
 
+      if (action.type === "RELANCE_EMARGEMENT") {
+        await relancerEmargement({ cas, executionId, comptes });
+      }
+
       if (action.type === "DOCUMENTS_FIN_FORMATION") {
         if (!cas.sessionId) throw new Error("Documents de fin de formation : aucune session associée à ce cas.");
         // Les apprenants dont les présences ou l'évaluation manquent sont
@@ -709,6 +797,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.documentsAbsents && `${comptes.documentsAbsents} envoi(s) en attente d'un document (évaluation des acquis ou PDF de facture pas encore disponible)`,
       comptes.sansFormateur && "aucun formateur affecté à la session",
       comptes.factureAbsente && "aucune facture émise pour la session",
+      comptes.feuillesRecues && "toutes les feuilles d'émargement signées sont arrivées",
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
       comptes.dejaServis && `${comptes.dejaServis} destinataire(s) déjà servi(s)`,
       comptes.sansAdresse && `${comptes.sansAdresse} destinataire(s) sans adresse email`,
@@ -997,8 +1086,8 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     }
   }
 
-  // Chaque jour de session, du premier au dernier : un cas par session et par
-  // jour (feuille d'émargement du jour envoyée au formateur).
+  // Chaque jour de formation, du premier au dernier : un cas par session et
+  // par jour (feuille d'émargement du jour le matin, relance le soir).
   for (const automation of await automationsActives("SESSION_JOUR")) {
     if (avantLHeure(aujourdhui, lireRegle(automation).parametres.heure)) continue;
     const sessions = await prisma.trainingSession.findMany({
@@ -1010,6 +1099,9 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
       },
     });
     for (const session of sessions) {
+      // Seulement les vrais jours de formation : un samedi ou un dimanche au
+      // milieu de la session n'a ni feuille ni relance.
+      if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) continue;
       compter(
         await traiterCas(automation, {
           cle: `${automation.id}:session:${session.id}:jour:${aujourdhui.toISOString().slice(0, 10)}`,

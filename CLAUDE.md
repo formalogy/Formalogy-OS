@@ -181,7 +181,9 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 - Documents de plus de 5 Mo : BoldSign ne les joint pas, dépôt manuel.
 - La relève de la boîte (`lib/signatures/boite-mail.ts`, IMAP en lecture seule)
   tourne avec le réveil `POST /api/automatisations/executer` et via le bouton
-  « Relever la boîte maintenant ». À planifier toutes les heures en Phase 18.
+  « Relever la boîte maintenant ». Elle range aussi les feuilles d'émargement
+  signées renvoyées par les formateurs (voir Émargement). À planifier toutes
+  les heures en Phase 18.
 
 ## Émargement
 
@@ -196,6 +198,27 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   saisissent que pour une absence (présomption de présence, voir
   « Déroulement sans intervention »), par l'équipe ou par le formateur de la
   session, jamais pour un jour à venir.
+- **Feuilles signées, une par jour de formation** (`feuilles_emargement_signees`,
+  automatisation A-05 du client, 28/09/2026) : le formateur renvoie la feuille
+  du jour **en répondant à l'email du matin** (photo ou scan) ; la relève de
+  la boîte Gmail la reconnaît par l'en-tête `In-Reply-To` (identifiant de
+  notre email, `emails.fournisseurId`), n'accepte que l'adresse à laquelle
+  l'email est parti et un expéditeur authentifié par Gmail (DKIM ou SPF,
+  `emailAuthentifiePour`), assemble pièces jointes PDF/JPEG/PNG en un seul PDF
+  (photos redressées selon leur orientation EXIF) et la range pour le bon jour
+  (`lib/emargement-boite.ts`, `lib/emargement-feuilles.ts`). Une réponse à
+  une relance n'est attribuée que si un seul jour manquait. À défaut, dépôt
+  jour par jour sur l'écran d'émargement (section « Feuilles signées »), par
+  l'équipe ou le formateur ; un nouveau dépôt ajoute une version.
+- **Relance** (action `RELANCE_EMARGEMENT`, modèle `EMARGEMENT_RELANCE`) :
+  chaque jour de formation à 18 h, puis le lendemain de la fin à 10 h, le
+  formateur est relancé pour les jours sans feuille, feuilles jointes ; une
+  relance au plus par jour, rien quand tout est arrivé. Les feuilles
+  manquantes apparaissent au tableau de bord (« À surveiller »). Les
+  apprenants ne sont pas relancés : ils signent sur papier en salle.
+- Le déclencheur « chaque jour » (`SESSION_JOUR`) ne vise que les jours de
+  formation (`joursDeSession`) : les samedis et dimanches au milieu d'une
+  session n'ont ni feuille ni relance.
 
 ## Fin de formation
 

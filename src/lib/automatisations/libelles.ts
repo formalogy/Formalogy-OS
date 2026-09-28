@@ -12,7 +12,7 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   SESSION_AVANT_FIN: "Quelques jours avant la fin d'une session (0 = le dernier jour)",
   SESSION_APRES_FIN: "Quelques jours après la fin d'une session",
   SESSION_TERMINEE: "Quand une session passe à « Terminée » (seule, le lendemain de son dernier jour) ou « Clôturée »",
-  SESSION_JOUR: "Chaque jour de la session, du premier au dernier",
+  SESSION_JOUR: "Chaque jour de formation de la session (samedis et dimanches intermédiaires exclus)",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
   CAMPAGNE_ANNUELLE: "Chaque année à date fixe",
 };
@@ -100,6 +100,9 @@ export function decrireAction(action: unknown): string {
   }
   if (a.type === "FACTURE_HENRRI") {
     return "Émettre automatiquement la facture dans Henrri (entreprise cliente ; sinon une par dossier CPF, à la Caisse des Dépôts ; sinon l'apprenant) et la ranger dans le dossier de l'apprenant";
+  }
+  if (a.type === "RELANCE_EMARGEMENT") {
+    return "Relancer le formateur si des feuilles d'émargement signées manquent, en les lui renvoyant (rien ne part quand tout est arrivé)";
   }
   if (a.type === "DOCUMENTS_FIN_FORMATION") {
     return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";

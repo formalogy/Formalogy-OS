@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { nombreAbsences } from "@/lib/emargement";
+import { joursDeSession, nombreAbsences } from "@/lib/emargement";
 import { nomFormateur } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -31,7 +31,7 @@ export default async function PageEmargements() {
       trainer: { select: { prenom: true, nom: true } },
       inscriptions: { where: { learner: { deletedAt: null } }, select: { learnerId: true } },
       presences: { where: { statut: { not: "PRESENT" } }, select: { statut: true } },
-      _count: { select: { documents: { where: { deletedAt: null, type: { code: "EMARGEMENT" } } } } },
+      feuillesSignees: { select: { jour: true } },
     },
   });
 
@@ -40,7 +40,7 @@ export default async function PageEmargements() {
       <header className="mb-6">
         <h1 className="text-[22px] font-extrabold tracking-tight">Émargements</h1>
         <p className="mt-1 text-[12.8px] text-texte-doux">
-          Sessions en cours ou terminées depuis moins de 30 jours : présences à reporter et feuilles signées à déposer.
+          Sessions en cours ou terminées depuis moins de 30 jours : absences à signaler et feuilles signées reçues.
         </p>
       </header>
 
@@ -55,7 +55,7 @@ export default async function PageEmargements() {
                   <th className="px-4 py-2.5 font-semibold">Session</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Formateur</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Absences signalées</th>
-                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Feuille signée</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Feuilles signées</th>
                 </tr>
               </thead>
               <tbody>
@@ -76,13 +76,20 @@ export default async function PageEmargements() {
                         {s.dateDebut > aujourdhui ? "—" : absences}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5">
-                        {s._count.documents > 0 ? (
-                          <span className="font-semibold text-succes">Déposée</span>
-                        ) : (
-                          <Link href={`/documents/nouveau?session=${s.id}&type=EMARGEMENT`} className="font-semibold text-alerte hover:underline">
-                            À déposer
-                          </Link>
-                        )}
+                        {(() => {
+                          // Jours passés de la session, et feuilles signées arrivées pour eux.
+                          const attendus = joursDeSession(s.dateDebut, s.dateFin).filter((j) => j <= aujourdhui).length;
+                          const recues = s.feuillesSignees.length;
+                          return recues >= attendus ? (
+                            <span className="font-semibold text-succes">
+                              {recues} / {attendus} reçue{attendus > 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <Link href={`/sessions/${s.id}/emargement`} className="font-semibold text-alerte hover:underline">
+                              {recues} / {attendus} reçue{attendus > 1 ? "s" : ""}
+                            </Link>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

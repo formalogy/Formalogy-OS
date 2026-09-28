@@ -594,6 +594,7 @@ model TrainingSession {
   inscriptions SessionLearner[]
   documents    Document[]
   presences    Presence[]
+  feuillesSignees FeuilleEmargementSignee[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
   questionnaires Questionnaire[]
@@ -718,6 +719,7 @@ model Document {
   versions   DocumentVersion[]
   signatures SignatureRequest[]
   factures   Facture[]
+  feuilleEmargement FeuilleEmargementSignee?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1390,6 +1392,35 @@ model ClientHenrriFinanceur {
   createdAt DateTime @default(now())
 
   @@map("clients_henrri_financeurs")
+}
+
+enum OrigineFeuilleEmargement {
+  /// Renvoyée par le formateur en réponse à l'email du matin, rangée seule
+  EMAIL
+  /// Déposée à la main depuis l'écran d'émargement
+  DEPOT
+}
+
+/// Feuille d'émargement signée d'une journée de session (automatisation
+/// A-05) : sa présence arrête les relances du formateur pour ce jour. Une
+/// journée n'a qu'une feuille ; un nouveau dépôt en ajoute une version.
+model FeuilleEmargementSignee {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// Jour de session couvert (minuit UTC, comme les présences)
+  jour      DateTime
+
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  origine OrigineFeuilleEmargement
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, jour])
+  @@map("feuilles_emargement_signees")
 }
 
 // ===========================================================================

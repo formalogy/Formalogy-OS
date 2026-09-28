@@ -24,6 +24,7 @@ const SELECTION_EMARGEMENT = {
     select: { learner: { select: { id: true, prenom: true, nom: true, company: { select: { raisonSociale: true } } } } },
   },
   presences: { select: { learnerId: true, jour: true, creneau: true, statut: true } },
+  feuillesSignees: { select: { jour: true, origine: true, createdAt: true, documentId: true } },
 } satisfies Prisma.TrainingSessionSelect;
 
 /// Session dont l'utilisateur peut consulter et saisir l'émargement :

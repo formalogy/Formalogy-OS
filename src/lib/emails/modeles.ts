@@ -19,6 +19,7 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "dossier.financeur": "Nom du financeur (dossier de prise en charge)",
   "dossier.reference": "Numéro du dossier de financement",
   "facture.numero": "Numéro de la facture (email d'envoi de la facture)",
+  "emargement.jours": "Jours dont la feuille d'émargement signée n'est pas arrivée (relance du formateur)",
   "facture.montant": "Montant TTC de la facture",
   "questionnaire.lien": "Lien personnel vers le questionnaire de satisfaction (emails de fin de session)",
   "questionnaire.lienPositionnement": "Lien personnel vers le questionnaire de positionnement (avant la formation)",

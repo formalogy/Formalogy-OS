@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { verifierFichier } from "@/lib/documents-depot";
 import { joursDeSession } from "@/lib/emargement";
 import { sessionPourEmargement } from "@/lib/emargement-acces";
+import { enregistrerFeuilleSignee, formatFeuilleAccepte } from "@/lib/emargement-feuilles";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerUtilisateur } from "@/lib/session";
@@ -104,4 +106,36 @@ export async function marquerTousPresents(donnees: FormData): Promise<ResultatSa
 
   rafraichir(c.session.id);
   return {};
+}
+
+export type EtatDepotFeuille = { erreur?: string; succes?: string };
+
+/// Dépôt à la main de la feuille d'émargement signée d'un jour (quand elle
+/// n'est pas revenue par email) : l'équipe, ou le formateur de la session.
+/// Un nouveau dépôt pour le même jour en ajoute une version.
+export async function deposerFeuilleSignee(_precedent: EtatDepotFeuille, donnees: FormData): Promise<EtatDepotFeuille> {
+  const utilisateur = await exigerUtilisateur();
+  const session = await sessionPourEmargement(utilisateur, String(donnees.get("sessionId") ?? ""));
+  if (!session) return { erreur: "Session introuvable." };
+
+  const jour = jourDepuisSaisie(String(donnees.get("jour") ?? ""));
+  if (!jour || !joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === jour.getTime())) {
+    return { erreur: "Ce jour ne fait pas partie de la session." };
+  }
+  if (jour > aujourdhuiUTC()) return { erreur: "La feuille d'un jour à venir ne peut pas encore être signée." };
+
+  const fichier = await verifierFichier(donnees.get("fichier"));
+  if (typeof fichier === "string") return { erreur: fichier };
+  if (!formatFeuilleAccepte(fichier.typeMime)) return { erreur: "Déposez la feuille en PDF ou en photo (JPEG, PNG)." };
+
+  const r = await enregistrerFeuilleSignee({
+    sessionId: session.id,
+    jour,
+    fichiers: [{ nom: fichier.nomFichier, typeMime: fichier.typeMime, octets: fichier.octets }],
+    origine: "DEPOT",
+    userId: utilisateur.id,
+  });
+  if ("erreur" in r) return { erreur: r.erreur };
+  rafraichir(session.id);
+  return { succes: "Feuille signée enregistrée." };
 }

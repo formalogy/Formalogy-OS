@@ -1,11 +1,14 @@
 import Link from "next/link";
 
+import { FeuillesSignees } from "@/app/(app)/_composants/feuilles-signees";
 import { GrilleEmargement } from "@/app/(app)/_composants/grille-emargement";
 import { clePresence, joursDeSession, nombreAbsences } from "@/lib/emargement";
 import type { sessionPourEmargement } from "@/lib/emargement-acces";
 import { aujourdhuiUTC, formaterPeriode, jourVersSaisie } from "@/lib/sessions-libelles";
 
 const jourCourt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const jourLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const dateHeure = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
 
 type Props = {
   session: NonNullable<Awaited<ReturnType<typeof sessionPourEmargement>>>;
@@ -46,18 +49,9 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
 
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
         <p className="rounded-xl border border-bordure bg-surface px-4 py-3 text-[12.5px] text-texte-doux shadow-sm">
-          <strong className="text-texte">1. Faire signer.</strong> Imprimez les feuilles pré-remplies (une par demi-journée,
-          produites le jour même) pour une signature sur place, ou faites-les signer via BoldSign.
-          {lienDepot && (
-            <>
-              {" "}
-              Déposez ensuite la feuille signée{" "}
-              <Link href={lienDepot} className="font-semibold text-accent-fort hover:underline">
-                dans les documents de la session
-              </Link>
-              .
-            </>
-          )}
+          <strong className="text-texte">1. Faire signer.</strong> Le formateur reçoit chaque matin la feuille du jour
+          (une page par demi-journée) et la renvoie signée en répondant à cet email : elle se range seule ci-dessous. À
+          défaut, déposez-la jour par jour. Tant qu&apos;une feuille manque, le formateur est relancé à 18 h.
         </p>
         <p className="rounded-xl border border-bordure bg-surface px-4 py-3 text-[12.5px] text-texte-doux shadow-sm">
           <strong className="text-texte">2. Signaler les absences</strong> ci-dessous. Une demi-journée sans saisie compte
@@ -71,6 +65,25 @@ export function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
           )}
         </p>
       </div>
+
+      <section className="mb-4 overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+        <h2 className="border-b border-bordure-douce px-4 py-3 text-[14.5px] font-bold">Feuilles signées</h2>
+        <FeuillesSignees
+          sessionId={session.id}
+          lienDocument={Boolean(lienDepot)}
+          jours={jours.map((j) => {
+            const feuille = session.feuillesSignees.find((f) => f.jour.getTime() === j.getTime());
+            return {
+              cle: jourVersSaisie(j),
+              libelle: jourLong.format(j),
+              passe: j <= aujourdhui,
+              feuille: feuille
+                ? { recue: dateHeure.format(feuille.createdAt), parEmail: feuille.origine === "EMAIL", documentId: feuille.documentId }
+                : null,
+            };
+          })}
+        />
+      </section>
 
       <GrilleEmargement
         sessionId={session.id}
