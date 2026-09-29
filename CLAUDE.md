@@ -75,7 +75,7 @@ et que le projet peut migrer ailleurs en quelques heures.
   volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
 - Activation : décision du client, qui a demandé que **toutes** les
-  automatisations soient actives. Au 29/09/2026 : 17 actives sur 18 ; seule
+  automatisations soient actives. Au 29/09/2026 : 20 actives sur 21 ; seule
   « Convocation à l'inscription » est éteinte (même modèle d'email que la
   convocation de J-7 mais sans le PDF : active, elle partait la première et
   bloquait l'envoi de la vraie convocation). Une automatisation nouvelle est
@@ -110,6 +110,20 @@ et que le projet peut migrer ailleurs en quelques heures.
   automatisations planifiées. Attention : cette exécution porte sur **toutes**
   les sessions, pas seulement celle qu'on lance. Le déclencheur
   `INSCRIPTION_SESSION`, lui, part à l'inscription quel que soit le statut.
+- **Rappel avant l'audit Qualiopi** (A-13, déclencheur `AVANT_AUDIT_QUALIOPI`,
+  `moisAvant: 6`, 9 h) : une fois par date d'audit (Paramètres → Organisme,
+  « Prochain audit »), email aux administrateurs (destinataire
+  `ADMINISTRATEURS`, modèle `AUDIT_QUALIOPI_RAPPEL`) avec les indicateurs à
+  reprendre — non conformes, ou conformes sans preuve déposée
+  (`lib/qualiopi-audit.ts`) — et tâche « Préparer l'audit ». Le client a cité
+  un audit le 28/03/2028 alors que les paramètres portent le 15/03/2028 et
+  une certification expirant le 21/03/2028 : date à confirmer par lui.
+- **Synthèse de la semaine aux formateurs** (A-14, déclencheur
+  `HEBDOMADAIRE`, lundi 7 h ; action `SYNTHESE_FORMATEURS`, modèle
+  `SYNTHESE_FORMATEUR`) : sessions des 7 prochains jours, bilans de fin de
+  session non remplis, jours d'émargement incomplets des 60 derniers jours.
+  Rien à un formateur sans session ni attente. Une activation en cours de
+  semaine attend la semaine suivante.
 - Une exécution en échec se relance depuis Paramètres → Automatisations
   (bouton « Relancer », admin) une fois la cause corrigée (`relancerExecution`) :
   même clé, rien de ce qui avait abouti ne se refait.
@@ -399,6 +413,31 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   facture, déjà enregistrée avec son numéro.
 - Une facture déjà existante pour la session (manuelle ou automatique, hors
   annulée) bloque une nouvelle émission automatique.
+
+## Devis (A-15, décision du client du 29/09/2026)
+
+- Les devis se font **dans Henrri** ; l'application les reprend
+  (`synchroniserDevis`, `lib/devis.ts`) à chaque réveil et par le bouton
+  « Actualiser depuis Henrri » de CRM → Devis (`/crm/devis`) : devis
+  finalisés seulement (type de document `quotation`), table `devis`.
+- Rapprochement avec le CRM : identifiant du client Henrri (apprenant ou
+  entreprise déjà facturés), puis adresse email (apprenant, prospect,
+  entreprise), puis nom exact et unique. Relance à l'adresse du contact
+  Henrri, à défaut à celle de la fiche (un devis part toujours à une adresse
+  connue, a précisé le client).
+- **Accepté** seul si le client le valide en ligne dans Henrri, si
+  l'apprenant (ou un salarié de l'entreprise) est inscrit à une session après
+  la date du devis, ou si le prospect est « gagné » (« perdu » : refusé).
+  Classement à la main possible (accepté, refusé, sans suite, rouvrir).
+- **Relance** (déclencheur `DEVIS_EN_ATTENTE`, `jours: 15`, `relances: 3`,
+  10 h ; action `RELANCE_DEVIS`, modèle `DEVIS_RELANCE`, PDF du devis joint
+  quand Henrri le fournit) ; 15 jours après la troisième, le devis passe
+  « sans suite ». Pas de rattrapage : un devis dont la première relance
+  tombait avant l'activation n'est jamais relancé, il passe « sans suite »
+  une fois le délai de ses relances écoulé.
+- Compteurs de l'année : en attente (montant HT), acceptés, sans suite ou
+  refusés, taux de transformation. **Les devis repris sont ceux du bac à
+  sable Henrri** : à vider au passage de Henrri en production.
 
 ## Prises en charge (OPCO, France Travail)
 

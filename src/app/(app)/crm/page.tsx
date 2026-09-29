@@ -50,12 +50,17 @@ export default async function PageCrm() {
             Vos pistes commerciales et leur avancement.
           </p>
         </div>
-        <Link
-          href="/crm/nouveau"
-          className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
-        >
-          Nouveau prospect
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/crm/devis" className="rounded-lg border border-bordure bg-surface px-4 py-2 text-[13px] font-semibold">
+            Devis
+          </Link>
+          <Link
+            href="/crm/nouveau"
+            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+          >
+            Nouveau prospect
+          </Link>
+        </div>
       </header>
 
       <section className="mb-4 grid gap-3.5 sm:grid-cols-3">

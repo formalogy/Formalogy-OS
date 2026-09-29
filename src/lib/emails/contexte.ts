@@ -5,7 +5,14 @@ import { formaterMontant } from "@/lib/factures";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
+import { preparationAudit } from "@/lib/qualiopi-audit";
 import { formaterPeriode } from "@/lib/sessions-libelles";
+
+const dateDevis = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+function adresseApplication(): string {
+  return (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
+}
 
 
 /// Rassemble les valeurs des variables à partir des fiches concernées.
@@ -30,8 +37,16 @@ export async function construireContexte(ids: {
   lienChaudFormateur?: string;
   lienFinanceur?: string;
   lienSatisfactionFormateur?: string;
+  /// Relance de devis
+  devisId?: string;
+  /// Rappel avant l'audit : préparation Qualiopi (indicateurs à reprendre)
+  qualiopi?: boolean;
+  /// Synthèse hebdomadaire du formateur
+  synthesePeriode?: string;
+  syntheseSessions?: string;
+  syntheseAFaire?: string;
 }): Promise<Contexte> {
-  const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier, facture] = await Promise.all([
+  const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier, facture, devis, audit] = await Promise.all([
     lireOrganisme(),
     ids.learnerId ? prisma.learner.findUnique({ where: { id: ids.learnerId } }) : null,
     ids.trainerId ? prisma.trainer.findUnique({ where: { id: ids.trainerId } }) : null,
@@ -49,6 +64,8 @@ export async function construireContexte(ids: {
     ids.prospectId ? prisma.prospect.findUnique({ where: { id: ids.prospectId } }) : null,
     ids.dossierId ? prisma.dossierFinancement.findUnique({ where: { id: ids.dossierId } }) : null,
     ids.factureId ? prisma.facture.findUnique({ where: { id: ids.factureId } }) : null,
+    ids.devisId ? prisma.devis.findUnique({ where: { id: ids.devisId } }) : null,
+    ids.qualiopi ? preparationAudit() : null,
   ]);
 
   return {
@@ -80,5 +97,18 @@ export async function construireContexte(ids: {
     "questionnaire.lienChaudFormateur": ids.lienChaudFormateur,
     "questionnaire.lienFinanceur": ids.lienFinanceur,
     "questionnaire.lienSatisfactionFormateur": ids.lienSatisfactionFormateur,
+    "devis.numero": devis?.numero,
+    "devis.date": devis ? dateDevis.format(devis.date) : undefined,
+    "devis.montant": devis ? `${formaterMontant(devis.montantHT)} HT` : undefined,
+    "devis.objet": devis?.objet,
+    "devis.client": devis?.clientNom,
+    "devis.contact": devis ? (devis.contactNom ?? devis.clientNom) : undefined,
+    "qualiopi.dateAudit": audit?.dateAuditTexte,
+    "qualiopi.bilan": audit?.bilan,
+    "qualiopi.aVerifier": audit?.aVerifier,
+    "qualiopi.lien": audit ? `${adresseApplication()}/qualiopi` : undefined,
+    "synthese.periode": ids.synthesePeriode,
+    "synthese.sessions": ids.syntheseSessions,
+    "synthese.aFaire": ids.syntheseAFaire,
   };
 }

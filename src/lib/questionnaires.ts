@@ -129,7 +129,7 @@ export function lireEvaluation(
 
 /// Variable de contexte email portant le lien, par type de questionnaire —
 /// le code du modèle d'email attendu est le type lui-même (ex. « FINANCEUR »).
-const CONTEXTE_LIEN: Record<TypeQuestionnaire, keyof Parameters<typeof construireContexte>[0]> = {
+const CONTEXTE_LIEN: Record<TypeQuestionnaire, `lien${string}` & keyof Parameters<typeof construireContexte>[0]> = {
   POSITIONNEMENT: "lienPositionnement",
   CHAUD_FORMATEUR: "lienChaudFormateur",
   FROID: "lienFroid",

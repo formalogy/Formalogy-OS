@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { genererConvention, genererConvocationApprenant } from "@/lib/conventions";
+import { adresseDevis, pdfDevis, synchroniserDevis } from "@/lib/devis";
 import { sessionEmargementAutomatique } from "@/lib/emargement-acces";
 import { CRENEAUX, joursDeSession, LIBELLE_CRENEAU } from "@/lib/emargement";
 import { joursSansFeuille, libelleJour } from "@/lib/emargement-feuilles";
@@ -51,7 +52,9 @@ const schemaAction = z.discriminatedUnion("type", [
     /// session ; PAYEUR : le payeur de la facture émise pour la session
     /// (entreprise, ou apprenant) ; FORMATEURS_ACTIFS et FINANCEURS_ANNEE :
     /// les destinataires des campagnes annuelles, sans lien avec une session.
-    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEUR_SESSION", "PAYEUR", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE"]),
+    /// ADMINISTRATEURS : les comptes administrateurs actifs (rappel avant
+    /// l'audit Qualiopi).
+    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEUR_SESSION", "PAYEUR", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE", "ADMINISTRATEURS"]),
     /// Documents joints à l'email. CONVENTION fabrique la convention de
     /// l'apprenant à partir du modèle déposé, la range dans les documents de
     /// la session et l'attache. CONVOCATION produit le document de
@@ -94,6 +97,18 @@ const schemaAction = z.discriminatedUnion("type", [
     type: z.literal("RELANCE_SIGNATURE"),
   }),
   z.object({
+    /// Relance d'un devis Henrri sans réponse (A-15), devis joint (modèle
+    /// DEVIS_RELANCE) ; au-delà du nombre de relances prévu, le devis est
+    /// classé « sans suite » et plus rien ne part.
+    type: z.literal("RELANCE_DEVIS"),
+  }),
+  z.object({
+    /// Synthèse de la semaine à chaque formateur (A-14, modèle
+    /// SYNTHESE_FORMATEUR) : ses sessions des 7 prochains jours et ce qui
+    /// l'attend. Rien à qui n'a ni session ni rien en attente.
+    type: z.literal("SYNTHESE_FORMATEURS"),
+  }),
+  z.object({
     /// Génère l'attestation et le certificat de réalisation des apprenants
     /// prêts (mêmes règles que le bouton manuel « Fin de formation ») : les
     /// apprenants dont les présences ou l'évaluation manquent sont ignorés.
@@ -118,6 +133,12 @@ const schemaParametres = z.object({
   /// (campagnes et déclencheurs de session) : le mail de fin part en fin de
   /// journée, la feuille d'émargement le matin.
   heure: z.number().int().min(0).max(23).optional(),
+  /// DEVIS_EN_ATTENTE : nombre de relances avant de classer « sans suite ».
+  relances: z.number().int().min(1).max(10).optional(),
+  /// AVANT_AUDIT_QUALIOPI : nombre de mois avant l'audit.
+  moisAvant: z.number().int().min(1).max(24).optional(),
+  /// HEBDOMADAIRE : jour de la semaine (1 = lundi, 7 = dimanche).
+  jourSemaine: z.number().int().min(1).max(7).optional(),
 });
 
 export function lireRegle(automation: Automation) {
@@ -143,6 +164,8 @@ type Cas = {
   dossierId?: string;
   /// Déclencheur FIN_DEMI_JOURNEE : la demi-journée concernée
   demiJournee?: { jour: Date; creneau: Creneau };
+  /// Déclencheur DEVIS_EN_ATTENTE : le devis à relancer
+  devisId?: string;
 };
 
 /// Heure locale française, quelle que soit l'heure du serveur. On lit la
@@ -169,6 +192,7 @@ type Comptes = ComptesEnvoi & {
   factureAbsente: number;
   feuillesRecues: number;
   toutSigne: number;
+  devisClasses: number;
 };
 
 /// Le jour prévu, un envoi attend l'heure dite (heure de Paris). Un réveil
@@ -569,6 +593,178 @@ async function relancerSignatures(p: { cas: Cas; executionId: string; comptes: C
   }
 }
 
+/// Jour calendaire (minuit UTC) d'un instant, selon l'heure de Paris.
+const FORMAT_JOUR_PARIS = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" });
+const jourDeParis = (instant: Date) => new Date(`${FORMAT_JOUR_PARIS.format(instant)}T00:00:00.000Z`);
+
+function ajouterMois(jour: Date, mois: number): Date {
+  const copie = new Date(jour);
+  copie.setUTCMonth(copie.getUTCMonth() + mois);
+  return copie;
+}
+
+/// Rappel aux administrateurs (avant l'audit Qualiopi) : comptes ADMIN actifs.
+async function envoyerAuxAdministrateurs(p: { modele: ModeleEmail; executionId: string; comptes: Comptes }) {
+  const administrateurs = await prisma.user.findMany({ where: { role: "ADMIN", isActive: true, deletedAt: null }, select: { email: true } });
+  const contexte = await construireContexte({ qualiopi: `${p.modele.sujet}${p.modele.corps}`.includes("{{qualiopi.") });
+  for (const { email: adresse } of administrateurs) {
+    const email = await envoyerEmail({
+      destinataire: adresse,
+      sujet: rendre(p.modele.sujet, contexte).resultat,
+      corps: rendre(p.modele.corps, contexte).resultat,
+      templateId: p.modele.id,
+      automationRunId: p.executionId,
+    });
+    if (email.statut === "SIMULE") p.comptes.simules++;
+    else if (email.statut === "ECHEC") throw new Error(`Email à ${adresse} : ${email.erreur}`);
+    else p.comptes.emails++;
+  }
+}
+
+/// Relances d'un devis avant de le classer « sans suite », sauf réglage
+/// contraire de l'automatisation (choix du client : trois).
+const RELANCES_DEVIS_PAR_DEFAUT = 3;
+
+/// Relance d'un devis Henrri resté sans réponse (A-15), devis joint quand
+/// Henrri fournit son PDF. Une fois les relances épuisées, le devis est
+/// classé « sans suite ».
+async function relancerDevis(p: { cas: Cas; executionId: string; comptes: Comptes; maximum: number }) {
+  const { cas, executionId, comptes } = p;
+  const devis = cas.devisId ? await prisma.devis.findUnique({ where: { id: cas.devisId } }) : null;
+  if (!devis || devis.statut !== "EN_ATTENTE") {
+    comptes.ignores++;
+    return;
+  }
+  if (devis.relances >= p.maximum) {
+    await prisma.devis.update({
+      where: { id: devis.id },
+      data: { statut: "SANS_SUITE", motifStatut: `Sans réponse après ${p.maximum} relance${p.maximum > 1 ? "s" : ""}`, statutAt: new Date() },
+    });
+    comptes.devisClasses++;
+    return;
+  }
+
+  const modele = await prisma.emailTemplate.findUnique({ where: { code: "DEVIS_RELANCE" } });
+  if (!modele?.actif) throw new Error("Modèle d'email « DEVIS_RELANCE » introuvable ou désactivé.");
+  const adresse = await adresseDevis(devis);
+  if (!adresse) {
+    comptes.sansAdresse++;
+    return;
+  }
+  const contexte = await construireContexte({
+    devisId: devis.id,
+    learnerId: devis.learnerId ?? undefined,
+    companyId: devis.companyId ?? undefined,
+    prospectId: devis.prospectId ?? undefined,
+  });
+  const pdf = await pdfDevis(devis.henrriId);
+  const email = await envoyerEmail({
+    destinataire: adresse,
+    sujet: rendre(modele.sujet, contexte).resultat,
+    corps: rendre(modele.corps, contexte).resultat,
+    templateId: modele.id,
+    learnerId: devis.learnerId ?? undefined,
+    companyId: devis.companyId ?? undefined,
+    prospectId: devis.prospectId ?? undefined,
+    automationRunId: executionId,
+    piecesJointes: pdf ? [{ nom: `Devis-${devis.numero}.pdf`.replace(/[\\/"]/g, "_"), contenu: pdf, typeMime: "application/pdf" }] : undefined,
+  });
+  if (email.statut === "ECHEC") throw new Error(`Relance du devis ${devis.numero} (${adresse}) : ${email.erreur}`);
+  if (email.statut === "SIMULE") comptes.simules++;
+  else comptes.emails++;
+  await prisma.devis.update({ where: { id: devis.id }, data: { relances: { increment: 1 }, derniereRelanceAt: new Date() } });
+}
+
+const jourSemaineCourt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const jourSemaineLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+
+/// Synthèse de la semaine à chaque formateur actif (A-14) : ses sessions des
+/// 7 prochains jours, puis ce qui l'attend — bilans de fin de session pas
+/// encore remplis, jours d'émargement incomplets des deux derniers mois.
+async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
+  const { executionId, comptes } = p;
+  const modele = await prisma.emailTemplate.findUnique({ where: { code: "SYNTHESE_FORMATEUR" } });
+  if (!modele?.actif) throw new Error("Modèle d'email « SYNTHESE_FORMATEUR » introuvable ou désactivé.");
+  const aujourdhui = aujourdhuiUTC();
+  const fin = ajouterJours(aujourdhui, 6);
+  const formateurs = await prisma.trainer.findMany({ where: { deletedAt: null, actif: true }, select: { id: true, email: true } });
+  const enRoute = { deletedAt: null, statut: { notIn: ["BROUILLON" as const, "ANNULEE" as const] } };
+
+  for (const formateur of formateurs) {
+    const [sessions, bilans, recentes] = await Promise.all([
+      prisma.trainingSession.findMany({
+        where: { ...enRoute, trainerId: formateur.id, dateDebut: { lte: fin }, dateFin: { gte: aujourdhui } },
+        orderBy: { dateDebut: "asc" },
+        select: {
+          numero: true,
+          dateDebut: true,
+          dateFin: true,
+          horaires: true,
+          lieu: true,
+          formation: { select: { titre: true } },
+          _count: { select: { inscriptions: true } },
+        },
+      }),
+      prisma.questionnaire.findMany({
+        where: { type: "CHAUD_FORMATEUR", trainerId: formateur.id, reponduAt: null, expireAt: { gt: new Date() }, session: { deletedAt: null } },
+        select: { session: { select: { numero: true, formation: { select: { titre: true } } } } },
+      }),
+      prisma.trainingSession.findMany({
+        where: { ...enRoute, trainerId: formateur.id, dateDebut: { lt: aujourdhui }, dateFin: { gte: ajouterJours(aujourdhui, -60) } },
+        orderBy: { dateDebut: "asc" },
+        select: { id: true, numero: true, dateDebut: true, dateFin: true },
+      }),
+    ]);
+    const aFaire = bilans.flatMap(({ session }) => (session ? [`- Bilan de fin de session à remplir : ${session.formation.titre} (${session.numero}), avec le lien reçu par email`] : []));
+    for (const s of recentes) {
+      const manquants = await joursSansFeuille(s, ajouterJours(aujourdhui, -1));
+      if (manquants.length > 0) aFaire.push(`- Émargement incomplet (${s.numero}) : ${manquants.map((j) => jourSemaineCourt.format(j)).join(", ")}`);
+    }
+    if (sessions.length === 0 && aFaire.length === 0) {
+      comptes.ignores++;
+      continue;
+    }
+    if (!formateur.email) {
+      comptes.sansAdresse++;
+      continue;
+    }
+    const deja = await prisma.email.count({
+      where: { templateId: modele.id, destinataire: formateur.email, statut: { not: "ECHEC" }, automationRunId: { not: null }, envoyeAt: { gte: ajouterJours(aujourdhui, -6) } },
+    });
+    if (deja > 0) {
+      comptes.dejaServis++;
+      continue;
+    }
+
+    const lignes = sessions.map((s) =>
+      [
+        `- ${s.dateDebut.getTime() === s.dateFin.getTime() ? jourSemaineCourt.format(s.dateDebut) : `${jourSemaineCourt.format(s.dateDebut)} → ${jourSemaineCourt.format(s.dateFin)}`} : ${s.formation.titre} (${s.numero})`,
+        s.horaires,
+        s.lieu,
+        `${s._count.inscriptions} apprenant${s._count.inscriptions > 1 ? "s" : ""}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    const contexte = await construireContexte({
+      trainerId: formateur.id,
+      synthesePeriode: `du ${jourSemaineLong.format(aujourdhui)} au ${jourSemaineLong.format(fin)}`,
+      syntheseSessions: lignes.length > 0 ? lignes.join("\n") : "Aucune session cette semaine.",
+      syntheseAFaire: aFaire.length > 0 ? aFaire.join("\n") : "Rien en attente.",
+    });
+    const email = await envoyerEmail({
+      destinataire: formateur.email,
+      sujet: rendre(modele.sujet, contexte).resultat,
+      corps: rendre(modele.corps, contexte).resultat,
+      templateId: modele.id,
+      automationRunId: executionId,
+    });
+    if (email.statut === "SIMULE") comptes.simules++;
+    else if (email.statut === "ECHEC") throw new Error(`Synthèse au formateur (${formateur.email}) : ${email.erreur}`);
+    else comptes.emails++;
+  }
+}
+
 /// Email au payeur de la facture émise pour la session, avec son PDF. Sans
 /// facture émise, sans PDF ou sans adresse, rien ne part : le tableau de
 /// bord le signale, pour une intervention à la main.
@@ -672,12 +868,13 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     factureAbsente: 0,
     feuillesRecues: 0,
     toutSigne: 0,
+    devisClasses: 0,
   };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
   const conventionsEchouees = new Set<string>();
   try {
-    const { actions, conditions } = lireRegle(automation);
+    const { actions, conditions, parametres } = lireRegle(automation);
     const accepte = (financement: TypeFinancement) =>
       !conditions.financement || conditions.financement.includes(financement);
 
@@ -705,6 +902,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         }
         if (action.destinataires === "PAYEUR") {
           await envoyerAuPayeur({ cas, modele, joindre: action.joindre, executionId, comptes });
+          continue;
+        }
+        if (action.destinataires === "ADMINISTRATEURS") {
+          await envoyerAuxAdministrateurs({ modele, executionId, comptes });
           continue;
         }
 
@@ -866,6 +1067,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
           prospectId: cas.prospectId,
           dossierId: cas.dossierId,
           companyId: cas.companyId,
+          qualiopi: action.titre.includes("{{qualiopi."),
         });
         await prisma.task.create({
           data: {
@@ -899,6 +1101,14 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         await relancerSignatures({ cas, executionId, comptes });
       }
 
+      if (action.type === "RELANCE_DEVIS") {
+        await relancerDevis({ cas, executionId, comptes, maximum: parametres.relances ?? RELANCES_DEVIS_PAR_DEFAUT });
+      }
+
+      if (action.type === "SYNTHESE_FORMATEURS") {
+        await envoyerSyntheses({ executionId, comptes });
+      }
+
       if (action.type === "DOCUMENTS_FIN_FORMATION") {
         if (!cas.sessionId) throw new Error("Documents de fin de formation : aucune session associée à ce cas.");
         // Les apprenants dont les présences ou l'évaluation manquent sont
@@ -922,12 +1132,13 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.factureAbsente && "aucune facture émise pour la session",
       comptes.feuillesRecues && "toutes les feuilles d'émargement signées sont arrivées",
       comptes.toutSigne && "tout le monde a signé",
+      comptes.devisClasses && "devis classé « sans suite »",
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
       comptes.dejaServis && `${comptes.dejaServis} destinataire(s) déjà servi(s)`,
       comptes.sansAdresse && `${comptes.sansAdresse} destinataire(s) sans adresse email`,
       comptes.ignores && `${comptes.ignores} apprenant(s) hors conditions`,
     ].filter(Boolean);
-    const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures + comptes.documents === 0;
+    const rienFait = comptes.emails + comptes.simules + comptes.taches + comptes.factures + comptes.documents + comptes.devisClasses === 0;
 
     await prisma.automationRun.update({
       where: { id: executionId },
@@ -975,6 +1186,17 @@ async function casDepuisExecution(run: { cleUnicite: string; entityType: string;
     return { ...base, prospectId: run.entityId, companyId: prospect.companyId ?? undefined };
   }
   if (run.entityType === "Automation") return base;
+  if (run.entityType === "Devis") {
+    const devis = await prisma.devis.findUnique({ where: { id: run.entityId }, select: { learnerId: true, companyId: true, prospectId: true } });
+    if (!devis) return { erreur: "Le devis n'existe plus." };
+    return {
+      ...base,
+      devisId: run.entityId,
+      learnerId: devis.learnerId ?? undefined,
+      companyId: devis.companyId ?? undefined,
+      prospectId: devis.prospectId ?? undefined,
+    };
+  }
   return { erreur: "Ce cas ne peut pas être relancé." };
 }
 
@@ -1273,6 +1495,87 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
           }),
         );
       }
+    }
+  }
+
+  // Rappel avant l'audit Qualiopi (A-13) : une fois par date d'audit, dès
+  // que l'on entre dans les N mois qui la précèdent.
+  for (const automation of await automationsActives("AVANT_AUDIT_QUALIOPI")) {
+    const { moisAvant = 6, heure } = lireRegle(automation).parametres;
+    const audit = (await lireOrganisme()).qualiopiProchainAuditAt;
+    if (!audit) continue;
+    const jourAudit = jourDeParis(audit);
+    const rappel = ajouterMois(jourAudit, -moisAvant);
+    if (aujourdhui < rappel || aujourdhui > jourAudit || avantLHeure(rappel, heure)) continue;
+    compter(
+      await traiterCas(automation, {
+        cle: `${automation.id}:audit:${jourAudit.toISOString().slice(0, 10)}`,
+        entityType: "Automation",
+        entityId: automation.id,
+      }),
+    );
+  }
+
+  // Chaque semaine, le jour dit (A-14). Un réveil manqué ce jour-là est
+  // rattrapé plus tard dans la semaine ; une activation en cours de semaine
+  // attend la semaine suivante.
+  const jourIso = ((aujourdhui.getUTCDay() + 6) % 7) + 1;
+  const lundi = ajouterJours(aujourdhui, 1 - jourIso);
+  for (const automation of await automationsActives("HEBDOMADAIRE")) {
+    const { jourSemaine = 1, heure } = lireRegle(automation).parametres;
+    if (jourIso < jourSemaine || (jourIso === jourSemaine && avantLHeure(aujourdhui, heure))) continue;
+    const prevu = instantDeParis(ajouterJours(lundi, jourSemaine - 1), (heure ?? 0) * 60);
+    if (automation.activeeAt && automation.activeeAt > prevu) continue;
+    compter(
+      await traiterCas(automation, {
+        cle: `${automation.id}:semaine:${lundi.toISOString().slice(0, 10)}`,
+        entityType: "Automation",
+        entityId: automation.id,
+      }),
+    );
+  }
+
+  // Devis Henrri sans réponse (A-15) : reprise des devis, puis une relance
+  // tous les N jours, jusqu'à la dernière ; ensuite, « sans suite ».
+  const relancesDevis = await automationsActives("DEVIS_EN_ATTENTE");
+  if (relancesDevis.length > 0) {
+    try {
+      await synchroniserDevis();
+    } catch (erreur) {
+      // Henrri injoignable : les devis déjà connus sont tout de même relancés.
+      console.error("Reprise des devis Henrri impossible :", erreur);
+    }
+  }
+  for (const automation of relancesDevis) {
+    const { jours = 15, relances = RELANCES_DEVIS_PAR_DEFAUT, heure } = lireRegle(automation).parametres;
+    if (avantLHeure(aujourdhui, heure)) continue;
+    const activation = automation.activeeAt ? jourDeParis(automation.activeeAt) : null;
+    for (const devis of await prisma.devis.findMany({ where: { statut: "EN_ATTENTE" }, orderBy: { date: "asc" } })) {
+      const echeance = ajouterJours(devis.derniereRelanceAt ? jourDeParis(devis.derniereRelanceAt) : devis.date, jours);
+      if (echeance > aujourdhui) continue;
+      // Pas de rattrapage : un devis dont la première relance tombait avant
+      // l'activation n'est pas relancé d'un coup ; il est classé « sans
+      // suite » une fois écoulé le délai de toutes ses relances.
+      if (devis.relances === 0 && activation && echeance < activation) {
+        if (ajouterJours(devis.date, jours * (relances + 1)) <= aujourdhui) {
+          await prisma.devis.update({
+            where: { id: devis.id },
+            data: { statut: "SANS_SUITE", motifStatut: "Resté sans réponse, antérieur aux relances automatiques", statutAt: new Date() },
+          });
+        }
+        continue;
+      }
+      compter(
+        await traiterCas(automation, {
+          cle: `${automation.id}:devis:${devis.id}:${devis.relances + 1}`,
+          entityType: "Devis",
+          entityId: devis.id,
+          devisId: devis.id,
+          learnerId: devis.learnerId ?? undefined,
+          companyId: devis.companyId ?? undefined,
+          prospectId: devis.prospectId ?? undefined,
+        }),
+      );
     }
   }
 

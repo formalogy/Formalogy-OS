@@ -16,6 +16,9 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   FIN_DEMI_JOURNEE: "À la fin de chaque demi-journée de formation (heure de fin lue dans les horaires de la session)",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
   CAMPAGNE_ANNUELLE: "Chaque année à date fixe",
+  AVANT_AUDIT_QUALIOPI: "Quelques mois avant le prochain audit Qualiopi (date saisie dans Paramètres → Organisme)",
+  HEBDOMADAIRE: "Chaque semaine, le jour choisi",
+  DEVIS_EN_ATTENTE: "Quand un devis Henrri reste sans réponse (tous les N jours)",
 };
 
 /// Déclencheurs traités par le réveil quotidien plutôt qu'au moment d'une action.
@@ -27,6 +30,9 @@ export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "FIN_DEMI_JOURNEE",
   "RELANCE_PROSPECT_DUE",
   "CAMPAGNE_ANNUELLE",
+  "AVANT_AUDIT_QUALIOPI",
+  "HEBDOMADAIRE",
+  "DEVIS_EN_ATTENTE",
 ];
 
 export const LIBELLE_STATUT_EMAIL: Record<StatutEmail, string> = {
@@ -82,6 +88,7 @@ export function decrireAction(action: unknown): string {
       PAYEUR: "au payeur de la facture (entreprise, ou apprenant)",
       FORMATEURS_ACTIFS: "à tous les formateurs actifs",
       FINANCEURS_ANNEE: "à tous les financeurs de l'année écoulée",
+      ADMINISTRATEURS: "aux administrateurs de Formalogy OS",
     };
     const qui = destinataires[a.destinataires ?? ""] ?? "au destinataire";
     const noms: Record<string, string> = {
@@ -109,6 +116,12 @@ export function decrireAction(action: unknown): string {
   }
   if (a.type === "RELANCE_SIGNATURE") {
     return "Relancer chaque participant (apprenant ou formateur) qui n'a pas signé la demi-journée, avec son lien personnel (les absents signalés ne sont pas relancés)";
+  }
+  if (a.type === "RELANCE_DEVIS") {
+    return "Relancer le client du devis avec son devis en pièce jointe ; après la dernière relance sans réponse, classer le devis « sans suite »";
+  }
+  if (a.type === "SYNTHESE_FORMATEURS") {
+    return "Envoyer à chaque formateur la synthèse de sa semaine : ses sessions et ce qui l'attend (bilans, émargements) ; rien à qui n'a rien de prévu";
   }
   if (a.type === "DOCUMENTS_FIN_FORMATION") {
     return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";

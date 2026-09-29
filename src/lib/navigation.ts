@@ -50,6 +50,7 @@ export const MENU: GroupeMenu[] = [
       { libelle: "Apprenants", chemin: "/apprenants", icone: "personnes" },
       { libelle: "Entreprises", chemin: "/entreprises", icone: "entreprise" },
       { libelle: "CRM", chemin: "/crm", icone: "carnet" },
+      { libelle: "Devis", chemin: "/crm/devis", icone: "facture" },
       { libelle: "Formateurs", chemin: "/formateurs", icone: "tableau" },
     ],
   },

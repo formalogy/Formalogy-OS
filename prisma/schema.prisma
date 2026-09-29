@@ -247,6 +247,7 @@ model Company {
   /// Identifiant du client correspondant chez Henrri, une fois créé : évite
   /// de recréer un doublon à chaque facture.
   henrriCustomerId Int? @unique
+  devis            Devis[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -337,6 +338,7 @@ model Prospect {
   createdBy   User?   @relation("ProspectCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   emails Email[]
+  devis  Devis[]
   taches Task[]
 
   @@index([statut])
@@ -440,6 +442,8 @@ model Learner {
   dossiers     DossierFinancement[]
 
   emails Email[]
+  /// Devis Henrri rapprochés de cet apprenant
+  devis  Devis[]
   taches Task[]
 
   @@index([nom, prenom])
@@ -924,6 +928,13 @@ enum DeclencheurAutomatisation {
   /// Campagne annuelle à date fixe (jour et mois en paramètres), sans lien
   /// avec une session : questionnaires annuels aux formateurs et financeurs.
   CAMPAGNE_ANNUELLE
+  /// Quelques mois avant le prochain audit Qualiopi (date saisie dans
+  /// Paramètres → Organisme)
+  AVANT_AUDIT_QUALIOPI
+  /// Chaque semaine, un jour donné (synthèse de la semaine aux formateurs)
+  HEBDOMADAIRE
+  /// Devis Henrri resté sans réponse (relance tous les N jours)
+  DEVIS_EN_ATTENTE
 }
 
 /// Règle DÉCLENCHEUR → CONDITION → ACTION.
@@ -1750,4 +1761,64 @@ model ActionQualite {
   @@index([statut])
   @@index([numeroIndicateur])
   @@map("actions_qualite")
+}
+
+enum StatutDevis {
+  EN_ATTENTE
+  ACCEPTE
+  REFUSE
+  SANS_SUITE
+}
+
+/// Devis établi dans Henrri (automatisation A-15, décision du client du
+/// 29/09/2026), repris par l'application pour être compté et relancé : tous
+/// les 15 jours, trois fois au plus, puis classé « sans suite ». Rapproché de
+/// la fiche du CRM (apprenant, entreprise ou prospect) par l'identifiant du
+/// client Henrri, son adresse email ou son nom.
+model Devis {
+  id String @id @default(uuid(7))
+
+  henrriId Int    @unique
+  /// Numéro attribué par Henrri
+  numero   String
+  /// Date du devis (jour, minuit UTC)
+  date     DateTime
+  objet    String?
+
+  henrriCustomerId Int?
+  clientNom        String
+  /// Contact du client dans Henrri, destinataire des relances ; à défaut,
+  /// l'adresse de la fiche rapprochée
+  contactNom       String?
+  email            String?
+
+  montantHT  Decimal @db.Decimal(10, 2)
+  montantTTC Decimal @db.Decimal(10, 2)
+
+  learnerId  String?
+  learner    Learner?  @relation(fields: [learnerId], references: [id], onDelete: SetNull)
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  prospectId String?
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+
+  statut      StatutDevis @default(EN_ATTENTE)
+  /// Ce qui a fait changer le statut (« Validé en ligne dans Henrri »,
+  /// « Apprenant inscrit à la session S-2026-0004 », « Sans réponse après 3
+  /// relances », « Classé à la main »…)
+  motifStatut String?
+  statutAt    DateTime?
+
+  relances          Int       @default(0)
+  derniereRelanceAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([statut])
+  @@index([date])
+  @@index([learnerId])
+  @@index([companyId])
+  @@index([prospectId])
+  @@map("devis")
 }
