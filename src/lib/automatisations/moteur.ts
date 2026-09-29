@@ -105,7 +105,7 @@ const schemaAction = z.discriminatedUnion("type", [
   z.object({
     /// Synthèse de la semaine à chaque formateur (A-14, modèle
     /// SYNTHESE_FORMATEUR) : ses sessions des 7 prochains jours et ce qui
-    /// l'attend. Rien à qui n'a ni session ni rien en attente.
+    /// l'attend. Rien à qui n'a pas de session dans la semaine.
     type: z.literal("SYNTHESE_FORMATEURS"),
   }),
   z.object({
@@ -680,7 +680,8 @@ const jourSemaineLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day:
 
 /// Synthèse de la semaine à chaque formateur actif (A-14) : ses sessions des
 /// 7 prochains jours, puis ce qui l'attend — bilans de fin de session pas
-/// encore remplis, jours d'émargement incomplets des deux derniers mois.
+/// encore remplis, jours d'émargement incomplets des deux derniers mois. Un
+/// formateur sans session dans la semaine ne reçoit rien (choix du client).
 async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
   const { executionId, comptes } = p;
   const modele = await prisma.emailTemplate.findUnique({ where: { code: "SYNTHESE_FORMATEUR" } });
@@ -720,7 +721,7 @@ async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
       const manquants = await joursSansFeuille(s, ajouterJours(aujourdhui, -1));
       if (manquants.length > 0) aFaire.push(`- Émargement incomplet (${s.numero}) : ${manquants.map((j) => jourSemaineCourt.format(j)).join(", ")}`);
     }
-    if (sessions.length === 0 && aFaire.length === 0) {
+    if (sessions.length === 0) {
       comptes.ignores++;
       continue;
     }
@@ -749,7 +750,7 @@ async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
     const contexte = await construireContexte({
       trainerId: formateur.id,
       synthesePeriode: `du ${jourSemaineLong.format(aujourdhui)} au ${jourSemaineLong.format(fin)}`,
-      syntheseSessions: lignes.length > 0 ? lignes.join("\n") : "Aucune session cette semaine.",
+      syntheseSessions: lignes.join("\n"),
       syntheseAFaire: aFaire.length > 0 ? aFaire.join("\n") : "Rien en attente.",
     });
     const email = await envoyerEmail({

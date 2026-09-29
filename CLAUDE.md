@@ -122,8 +122,9 @@ et que le projet peut migrer ailleurs en quelques heures.
   `HEBDOMADAIRE`, lundi 7 h ; action `SYNTHESE_FORMATEURS`, modèle
   `SYNTHESE_FORMATEUR`) : sessions des 7 prochains jours, bilans de fin de
   session non remplis, jours d'émargement incomplets des 60 derniers jours.
-  Rien à un formateur sans session ni attente. Une activation en cours de
-  semaine attend la semaine suivante.
+  **Rien à un formateur sans session dans la semaine** (précision du client,
+  29/09/2026), même s'il a un bilan ou un émargement en attente. Une
+  activation en cours de semaine attend la semaine suivante.
 - Une exécution en échec se relance depuis Paramètres → Automatisations
   (bouton « Relancer », admin) une fois la cause corrigée (`relancerExecution`) :
   même clé, rien de ce qui avait abouti ne se refait.
