@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ActionsDocument } from "@/app/(app)/documents/[id]/actions-document";
 import { FormulaireVersion } from "@/app/(app)/documents/[id]/formulaire-version";
 import { ActionsSignature, BoutonCopier, PreparationSignature } from "@/app/(app)/documents/[id]/signature";
+import { dansLaBibliotheque } from "@/lib/bibliotheque";
 import {
   FORMATS_ACCEPTES,
   TYPE_MIME_DOCX,
@@ -76,6 +77,18 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
     document.indicateur && { href: `/qualiopi`, libelle: `Preuve Qualiopi : indicateur ${document.indicateur.numero} (critère ${document.indicateur.critere})` },
   ].filter((r): r is { href: string; libelle: string } => Boolean(r));
 
+  // Retour : la bibliothèque, ou la fiche de la personne (ou de l'entreprise)
+  // pour un document qui n'y figure pas.
+  const retour = dansLaBibliotheque(document)
+    ? { href: "/documents", libelle: "Bibliothèque" }
+    : document.learner
+      ? { href: `/apprenants/${document.learner.id}`, libelle: `${document.learner.prenom} ${document.learner.nom}` }
+      : document.trainer
+        ? { href: `/formateurs/${document.trainer.id}`, libelle: `${document.trainer.prenom} ${document.trainer.nom}` }
+        : document.company
+          ? { href: `/entreprises/${document.company.id}`, libelle: document.company.raisonSociale }
+          : (rattachements[0] ?? { href: "/documents", libelle: "Bibliothèque" });
+
   const signatureEnCours = document.signatures.find((sg) => sg.statut === "A_ENVOYER" || sg.statut === "ENVOYEE");
   // Signataires proposés : l'apprenant concerné puis les contacts de l'entreprise.
   const suggestions: Signataire[] = [
@@ -87,8 +100,8 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
     <>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link href="/documents" className="text-[12.5px] font-semibold text-accent-fort hover:underline">
-            ← Documents
+          <Link href={retour.href} className="text-[12.5px] font-semibold text-accent-fort hover:underline">
+            ← {retour.libelle}
           </Link>
           <h1 className="mt-2 break-words text-[22px] font-extrabold tracking-tight">{document.nom}</h1>
           <p className="mt-1 text-[12.5px] text-texte-doux">

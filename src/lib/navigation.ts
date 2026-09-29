@@ -66,7 +66,7 @@ export const MENU: GroupeMenu[] = [
     titre: "Administratif",
     icone: "document",
     entrees: [
-      { libelle: "Documents", chemin: "/documents", icone: "document" },
+      { libelle: "Bibliothèque", chemin: "/documents", icone: "document" },
       { libelle: "Signatures", chemin: "/signatures", icone: "signature" },
       { libelle: "Émargements", chemin: "/emargements", icone: "emargement" },
       { libelle: "Attestations", chemin: "/attestations", icone: "certificat" },

@@ -63,11 +63,24 @@ export default async function PageNouveauDocument({
     depart.categorie ??= "FORMATEUR";
   }
 
+  // Dépôt lancé depuis une fiche : on y revient ; sinon, la bibliothèque.
+  const retour = depart.learnerId
+    ? `/apprenants/${depart.learnerId}`
+    : depart.trainerId
+      ? `/formateurs/${depart.trainerId}`
+      : depart.companyId
+        ? `/entreprises/${depart.companyId}`
+        : depart.sessionId
+          ? `/sessions/${depart.sessionId}`
+          : depart.formationId
+            ? `/formations/${depart.formationId}`
+            : "/documents";
+
   return (
     <>
       <header className="mb-6">
-        <Link href="/documents" className="text-[12.5px] font-semibold text-accent-fort hover:underline">
-          ← Documents
+        <Link href={retour} className="text-[12.5px] font-semibold text-accent-fort hover:underline">
+          ← {retour === "/documents" ? "Bibliothèque" : "Retour à la fiche"}
         </Link>
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Déposer un document</h1>
       </header>

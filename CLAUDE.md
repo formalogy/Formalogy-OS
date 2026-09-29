@@ -457,9 +457,21 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   « Remplacer par les données de l'annuaire » écrase les autres. Un
   établissement fermé est signalé.
 
+## Bibliothèque
+
+- L'onglet « Bibliothèque » (route `/documents`, anciennement « Documents »)
+  ne montre que les documents administratifs des sessions de formation :
+  modèles de convention, programmes, feuilles d'émargement… (décision du
+  client du 29/09/2026, `FILTRE_BIBLIOTHEQUE` dans `lib/bibliotheque.ts`).
+- Un document rattaché à une personne (apprenant, formateur) ou à une
+  entreprise **n'y apparaît jamais** : il se consulte uniquement dans la fiche
+  (exemple du client : le CV d'une formatrice). Factures et preuves Qualiopi
+  ont leurs propres écrans. La fiche d'un document et le dépôt renvoient à la
+  fiche d'origine.
+
 ## Documents générés
 
-- **Conventions** : modèles Word déposés dans Documents, types
+- **Conventions** : modèles Word déposés dans la Bibliothèque, types
   `MODELE_CONVENTION_PARTICULIER` et `MODELE_CONVENTION_ENTREPRISE` (session
   avec ou sans entreprise). Marqueurs `«NOM»` remplis par
   `lib/conventions-docx.ts` (valeurs dans `lib/conventions.ts`). Les

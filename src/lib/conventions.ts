@@ -249,8 +249,8 @@ export async function genererConvention(params: {
   if (!modele) {
     return {
       erreur: entreprise
-        ? "Aucun modèle de convention entreprise déposé (Documents → type « Modèle de convention — entreprise »)."
-        : "Aucun modèle de convention particulier déposé (Documents → type « Modèle de convention — particulier »).",
+        ? "Aucun modèle de convention entreprise déposé (Bibliothèque → type « Modèle de convention — entreprise »)."
+        : "Aucun modèle de convention particulier déposé (Bibliothèque → type « Modèle de convention — particulier »).",
     };
   }
 
