@@ -95,7 +95,7 @@ export const estEchelleParDefaut = (question: Question) => {
 
 export const LIBELLE_TYPE_QUESTIONNAIRE: Record<TypeQuestionnaire, string> = {
   POSITIONNEMENT: "Attentes et positionnement (avant la formation)",
-  CHAUD_FORMATEUR: "À chaud — formateur",
+  CHAUD_FORMATEUR: "Bilan de session — formateur (fin de session)",
   FROID: "À froid — apprenant (60 jours après)",
   FINANCEUR: "Financeur (campagne annuelle)",
   SATISFACTION_FORMATEUR: "Satisfaction formateur (campagne annuelle)",
@@ -155,16 +155,31 @@ export const QUESTIONNAIRES_ORIGINE: Record<CodeQuestionnaire, ContenuQuestionna
       { id: "ameliorations", type: "TEXTE", libelle: "Ce qui pourrait être amélioré" },
     ],
   },
+  // Bilan de session du formateur (demande du client du 29/09/2026) : une
+  // fois validé, il devient un document PDF rangé dans la session
+  // (lib/bilan-session.ts), avec l'évaluation des acquis de chaque apprenant.
   CHAUD_FORMATEUR: {
-    titre: "Bilan de la session",
-    introduction: "Votre retour sur la session que vous venez d'animer.",
+    titre: "Bilan de session",
+    introduction:
+      "Votre bilan de la session que vous venez d'animer. Il est conservé dans le dossier de la session, avec l'évaluation des acquis de chaque apprenant.",
     questions: [
+      {
+        id: "programme_suivi",
+        type: "CHOIX_UNIQUE",
+        libelle: "Le programme prévu a-t-il été suivi ?",
+        options: ["Oui, en totalité", "En grande partie", "Partiellement"],
+        obligatoire: true,
+        section: "Déroulement",
+      },
+      { id: "adaptations", type: "TEXTE", libelle: "Adaptations apportées au programme ou au rythme, et pourquoi" },
       { id: "objectifs_atteints", type: "NOTE", libelle: "Le groupe a-t-il atteint les objectifs pédagogiques ?", obligatoire: true },
-      { id: "conditions_materielles", type: "NOTE", libelle: "Les conditions matérielles étaient-elles satisfaisantes ?", obligatoire: true },
-      { id: "niveau_groupe", type: "CHOIX_UNIQUE", libelle: "Le niveau des participants correspondait-il aux prérequis ?", options: ["Oui, pour tous", "Pour la plupart", "Non"], obligatoire: true },
+      { id: "niveau_groupe", type: "CHOIX_UNIQUE", libelle: "Le niveau des participants correspondait-il aux prérequis ?", options: ["Oui, pour tous", "Pour la plupart", "Non"], obligatoire: true, section: "Le groupe" },
+      { id: "implication", type: "NOTE", libelle: "Les participants ont-ils été assidus et impliqués ?", obligatoire: true },
+      { id: "conditions_materielles", type: "NOTE", libelle: "Les conditions matérielles étaient-elles satisfaisantes ?", obligatoire: true, section: "Organisation" },
       { id: "referait", type: "CHOIX_UNIQUE", libelle: "Referiez-vous cette formation dans les mêmes conditions ?", options: ["Oui", "Oui, avec des ajustements", "Non"], obligatoire: true },
-      { id: "points_forts", type: "TEXTE", libelle: "Points forts du déroulement de la session" },
+      { id: "points_forts", type: "TEXTE", libelle: "Points forts du déroulement de la session", section: "Pour la suite" },
       { id: "difficultes", type: "TEXTE", libelle: "Difficultés rencontrées ou points à améliorer" },
+      { id: "recommandations", type: "TEXTE", libelle: "Recommandations pour une prochaine session (contenus, durée, prérequis, matériel)" },
     ],
   },
   FROID: {

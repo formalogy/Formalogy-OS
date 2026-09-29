@@ -1,5 +1,6 @@
 "use server";
 
+import { rangerBilanSession } from "@/lib/bilan-session";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { evaluationDemandee, lireEvaluation, questionnaireQualiteParJeton } from "@/lib/questionnaires";
@@ -36,7 +37,8 @@ export async function repondreQuestionnaireQualite(precedent: EtatReponse, donne
       where: { id: q.id, reponduAt: null },
       data: { reponses: analyse.reponses, questions: contenu.questions, reponduAt: new Date() },
     });
-    if (count === 0 || !q.sessionId) return false;
+    if (count === 0) return false;
+    if (!q.sessionId) return true;
     for (const ligne of evaluations.lignes) {
       await tx.evaluationAcquis.upsert({
         where: { sessionId_learnerId: { sessionId: q.sessionId, learnerId: ligne.learnerId } },
@@ -44,10 +46,16 @@ export async function repondreQuestionnaireQualite(precedent: EtatReponse, donne
         update: { resultat: ligne.resultat, commentaire: ligne.commentaire, saisieParId: null },
       });
     }
-    return evaluations.lignes.length > 0;
+    return true;
   });
 
-  if (enregistre && q.session) {
+  // Le bilan du formateur devient un document de la session. Un échec ici ne
+  // remet pas en cause la réponse, déjà enregistrée.
+  if (enregistre && q.type === "CHAUD_FORMATEUR") {
+    await rangerBilanSession(q.id).catch((erreur) => console.error("Bilan de session non rangé :", erreur));
+  }
+
+  if (enregistre && q.session && evaluations.lignes.length > 0) {
     await journaliser({
       action: "evaluations.received",
       summary: `Évaluation des acquis transmise par le formateur pour la session ${q.session.numero} (${evaluations.lignes.length} apprenant${evaluations.lignes.length > 1 ? "s" : ""})`,

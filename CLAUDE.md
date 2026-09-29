@@ -576,6 +576,14 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   sinon la moyenne arrondie des notes. Statistiques et page « Fin de
   formation » lisent les notes détaillées dans les questions figées
   (`notesDetaillees`).
+- **Bilan de session** (demande du client du 29/09/2026) : c'est le
+  questionnaire `CHAUD_FORMATEUR`, rempli en ligne par le formateur le
+  dernier jour (rubriques déroulement, groupe, organisation, pour la suite,
+  puis évaluation des acquis). À sa validation, `rangerBilanSession`
+  (`lib/bilan-session.ts`) produit le PDF « Bilan de session » (logo,
+  réponses, évaluation de chaque apprenant) et le range dans la session,
+  type `QUESTIONNAIRE_CHAUD_FORMATEUR` renommé « Bilan de session —
+  formateur » (visible dans la Bibliothèque).
 - Envoi : POSITIONNEMENT à J-15 (avec la convention), satisfaction à chaud
   le dernier jour à 16 h (lien dans le mail de fin de formation),
   CHAUD_FORMATEUR le dernier jour à 16 h (avec l'évaluation des acquis),
