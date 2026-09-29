@@ -12,6 +12,7 @@ import { LIBELLE_FINANCEMENT } from "@/lib/apprenants-libelles";
 import { joursDeSession } from "@/lib/emargement";
 import { financeursConnus } from "@/lib/financeurs-connus";
 import { decrirePayeur, type PayeurInscription } from "@/lib/inscriptions-facturation";
+import { paiementAttendu, textePaiementAttendu } from "@/lib/paiements-attendus";
 import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
@@ -133,6 +134,11 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
   });
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;
+  // Quand chaque payeur règle d'habitude, compté depuis la sortie de formation.
+  const attenduPour = (payeur: Parameters<typeof paiementAttendu>[0]) => {
+    const attendu = paiementAttendu(payeur, session.dateFin);
+    return attendu ? textePaiementAttendu(attendu) : undefined;
+  };
 
   return (
     <>
@@ -304,6 +310,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
                         }}
                         financeursConnus={financeurs}
                         modifiable={!factureId}
+                        paiementAttendu={attenduPour(facturerA)}
                       />
                     </div>
                     <form action={desinscrireApprenant}>

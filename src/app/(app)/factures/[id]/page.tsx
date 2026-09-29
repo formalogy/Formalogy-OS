@@ -12,9 +12,10 @@ import {
   situationFacture,
   TON_STATUT_FACTURE,
 } from "@/lib/factures";
+import { echeanceFacture, explicationPaiementAttendu, paiementAttendu, textePaiementAttendu } from "@/lib/paiements-attendus";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
-import { ajouterJours, aujourdhuiUTC, jourVersSaisie } from "@/lib/sessions-libelles";
+import { aujourdhuiUTC, jourVersSaisie } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
   const f = await prisma.facture.findUnique({
     where: { id },
     include: {
-      session: { select: { id: true, numero: true } },
+      session: { select: { id: true, numero: true, dateFin: true } },
       company: { select: { id: true, raisonSociale: true } },
       learner: { select: { id: true, prenom: true, nom: true } },
       document: { select: { id: true, deletedAt: true } },
@@ -47,6 +48,8 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
 
   const aujourdhui = aujourdhuiUTC();
   const situation = situationFacture(f, f.paiements, aujourdhui);
+  // Quand le payeur doit régler, d'après ses délais habituels.
+  const attendu = f.session && f.statut !== "ANNULEE" ? paiementAttendu(f.payeurType, f.session.dateFin) : null;
   const annulable = utilisateur.role === "ADMIN" && (f.statut === "A_EMETTRE" || f.statut === "EMISE") && f.paiements.length === 0;
 
   return (
@@ -99,6 +102,17 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
             <Ligne libelle="Montant TTC" valeur={<span className="font-mono font-semibold">{formaterMontant(f.montantTTC)}</span>} />
             <Ligne libelle="Émise le" valeur={f.dateEmission && jour.format(f.dateEmission)} />
             <Ligne libelle="Échéance" valeur={f.dateEcheance && <span className={situation.enRetard ? "font-semibold text-danger" : ""}>{jour.format(f.dateEcheance)}</span>} />
+            {attendu && f.statut !== "PAYEE" && (
+              <Ligne
+                libelle="Paiement attendu"
+                valeur={
+                  <>
+                    <span className="font-semibold">{textePaiementAttendu(attendu)}</span>
+                    <span className="block text-[11.5px] text-texte-tenu">{explicationPaiementAttendu(attendu)}</span>
+                  </>
+                }
+              />
+            )}
             <Ligne libelle="Session" valeur={f.session && <Link href={`/sessions/${f.session.id}`} className="hover:text-accent-fort">{f.session.numero}</Link>} />
             <Ligne libelle="Entreprise" valeur={f.company && <Link href={`/entreprises/${f.company.id}`} className="hover:text-accent-fort">{f.company.raisonSociale}</Link>} />
             <Ligne libelle="Apprenant" valeur={f.learner && <Link href={`/apprenants/${f.learner.id}`} className="hover:text-accent-fort">{f.learner.prenom} {f.learner.nom}</Link>} />
@@ -111,7 +125,7 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
           {f.statut === "A_EMETTRE" && (
             <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
               <h2 className="mb-3 text-[14.5px] font-bold">Émission dans Henrri</h2>
-              <EmissionFacture id={f.id} aujourdhui={jourVersSaisie(aujourdhui)} echeanceParDefaut={jourVersSaisie(ajouterJours(aujourdhui, 30))} />
+              <EmissionFacture id={f.id} aujourdhui={jourVersSaisie(aujourdhui)} echeanceParDefaut={jourVersSaisie(echeanceFacture(f.payeurType, f.session?.dateFin ?? null, aujourdhui))} />
             </section>
           )}
 

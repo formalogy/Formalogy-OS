@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { alertesDeroulement } from "@/lib/deroulement-alertes";
 import { enCentimes, formaterMontant, situationFacture } from "@/lib/factures";
 import { nomFormateur } from "@/lib/formateurs";
+import { periodeCourte } from "@/lib/paiements-attendus";
+import { paiementsPrevus } from "@/lib/paiements-prevision";
 import { prisma } from "@/lib/prisma";
 import { exigerUtilisateur } from "@/lib/session";
 import {
@@ -16,6 +18,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/// Horizon du bloc « Paiements attendus ».
+const HORIZON_PAIEMENTS = 60;
 const dateLongue = new Intl.DateTimeFormat("fr-FR", {
   weekday: "long",
   day: "numeric",
@@ -78,6 +82,7 @@ export default async function PageTableauDeBord() {
     entrantsAujourdhui,
     sortantsAujourdhui,
     alertes,
+    prevus,
   ] = await Promise.all([
       prisma.learner.count({
         where: { deletedAt: null, statut: { in: ["INSCRIT", "EN_FORMATION"] } },
@@ -199,6 +204,8 @@ export default async function PageTableauDeBord() {
       // Ce qui bloque le déroulement automatique : le seul endroit où
       // intervenir quand tout ne se passe pas bien.
       alertesDeroulement(),
+      // Quand l'argent doit arriver, d'après les délais habituels des payeurs.
+      paiementsPrevus(HORIZON_PAIEMENTS),
     ]);
 
   const caAnnee = facturesAnnee.reduce((t, f) => t + enCentimes(f.montantHT), 0);
@@ -290,6 +297,38 @@ export default async function PageTableauDeBord() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="mt-4 overflow-hidden rounded-xl border border-bordure bg-surface shadow-sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-bordure-douce px-4 py-3">
+          <h2 className="text-[14.5px] font-bold">Paiements attendus — {HORIZON_PAIEMENTS} prochains jours</h2>
+          {prevus.length > 0 && (
+            <span className="text-[12.5px] text-texte-doux">
+              Total : <strong className="font-mono text-texte">{formaterMontant(prevus.reduce((t, p) => t + p.montantCentimes, 0) / 100)}</strong>
+            </span>
+          )}
+        </div>
+        {prevus.length === 0 ? (
+          <p className="px-4 py-4 text-[12.8px] text-texte-doux">Aucun paiement attendu dans les {HORIZON_PAIEMENTS} prochains jours.</p>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto">
+            {prevus.map((p) => (
+              <li key={p.cle} className="border-t border-bordure-douce first:border-t-0">
+                <Link href={p.lien} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-creuse">
+                  <span className="w-32 shrink-0 text-[12.5px] font-semibold tabular-nums">{periodeCourte(p)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.8px] font-semibold">{p.payeur}</span>
+                    <span className="block truncate text-[11.5px] text-texte-tenu">{p.detail}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[12.8px] tabular-nums">{formaterMontant(p.montantCentimes / 100)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="border-t border-bordure-douce px-4 py-2 text-[11.5px] text-texte-tenu">
+          Comptés depuis la déclaration de sortie, le lendemain du dernier jour : 35 jours pour un dossier CPF, 45 à 60 jours pour un OPCO.
+        </p>
       </section>
 
       <div className="mt-4 flex flex-col gap-4">

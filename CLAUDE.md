@@ -276,6 +276,21 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 - Le numéro légal d'une facture vient toujours de Henrri : Formalogy OS ne
   numérote jamais. Une facture « À émettre » est préparée ici, puis émise dans
   Henrri (numéro, dates et PDF reportés), puis suivie jusqu'au paiement.
+- **Délais de paiement** (constatés par le client, 29/09/2026 ;
+  `lib/paiements-attendus.ts`) : comptés depuis la déclaration de sortie de
+  formation, faite le lendemain du dernier jour — **35 jours** pour un
+  dossier CPF (Caisse des Dépôts), **45 à 60 jours** pour un OPCO. Ils
+  donnent l'échéance des factures (fin de la période ; 30 jours après
+  l'émission pour un payeur sans délai connu), le « paiement attendu » de la
+  fiche facture et de chaque inscrit sur la fiche session, et le bloc
+  « Paiements attendus » (60 jours) du tableau de bord
+  (`lib/paiements-prevision.ts` : factures émises, et inscriptions des
+  sessions lancées pas encore facturées). Délai de France Travail, des
+  entreprises et des apprenants : non communiqué.
+- Suivi des paiements : fait **dans Henrri**, pas dans Formalogy OS (décision
+  du client du 29/09/2026 : pas de relance des impayés, mention
+  « acquittée » posée dans Henrri). Un paiement non saisi ici laisse la
+  facture « émise » dans l'application.
 - Une facture émise ne se modifie plus ; son annulation (admin) suppose un
   avoir dans Henrri. Montants calculés en centimes entiers ; les paiements ne
   peuvent pas dépasser le reste dû (transaction sérialisable).
@@ -370,6 +385,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   hybride), lieu et formateur, ligne unique au prix de la session (TVA 0 %,
   article 261-4-4° du CGI, seul taux utilisé par Formalogy), mention
   d'exonération en pied de page.
+- Le document Henrri est daté **du jour de son émission** (champ `date`,
+  qui fixe aussi la série de numérotation). Jusqu'au 29/09/2026, l'échéance
+  y était envoyée par erreur : les factures du bac à sable sont datées un
+  mois trop tard (série « 26-10 » créée en septembre).
 - Le document est **finalisé** (numéro définitif, verrouillé côté Henrri) dès
   la création : irréversible. Le PDF est ensuite récupéré et rangé comme
   document (catégorie FINANCE, type FACTURE, rattaché à la session, à

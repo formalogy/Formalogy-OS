@@ -18,6 +18,8 @@ type Props = {
   financeursConnus: string[];
   /// Faux une fois l'inscription facturée
   modifiable: boolean;
+  /// « le 3 novembre 2026 » : quand ce payeur règle d'habitude
+  paiementAttendu?: string;
 };
 
 /// Facturation d'un apprenant inscrit (payeur et tarif), corrigeable tant
@@ -40,6 +42,7 @@ export function FacturationInscription(props: Props) {
           {props.prix === null ? "tarif à indiquer" : `${formaterEuros(props.prix)} HT`}
         </span>
         <span className="text-texte-doux"> · {props.description}</span>
+        {props.paiementAttendu && <span className="text-texte-doux"> · paiement attendu {props.paiementAttendu}</span>}
         {props.modifiable ? (
           <button type="button" onClick={() => setEdition(true)} className="ml-1.5 font-semibold text-accent-fort hover:underline">
             modifier

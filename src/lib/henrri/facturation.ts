@@ -9,8 +9,9 @@ import { depuisCentimes, enCentimes, montantTTC } from "@/lib/factures";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { henrriFetch, henrriTelecharger, HenrriError } from "@/lib/henrri/client";
 import { journaliser } from "@/lib/journal";
+import { echeanceFacture } from "@/lib/paiements-attendus";
 import { prisma } from "@/lib/prisma";
-import { ajouterJours, aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
+import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 import { stockage } from "@/lib/stockage";
 
 /// Factures d'une session terminée, regroupées par payeur. Le payeur et le
@@ -407,7 +408,10 @@ async function emettreFacture(
         : g.type === "CAISSE_DES_DEPOTS"
           ? `Apprenant : ${nomComplet(g.inscriptions[0])} · Dossier CPF n° ${g.inscriptions[0].learner.numeroDossierCpf}`
           : null;
-  const echeance = ajouterJours(aujourdhuiUTC(), 30);
+  // La facture est datée du jour où elle est émise ; l'échéance, gardée ici
+  // seulement, est la date où le payeur règle d'habitude (lib/paiements-attendus.ts).
+  const emission = aujourdhuiUTC();
+  const echeance = echeanceFacture(g.type, session.dateFin, emission);
 
   const document = await henrriFetch<{ id: number }>("/v1/documents", {
     method: "POST",
@@ -417,7 +421,7 @@ async function emettreFacture(
       title: session.formation.titre,
       subtitle: references ? `${references} — ${recapitulatif}` : recapitulatif,
       footerText: MENTION_EXONERATION,
-      date: echeance.toISOString(),
+      date: emission.toISOString(),
     }),
   });
 
@@ -486,7 +490,7 @@ async function emettreFacture(
       montantTTC: montantTTC(montantHT, TAUX_TVA),
       statut: "EMISE",
       origine: "AUTO",
-      dateEmission: aujourdhuiUTC(),
+      dateEmission: emission,
       dateEcheance: echeance,
       createdById: userId,
     },
