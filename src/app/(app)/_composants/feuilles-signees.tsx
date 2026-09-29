@@ -11,7 +11,15 @@ export type JourFeuille = {
   cle: string;
   libelle: string;
   passe: boolean;
-  feuille: { recue: string; parEmail: boolean; documentId: string } | null;
+  /// Aujourd'hui : les signatures peuvent encore arriver
+  enCours: boolean;
+  feuille: { recue: string; origine: "EMAIL" | "DEPOT" | "NUMERIQUE"; documentId: string } | null;
+};
+
+const ORIGINE: Record<NonNullable<JourFeuille["feuille"]>["origine"], string> = {
+  NUMERIQUE: "Signée en ligne, rangée",
+  EMAIL: "Reçue par email",
+  DEPOT: "Déposée",
 };
 
 function BoutonDepot() {
@@ -33,7 +41,7 @@ function LigneJour({ sessionId, jour, lienDocument }: { sessionId: string; jour:
       <span className="w-40 shrink-0 text-[13px] font-semibold">{jour.libelle}</span>
       {jour.feuille ? (
         <span className="text-[12.5px] text-succes">
-          ✓ {jour.feuille.parEmail ? "Reçue par email" : "Déposée"} le {jour.feuille.recue}
+          ✓ {ORIGINE[jour.feuille.origine]} le {jour.feuille.recue}
           {lienDocument && (
             <Link href={`/documents/${jour.feuille.documentId}`} className="ml-2 font-semibold text-accent-fort hover:underline">
               Voir
@@ -45,8 +53,10 @@ function LigneJour({ sessionId, jour, lienDocument }: { sessionId: string; jour:
             </button>
           )}
         </span>
+      ) : jour.enCours ? (
+        <span className="text-[12.5px] text-texte-doux">En cours de signature</span>
       ) : jour.passe ? (
-        <span className="text-[12.5px] font-semibold text-alerte">Manquante</span>
+        <span className="text-[12.5px] font-semibold text-alerte">Incomplète</span>
       ) : (
         <span className="text-[12.5px] text-texte-tenu">à venir</span>
       )}
@@ -70,9 +80,10 @@ function LigneJour({ sessionId, jour, lienDocument }: { sessionId: string; jour:
   );
 }
 
-/// Feuilles d'émargement signées, jour par jour (A-05) : celles renvoyées par
-/// le formateur en réponse à l'email du matin se rangent seules ; les autres
-/// se déposent ici. Tant qu'une feuille manque, le formateur est relancé.
+/// Feuilles d'émargement signées, jour par jour (A-05) : la feuille numérique
+/// se range seule dès que tout le monde a signé, comme la feuille papier
+/// renvoyée par le formateur en réponse à l'email du matin ; les autres se
+/// déposent ici. Tant qu'une feuille manque, le formateur est relancé.
 export function FeuillesSignees({ sessionId, jours, lienDocument }: { sessionId: string; jours: JourFeuille[]; lienDocument: boolean }) {
   return (
     <ul className="px-4 py-1">

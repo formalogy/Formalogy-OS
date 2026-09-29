@@ -1,10 +1,12 @@
 import "server-only";
 
-import { PDFDocument, rgb, StandardFonts, type PDFPage } from "pdf-lib";
+import type { Creneau } from "@prisma/client";
+import { PDFDocument, rgb, StandardFonts, type PDFImage, type PDFPage } from "pdf-lib";
 
-import { demiJourneesJusqua, horairesDemiJournees, LIBELLE_CRENEAU } from "@/lib/emargement";
+import { demiJourneesJusqua, horairesDemiJournees, LIBELLE_CRENEAU, LIBELLE_PRESENCE } from "@/lib/emargement";
 import type { sessionPourEmargement } from "@/lib/emargement-acces";
 import { tronquer } from "@/lib/pdf-outils";
+import { prisma } from "@/lib/prisma";
 
 type Session = NonNullable<Awaited<ReturnType<typeof sessionPourEmargement>>>;
 
@@ -26,11 +28,14 @@ const COLONNES = [
 ];
 
 const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const dateSignature = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" });
+const heureSignature = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
 
 /// Feuilles d'émargement pré-remplies : une page par demi-journée (plus des
 /// pages de suite si les apprenants ne tiennent pas sur une page), avec
 /// l'horaire réel du créneau, une case de signature par apprenant et celle du
-/// formateur en bas.
+/// formateur en bas. Les signatures électroniques déjà recueillies y figurent,
+/// avec leur heure ; une absence signalée est inscrite dans la case.
 ///
 /// Seules les demi-journées déjà commencées sont produites : une feuille ne
 /// se fait signer que le jour même, jamais à l'avance. `seulementCeJour` ne
@@ -61,6 +66,29 @@ export async function genererFeuillesEmargement(
       (!options.jours || options.jours.some((j) => j.getTime() === jour.getTime())),
   );
 
+  // Signatures électroniques des demi-journées produites, repérées par
+  // « jour|créneau|participant ».
+  const cle = (jour: Date, creneau: Creneau, participant: string) => `${jour.getTime()}|${creneau}|${participant}`;
+  const signatures = new Map<string, { image: PDFImage; signeAt: Date }>();
+  const recueillies = await prisma.signatureEmargement.findMany({
+    where: { sessionId: session.id, jour: { in: [...new Set(demiJournees.map((d) => d.jour.getTime()))].map((t) => new Date(t)) } },
+    select: { jour: true, creneau: true, image: true, signeAt: true, lien: { select: { learnerId: true, trainerId: true } } },
+  });
+  for (const s of recueillies) {
+    const participant = s.lien.learnerId ? `apprenant:${s.lien.learnerId}` : `formateur:${s.lien.trainerId}`;
+    signatures.set(cle(s.jour, s.creneau, participant), { image: await pdf.embedPng(s.image), signeAt: s.signeAt });
+  }
+  const absences = new Map(
+    session.presences.filter((p) => p.statut !== "PRESENT").map((p) => [cle(p.jour, p.creneau, `apprenant:${p.learnerId}`), LIBELLE_PRESENCE[p.statut]]),
+  );
+
+  /// Signature dans sa case : l'image à gauche, l'heure à droite.
+  const apposer = (page: PDFPage, signature: { image: PDFImage; signeAt: Date }, x: number, y: number, largeur: number, hauteur: number) => {
+    const echelle = Math.min((hauteur - 6) / signature.image.height, 170 / signature.image.width);
+    page.drawImage(signature.image, { x: x + 6, y: y + (hauteur - signature.image.height * echelle) / 2, width: signature.image.width * echelle, height: signature.image.height * echelle });
+    ecrire(page, `Signé en ligne le ${dateSignature.format(signature.signeAt)} à ${heureSignature.format(signature.signeAt)}`, x + 186, y + hauteur / 2 - 3, 7.5, normal, GRIS, largeur - 192);
+  };
+
   for (const { jour, creneau } of demiJournees) {
     // Au moins une page par jour, même sans inscrit (feuille vierge à compléter).
     const paquets: (typeof apprenants)[] = [];
@@ -70,6 +98,7 @@ export async function genererFeuillesEmargement(
 
     paquets.forEach((paquet, rangPage) => {
       const page = pdf.addPage([LARGEUR, HAUTEUR]);
+      let electronique = false;
       let y = HAUTEUR - MARGE - 4;
 
       ecrire(page, organisme, MARGE, y, 10, gras, GRIS);
@@ -113,6 +142,16 @@ export async function genererFeuillesEmargement(
           page.drawRectangle({ x, y, width: col.largeur, height: HAUTEUR_LIGNE, borderColor: TRAIT, borderWidth: 0.6 });
           if (apprenant && i === 0) ecrire(page, `${apprenant.nom.toUpperCase()} ${apprenant.prenom}`, x + 6, haut - 20, 10, normal, NOIR, col.largeur - 12);
           if (apprenant && i === 1) ecrire(page, apprenant.company?.raisonSociale ?? "", x + 6, haut - 20, 9, normal, GRIS, col.largeur - 12);
+          if (apprenant && i === 2) {
+            const signature = signatures.get(cle(jour, creneau, `apprenant:${apprenant.id}`));
+            const absence = absences.get(cle(jour, creneau, `apprenant:${apprenant.id}`));
+            if (signature) {
+              apposer(page, signature, x, y, col.largeur, HAUTEUR_LIGNE);
+              electronique = true;
+            } else if (absence) {
+              ecrire(page, absence, x + 6, haut - 20, 9.5, gras, GRIS, col.largeur - 12);
+            }
+          }
           x += col.largeur;
         });
       }
@@ -124,11 +163,18 @@ export async function genererFeuillesEmargement(
         y -= 8;
         const xc = MARGE + COLONNES[0].largeur + COLONNES[1].largeur;
         page.drawRectangle({ x: xc, y: y - 44, width: COLONNES[2].largeur, height: 44, borderColor: TRAIT, borderWidth: 0.6 });
+        const signature = session.trainerId ? signatures.get(cle(jour, creneau, `formateur:${session.trainerId}`)) : undefined;
+        if (signature) {
+          apposer(page, signature, xc, y - 44, COLONNES[2].largeur, 44);
+          electronique = true;
+        }
       }
 
       ecrire(
         page,
-        "Chaque apprenant signe au début de la demi-journée. En cas d'absence, laisser la case vide et l'indiquer au formateur.",
+        electronique
+          ? `Émargement électronique : signatures recueillies en ligne par le lien personnel de chaque participant ; heure, appareil et empreinte conservés par ${organisme}.`
+          : "Chaque apprenant signe au début de la demi-journée. En cas d'absence, laisser la case vide et l'indiquer au formateur.",
         MARGE,
         MARGE - 12,
         8,

@@ -2,14 +2,24 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import type { Automation, DeclencheurAutomatisation, TypeFinancement } from "@prisma/client";
+import type { Automation, Creneau, DeclencheurAutomatisation, TypeFinancement } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { genererConvention, genererConvocationApprenant } from "@/lib/conventions";
 import { sessionEmargementAutomatique } from "@/lib/emargement-acces";
-import { joursDeSession } from "@/lib/emargement";
+import { CRENEAUX, joursDeSession, LIBELLE_CRENEAU } from "@/lib/emargement";
 import { joursSansFeuille, libelleJour } from "@/lib/emargement-feuilles";
+import {
+  bilanSignatures,
+  bornesDemiJournees,
+  genererQrCodesEmargement,
+  instantDeParis,
+  lienEmargement,
+  minutesDeParis,
+  rangerFeuillesNumeriques,
+  texteSignaturesManquantes,
+} from "@/lib/emargement-numerique";
 import { genererFeuillesEmargement } from "@/lib/emargement-pdf";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail, type PieceJointe } from "@/lib/emails/envoi";
@@ -48,10 +58,13 @@ const schemaAction = z.discriminatedUnion("type", [
     /// convocation. ATTESTATION et CERTIFICAT reprennent les documents déjà
     /// produits pour cet apprenant : si l'un manque (évaluation des acquis pas
     /// encore transmise), l'email attend et part à un passage suivant, une
-    /// fois les documents prêts. EMARGEMENT produit la feuille du jour
+    /// fois les documents prêts. EMARGEMENT produit la feuille papier du
+    /// jour et QR_EMARGEMENT les QR codes de signature des apprenants
     /// (formateur) ; FACTURE reprend le PDF de la facture (payeur), sans
     /// lequel rien ne part.
-    joindre: z.array(z.enum(["CONVENTION", "CONVOCATION", "ATTESTATION", "CERTIFICAT", "EMARGEMENT", "FACTURE"])).optional(),
+    joindre: z
+      .array(z.enum(["CONVENTION", "CONVOCATION", "ATTESTATION", "CERTIFICAT", "EMARGEMENT", "QR_EMARGEMENT", "FACTURE"]))
+      .optional(),
   }),
   z.object({
     type: z.literal("TACHE"),
@@ -71,6 +84,14 @@ const schemaAction = z.discriminatedUnion("type", [
     /// EMARGEMENT_RELANCE), feuilles jointes à nouveau. Rien ne part quand
     /// tout est arrivé.
     type: z.literal("RELANCE_EMARGEMENT"),
+  }),
+  z.object({
+    /// Émargement numérique : relance, à la fin d'une demi-journée, de chaque
+    /// participant qui ne l'a pas signée (modèles
+    /// EMARGEMENT_SIGNATURE_RELANCE pour un apprenant,
+    /// EMARGEMENT_SIGNATURE_FORMATEUR pour le formateur), avec son lien
+    /// personnel. Les absents signalés ne sont pas relancés.
+    type: z.literal("RELANCE_SIGNATURE"),
   }),
   z.object({
     /// Génère l'attestation et le certificat de réalisation des apprenants
@@ -120,6 +141,8 @@ type Cas = {
   prospectId?: string;
   companyId?: string;
   dossierId?: string;
+  /// Déclencheur FIN_DEMI_JOURNEE : la demi-journée concernée
+  demiJournee?: { jour: Date; creneau: Creneau };
 };
 
 /// Heure locale française, quelle que soit l'heure du serveur. On lit la
@@ -145,6 +168,7 @@ type Comptes = ComptesEnvoi & {
   sansFormateur: number;
   factureAbsente: number;
   feuillesRecues: number;
+  toutSigne: number;
 };
 
 /// Le jour prévu, un envoi attend l'heure dite (heure de Paris). Un réveil
@@ -365,15 +389,27 @@ async function envoyerAuFormateur(p: {
       });
     }
   }
+  if (p.joindre?.includes("QR_EMARGEMENT")) {
+    const qr = await genererQrCodesEmargement(cas.sessionId);
+    if (qr) piecesJointes.push({ nom: "QR-codes-emargement.pdf", contenu: qr, typeMime: "application/pdf" });
+  }
 
-  const contexte = await construireContexte({ trainerId: formateur.id, sessionId: cas.sessionId, lienChaudFormateur });
+  const lienSignature = `${modele.sujet}${modele.corps}`.includes("{{emargement.lien}}")
+    ? (await lienEmargement(cas.sessionId, { trainerId: formateur.id })).url
+    : undefined;
+  const contexte = await construireContexte({ trainerId: formateur.id, sessionId: cas.sessionId, lienChaudFormateur, lienEmargement: lienSignature });
   const email = await envoyerEmail({
     destinataire: formateur.email,
     sujet: rendre(modele.sujet, contexte).resultat,
     corps: rendre(modele.corps, contexte).resultat,
-    corpsJournal: lienChaudFormateur
-      ? rendre(modele.corps, { ...contexte, "questionnaire.lienChaudFormateur": "[lien personnel masqué]" }).resultat
-      : undefined,
+    corpsJournal:
+      lienChaudFormateur || lienSignature
+        ? rendre(modele.corps, {
+            ...contexte,
+            "questionnaire.lienChaudFormateur": lienChaudFormateur && "[lien personnel masqué]",
+            "emargement.lien": lienSignature && "[lien personnel masqué]",
+          }).resultat
+        : undefined,
     templateId: modele.id,
     sessionId: cas.sessionId,
     automationRunId: executionId,
@@ -399,6 +435,9 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
     select: { id: true, dateDebut: true, dateFin: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
   });
   if (!session) return;
+  // Une journée dont toutes les signatures électroniques sont arrivées a sa
+  // feuille : rangée ici au besoin, elle n'est pas relancée.
+  await rangerFeuillesNumeriques(session.id);
   const manquants = await joursSansFeuille(session, aujourdhuiUTC());
   if (manquants.length === 0) {
     comptes.feuillesRecues++;
@@ -438,15 +477,20 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
         },
       ]
     : [];
+  const texte = `${modele.sujet}${modele.corps}`;
+  const lienSignature = texte.includes("{{emargement.lien}}") ? (await lienEmargement(session.id, { trainerId: formateur.id })).url : undefined;
   const contexte = await construireContexte({
     trainerId: formateur.id,
     sessionId: session.id,
     joursEmargement: manquants.map(libelleJour).join(", "),
+    manquantsEmargement: texte.includes("{{emargement.manquants}}") ? await texteSignaturesManquantes(session.id, manquants, formateur.id) : undefined,
+    lienEmargement: lienSignature,
   });
   const email = await envoyerEmail({
     destinataire: formateur.email,
     sujet: rendre(modele.sujet, contexte).resultat,
     corps: rendre(modele.corps, contexte).resultat,
+    corpsJournal: lienSignature ? rendre(modele.corps, { ...contexte, "emargement.lien": "[lien personnel masqué]" }).resultat : undefined,
     templateId: modele.id,
     sessionId: session.id,
     automationRunId: executionId,
@@ -455,6 +499,74 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
   if (email.statut === "SIMULE") comptes.simules++;
   else if (email.statut === "ECHEC") throw new Error(`Relance au formateur (${formateur.email}) : ${email.erreur}`);
   else comptes.emails++;
+}
+
+/// Relance de signature en fin de demi-journée (émargement numérique) :
+/// chaque participant attendu qui n'a pas signé reçoit un email avec son
+/// lien personnel. Le lien ne sert que le jour même : passé ce jour (réveil
+/// manqué), la relance n'a plus d'objet et rien ne part.
+async function relancerSignatures(p: { cas: Cas; executionId: string; comptes: Comptes }) {
+  const { cas, executionId, comptes } = p;
+  if (!cas.sessionId || !cas.demiJournee) return;
+  const { jour, creneau } = cas.demiJournee;
+  if (jour.getTime() !== aujourdhuiUTC().getTime()) {
+    comptes.ignores++;
+    return;
+  }
+  const manquants = (await bilanSignatures(cas.sessionId, [jour])).get(jour.getTime())?.[creneau].manquants ?? [];
+  if (manquants.length === 0) {
+    comptes.toutSigne++;
+    return;
+  }
+
+  const [modeleApprenant, modeleFormateur, session] = await Promise.all([
+    prisma.emailTemplate.findUnique({ where: { code: "EMARGEMENT_SIGNATURE_RELANCE" } }),
+    prisma.emailTemplate.findUnique({ where: { code: "EMARGEMENT_SIGNATURE_FORMATEUR" } }),
+    prisma.trainingSession.findUnique({ where: { id: cas.sessionId }, select: { horaires: true } }),
+  ]);
+  // Une relance par personne et par demi-journée : un email du même modèle
+  // parti depuis la fin de cette demi-journée compte comme déjà servi.
+  const finDemiJournee = instantDeParis(jour, bornesDemiJournees(session?.horaires ?? null)[creneau].fin);
+  const seance = `${LIBELLE_CRENEAU[creneau].toLowerCase()} du ${libelleJour(jour)}`;
+
+  for (const personne of manquants) {
+    const modele = personne.trainerId ? modeleFormateur : modeleApprenant;
+    if (!modele?.actif) continue;
+    if (!personne.email) {
+      comptes.sansAdresse++;
+      continue;
+    }
+    const deja = await prisma.email.count({
+      where: {
+        templateId: modele.id,
+        sessionId: cas.sessionId,
+        destinataire: personne.email,
+        statut: { not: "ECHEC" },
+        automationRunId: { not: null },
+        envoyeAt: { gte: finDemiJournee },
+      },
+    });
+    if (deja > 0) {
+      comptes.dejaServis++;
+      continue;
+    }
+    const participant = personne.trainerId ? { trainerId: personne.trainerId } : { learnerId: personne.learnerId as string };
+    const { url } = await lienEmargement(cas.sessionId, participant);
+    const contexte = await construireContexte({ ...participant, sessionId: cas.sessionId, lienEmargement: url, seanceEmargement: seance });
+    const email = await envoyerEmail({
+      destinataire: personne.email,
+      sujet: rendre(modele.sujet, contexte).resultat,
+      corps: rendre(modele.corps, contexte).resultat,
+      corpsJournal: rendre(modele.corps, { ...contexte, "emargement.lien": "[lien personnel masqué]" }).resultat,
+      templateId: modele.id,
+      learnerId: personne.learnerId,
+      sessionId: cas.sessionId,
+      automationRunId: executionId,
+    });
+    if (email.statut === "SIMULE") comptes.simules++;
+    else if (email.statut === "ECHEC") throw new Error(`Relance de signature (${personne.email}) : ${email.erreur}`);
+    else comptes.emails++;
+  }
 }
 
 /// Email au payeur de la facture émise pour la session, avec son PDF. Sans
@@ -559,6 +671,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
     sansFormateur: 0,
     factureAbsente: 0,
     feuillesRecues: 0,
+    toutSigne: 0,
   };
   // Motifs distincts d'échec de génération d'une convention, signalés dans le
   // bilan sans faire échouer l'envoi lui-même.
@@ -685,6 +798,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             comptes.ignores++;
             continue;
           }
+          const lienSignature =
+            cas.sessionId && texteModele.includes("{{emargement.lien}}")
+              ? (await lienEmargement(cas.sessionId, { learnerId: apprenant.id })).url
+              : undefined;
 
           // Convention et convocation, fabriquées à l'envoi. Une convention
           // qui ne peut pas l'être (modèle absent) n'empêche pas l'email de
@@ -713,18 +830,20 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             lienQuestionnaire,
             lienPositionnement,
             lienFroid,
+            lienEmargement: lienSignature,
           });
           const email = await envoyerEmail({
             destinataire: apprenant.email,
             sujet: rendre(modele.sujet, contexte).resultat,
             corps: rendre(modele.corps, contexte).resultat,
             corpsJournal:
-              lienQuestionnaire || lienPositionnement || lienFroid
+              lienQuestionnaire || lienPositionnement || lienFroid || lienSignature
                 ? rendre(modele.corps, {
                     ...contexte,
                     "questionnaire.lien": lienQuestionnaire && "[lien personnel masqué]",
                     "questionnaire.lienPositionnement": lienPositionnement && "[lien personnel masqué]",
                     "questionnaire.lienFroid": lienFroid && "[lien personnel masqué]",
+                    "emargement.lien": lienSignature && "[lien personnel masqué]",
                   }).resultat
                 : undefined,
             templateId: modele.id,
@@ -776,6 +895,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         await relancerEmargement({ cas, executionId, comptes });
       }
 
+      if (action.type === "RELANCE_SIGNATURE") {
+        await relancerSignatures({ cas, executionId, comptes });
+      }
+
       if (action.type === "DOCUMENTS_FIN_FORMATION") {
         if (!cas.sessionId) throw new Error("Documents de fin de formation : aucune session associée à ce cas.");
         // Les apprenants dont les présences ou l'évaluation manquent sont
@@ -798,6 +921,7 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
       comptes.sansFormateur && "aucun formateur affecté à la session",
       comptes.factureAbsente && "aucune facture émise pour la session",
       comptes.feuillesRecues && "toutes les feuilles d'émargement signées sont arrivées",
+      comptes.toutSigne && "tout le monde a signé",
       conventionsEchouees.size > 0 && `convention non générée — ${[...conventionsEchouees].join(" ; ")}`,
       comptes.dejaServis && `${comptes.dejaServis} destinataire(s) déjà servi(s)`,
       comptes.sansAdresse && `${comptes.sansAdresse} destinataire(s) sans adresse email`,
@@ -835,7 +959,10 @@ async function casDepuisExecution(run: { cleUnicite: string; entityType: string;
     });
     if (!session) return { erreur: "La session n'existe plus." };
     if (session.deroulementSuspenduAt) return { erreur: "Le déroulement de cette session est suspendu : reprenez-le d'abord." };
-    return { ...base, sessionId, learnerId, companyId: session.companyId ?? undefined };
+    // Relance de fin de demi-journée : le jour et la demi-journée sont dans la clé.
+    const demi = /:jour:(\d{4}-\d{2}-\d{2}):(MATIN|APRES_MIDI)$/.exec(run.cleUnicite);
+    const demiJournee = demi ? { jour: new Date(`${demi[1]}T00:00:00.000Z`), creneau: demi[2] as Creneau } : undefined;
+    return { ...base, sessionId, learnerId, companyId: session.companyId ?? undefined, demiJournee };
   }
   if (run.entityType === "Learner") {
     const apprenant = await prisma.learner.findFirst({ where: { id: run.entityId, deletedAt: null }, select: { companyId: true } });
@@ -1111,6 +1238,41 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
           companyId: session.companyId ?? undefined,
         }),
       );
+    }
+  }
+
+  // Fin de chaque demi-journée de formation (émargement numérique) : un cas
+  // par session, jour et demi-journée, dès l'heure de fin lue dans les
+  // horaires de la session. Le réveil doit donc passer plusieurs fois par jour.
+  for (const automation of await automationsActives("FIN_DEMI_JOURNEE")) {
+    const sessions = await prisma.trainingSession.findMany({
+      where: {
+        ...SESSIONS_EN_ROUTE,
+        statut: { notIn: ["ANNULEE", "CLOTUREE", "BROUILLON"] },
+        dateDebut: { lte: aujourdhui },
+        dateFin: { gte: aujourdhui },
+      },
+    });
+    const maintenant = minutesDeParis();
+    for (const session of sessions) {
+      if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) continue;
+      const bornes = bornesDemiJournees(session.horaires);
+      for (const creneau of CRENEAUX) {
+        if (maintenant < bornes[creneau].fin) continue;
+        compter(
+          await traiterCas(automation, {
+            // Une inscription le jour même rouvre le cas pour le nouvel
+            // arrivant ; les autres ne sont pas relancés deux fois (voir
+            // relancerSignatures).
+            cle: `${automation.id}:session:${session.id}:${await empreinteInscrits(session.id)}:jour:${aujourdhui.toISOString().slice(0, 10)}:${creneau}`,
+            entityType: "TrainingSession",
+            entityId: session.id,
+            sessionId: session.id,
+            companyId: session.companyId ?? undefined,
+            demiJournee: { jour: aujourdhui, creneau },
+          }),
+        );
+      }
     }
   }
 

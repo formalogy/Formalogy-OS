@@ -13,6 +13,7 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   SESSION_APRES_FIN: "Quelques jours après la fin d'une session",
   SESSION_TERMINEE: "Quand une session passe à « Terminée » (seule, le lendemain de son dernier jour) ou « Clôturée »",
   SESSION_JOUR: "Chaque jour de formation de la session (samedis et dimanches intermédiaires exclus)",
+  FIN_DEMI_JOURNEE: "À la fin de chaque demi-journée de formation (heure de fin lue dans les horaires de la session)",
   RELANCE_PROSPECT_DUE: "Quand la date de relance d'un prospect est atteinte",
   CAMPAGNE_ANNUELLE: "Chaque année à date fixe",
 };
@@ -23,6 +24,7 @@ export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "SESSION_AVANT_FIN",
   "SESSION_APRES_FIN",
   "SESSION_JOUR",
+  "FIN_DEMI_JOURNEE",
   "RELANCE_PROSPECT_DUE",
   "CAMPAGNE_ANNUELLE",
 ];
@@ -87,7 +89,8 @@ export function decrireAction(action: unknown): string {
       CONVOCATION: "sa convocation",
       ATTESTATION: "son attestation de fin de formation",
       CERTIFICAT: "son certificat de réalisation",
-      EMARGEMENT: "la feuille d'émargement du jour",
+      EMARGEMENT: "la feuille d'émargement du jour (secours papier)",
+      QR_EMARGEMENT: "les QR codes d'émargement des apprenants",
       FACTURE: "le PDF de la facture",
     };
     const pieces = (a.joindre ?? []).map((j) => noms[j] ?? j);
@@ -102,7 +105,10 @@ export function decrireAction(action: unknown): string {
     return "Émettre automatiquement la facture dans Henrri (entreprise cliente ; sinon une par dossier CPF, à la Caisse des Dépôts ; sinon l'apprenant) et la ranger dans le dossier de l'apprenant";
   }
   if (a.type === "RELANCE_EMARGEMENT") {
-    return "Relancer le formateur si des feuilles d'émargement signées manquent, en les lui renvoyant (rien ne part quand tout est arrivé)";
+    return "Relancer le formateur si l'émargement d'un jour est incomplet, avec les signatures manquantes et la feuille papier en secours (rien ne part quand tout est signé)";
+  }
+  if (a.type === "RELANCE_SIGNATURE") {
+    return "Relancer chaque participant (apprenant ou formateur) qui n'a pas signé la demi-journée, avec son lien personnel (les absents signalés ne sont pas relancés)";
   }
   if (a.type === "DOCUMENTS_FIN_FORMATION") {
     return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";

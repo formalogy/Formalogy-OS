@@ -7,6 +7,7 @@ import { verifierFichier } from "@/lib/documents-depot";
 import { joursDeSession } from "@/lib/emargement";
 import { sessionPourEmargement } from "@/lib/emargement-acces";
 import { enregistrerFeuilleSignee, formatFeuilleAccepte } from "@/lib/emargement-feuilles";
+import { rangerFeuillesNumeriques } from "@/lib/emargement-numerique";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerUtilisateur } from "@/lib/session";
@@ -71,6 +72,9 @@ export async function enregistrerPresence(donnees: FormData): Promise<ResultatSa
       update: { statut: statut.data, saisieParId: c.utilisateur.id },
     });
   }
+  // Un absent n'est plus attendu : sa signature était peut-être la dernière
+  // qui manquait pour ranger la feuille numérique du jour.
+  await rangerFeuillesNumeriques(c.session.id).catch((erreur) => console.error("Feuille d'émargement numérique non rangée :", erreur));
 
   rafraichir(c.session.id);
   return {};

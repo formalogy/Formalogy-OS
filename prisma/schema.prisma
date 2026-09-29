@@ -432,6 +432,7 @@ model Learner {
   inscriptions SessionLearner[]
   documents    Document[]
   presences    Presence[]
+  liensEmargement LienEmargement[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
   questionnaires Questionnaire[]
@@ -595,6 +596,8 @@ model TrainingSession {
   documents    Document[]
   presences    Presence[]
   feuillesSignees FeuilleEmargementSignee[]
+  liensEmargement LienEmargement[]
+  signaturesEmargement SignatureEmargement[]
   evaluations  EvaluationAcquis[]
   satisfactions QuestionnaireSatisfaction[]
   questionnaires Questionnaire[]
@@ -915,6 +918,8 @@ enum DeclencheurAutomatisation {
   SESSION_TERMINEE
   /// Chaque jour de la session, du premier au dernier (feuille d'émargement du jour)
   SESSION_JOUR
+  /// À la fin de chaque demi-journée de formation (relance de qui n'a pas émargé)
+  FIN_DEMI_JOURNEE
   RELANCE_PROSPECT_DUE
   /// Campagne annuelle à date fixe (jour et mois en paramètres), sans lien
   /// avec une session : questionnaires annuels aux formateurs et financeurs.
@@ -1032,6 +1037,7 @@ model Trainer {
   sessions  TrainingSession[]
   documents Document[]
   questionnaires Questionnaire[]
+  liensEmargement LienEmargement[]
 
   @@index([nom, prenom])
   @@index([deletedAt])
@@ -1399,6 +1405,61 @@ enum OrigineFeuilleEmargement {
   EMAIL
   /// Déposée à la main depuis l'écran d'émargement
   DEPOT
+  /// Produite par l'application quand chacun a signé en ligne
+  NUMERIQUE
+}
+
+/// Lien personnel d'émargement numérique : un par participant (apprenant ou
+/// formateur) et par session. Il ouvre la page de signature de la séance en
+/// cours. Le jeton du lien n'est pas stocké : il se recalcule à partir de
+/// l'identifiant et d'un secret du serveur (voir lib/emargement-numerique.ts) ;
+/// seule son empreinte sert à retrouver le lien.
+model LienEmargement {
+  id String @id @default(uuid(7))
+
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  learnerId String?
+  learner   Learner?        @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  trainerId String?
+  trainer   Trainer?        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  jetonEmpreinte String @unique
+
+  signatures SignatureEmargement[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, learnerId])
+  @@unique([sessionId, trainerId])
+  @@map("liens_emargement")
+}
+
+/// Signature électronique simple d'une demi-journée, recueillie par le lien
+/// personnel du participant. Les éléments de preuve (instant, appareil,
+/// adresse réseau, empreinte de l'image) sont conservés avec elle.
+model SignatureEmargement {
+  id String @id @default(uuid(7))
+
+  lienId    String
+  lien      LienEmargement  @relation(fields: [lienId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// Jour de session (minuit UTC, comme les présences) et demi-journée
+  jour    DateTime
+  creneau Creneau
+
+  /// Image PNG de la signature tracée au doigt ou à la souris
+  image     Bytes
+  empreinte String
+  signeAt   DateTime @default(now())
+  ip        String?
+  appareil  String?
+
+  @@unique([lienId, jour, creneau])
+  @@index([sessionId, jour])
+  @@map("signatures_emargement")
 }
 
 /// Feuille d'émargement signée d'une journée de session (automatisation

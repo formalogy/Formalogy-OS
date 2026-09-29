@@ -19,6 +19,11 @@ export async function construireContexte(ids: {
   factureId?: string;
   /// Relance d'émargement : jours dont la feuille signée manque, en toutes lettres
   joursEmargement?: string;
+  /// Émargement numérique : lien personnel de signature, séance à signer,
+  /// signatures manquantes (relances)
+  lienEmargement?: string;
+  seanceEmargement?: string;
+  manquantsEmargement?: string;
   lienQuestionnaire?: string;
   lienPositionnement?: string;
   lienFroid?: string;
@@ -65,6 +70,9 @@ export async function construireContexte(ids: {
     "dossier.reference": dossier?.reference,
     "facture.numero": facture?.numero,
     "emargement.jours": ids.joursEmargement,
+    "emargement.lien": ids.lienEmargement,
+    "emargement.seance": ids.seanceEmargement,
+    "emargement.manquants": ids.manquantsEmargement,
     "facture.montant": facture ? formaterMontant(facture.montantTTC) : undefined,
     "questionnaire.lien": ids.lienQuestionnaire,
     "questionnaire.lienPositionnement": ids.lienPositionnement,

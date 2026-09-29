@@ -17,6 +17,7 @@ const SELECTION_EMARGEMENT = {
   statut: true,
   formation: { select: { titre: true } },
   company: { select: { raisonSociale: true } },
+  trainerId: true,
   trainer: { select: { prenom: true, nom: true } },
   inscriptions: {
     where: { learner: { deletedAt: null } },

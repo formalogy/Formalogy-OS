@@ -12,8 +12,10 @@ import { prisma } from "@/lib/prisma";
 import { stockage } from "@/lib/stockage";
 
 /// Feuilles d'émargement signées (automatisation A-05) : une par jour de
-/// session, reçue du formateur en réponse à l'email du matin ou déposée à la
-/// main. Elles arrêtent les relances et prouvent la présence (Qualiopi).
+/// session, produite d'elle-même quand toutes les signatures électroniques du
+/// jour sont arrivées (lib/emargement-numerique.ts), reçue du formateur en
+/// réponse à l'email du matin ou déposée à la main. Elles arrêtent les
+/// relances et prouvent la présence (Qualiopi).
 
 export type FichierFeuille = { nom: string; typeMime: string; octets: Uint8Array };
 
@@ -23,6 +25,12 @@ const FORMATS_FEUILLE = new Set(["application/pdf", "image/jpeg", "image/png"]);
 export const formatFeuilleAccepte = (typeMime: string) => FORMATS_FEUILLE.has(typeMime.toLowerCase().split(";")[0].trim());
 
 const dateLongue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+const COMMENTAIRE_ORIGINE: Record<OrigineFeuilleEmargement, string> = {
+  EMAIL: "Reçue du formateur par email",
+  DEPOT: "Déposée à la main",
+  NUMERIQUE: "Produite à partir des signatures électroniques",
+};
 
 /// Orientation EXIF d'une photo JPEG (1 = droite ; 3, 6 et 8 = pivotée). Un
 /// téléphone tenu debout enregistre souvent l'image couchée avec cette seule
@@ -126,7 +134,7 @@ export async function enregistrerFeuilleSignee(p: {
     typeMime: "application/pdf",
     taille: octets.byteLength,
     empreinte: createHash("sha256").update(octets).digest("hex"),
-    commentaire: p.origine === "EMAIL" ? "Reçue du formateur par email" : "Déposée à la main",
+    commentaire: COMMENTAIRE_ORIGINE[p.origine],
     createdById: p.userId,
   };
 
@@ -159,7 +167,7 @@ export async function enregistrerFeuilleSignee(p: {
 
   await journaliser({
     action: "attendance.sheet_received",
-    summary: `Feuille d'émargement signée du ${dateLongue.format(p.jour)} ${p.origine === "EMAIL" ? "reçue du formateur par email" : "déposée"} (session ${session.numero})`,
+    summary: `Feuille d'émargement signée du ${dateLongue.format(p.jour)} ${COMMENTAIRE_ORIGINE[p.origine].toLowerCase()} (session ${session.numero})`,
     entityType: "TrainingSession",
     entityId: session.id,
     userId: p.userId,

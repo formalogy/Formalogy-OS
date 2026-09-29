@@ -12,8 +12,9 @@ puis des formateurs). Ce n'est **pas** un SaaS multi-clients.
 
 - **Mono-organisme** : pas d'identifiant d'organisation sur les tables.
 - **Aucun compte apprenant** : les apprenants sont des fiches en base, jamais
-  des utilisateurs authentifiés. Ils signent depuis la page de signature BoldSign et
-  reçoivent des emails, rien de plus.
+  des utilisateurs authentifiés. Ils signent leurs documents sur BoldSign,
+  émargent par leur lien personnel (voir Émargement) et reçoivent des emails,
+  rien de plus.
 - **Rôles simples** portés par l'utilisateur : `ADMIN`, `GESTIONNAIRE`,
   `FORMATEUR`. Pas de table de permissions fines.
 - Les écrans réservés aux formateurs vivent dans **la même application**,
@@ -74,7 +75,7 @@ et que le projet peut migrer ailleurs en quelques heures.
   volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
 - Activation : décision du client, qui a demandé que **toutes** les
-  automatisations soient actives. Au 25/09/2026 : 14 actives sur 15 ; seule
+  automatisations soient actives. Au 29/09/2026 : 17 actives sur 18 ; seule
   « Convocation à l'inscription » est éteinte (même modèle d'email que la
   convocation de J-7 mais sans le PDF : active, elle partait la première et
   bloquait l'envoi de la vraie convocation). Une automatisation nouvelle est
@@ -88,8 +89,8 @@ et que le projet peut migrer ailleurs en quelques heures.
   financement des 365 derniers jours, dédoublonnés par adresse).
 - Paramètre `heure` (heure de Paris) sur tous les déclencheurs datés : le
   jour prévu, l'envoi attend cette heure ; passé ce jour (réveil manqué), il
-  part sans attendre. Accueil à 8 h, feuille d'émargement à 7 h, fin de
-  formation et bilan du formateur à 16 h.
+  part sans attendre. Accueil à 8 h, émargement du jour au formateur à 7 h,
+  fin de formation et bilan du formateur à 16 h.
 - **Un envoi par apprenant** : la clé d'un cas de session contient une
   empreinte de la liste des inscrits (`empreinteInscrits`). Une inscription
   tardive rouvre le cas ; ceux qui ont déjà reçu le même modèle pour la même
@@ -124,9 +125,11 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   dernier, ce qui déclenche `SESSION_TERMINEE` (facture). Même règle que le
   changement manuel (`lib/sessions-statut.ts`).
 - **Calendrier d'une session** : J-15 positionnement + convention ; J-7
-  convocation PDF ; J-2 rappel ; chaque matin de session, feuille
-  d'émargement du jour au formateur (déclencheur `SESSION_JOUR`) ; J0 8 h
-  accueil ; dernier jour 16 h, mail de fin avec le lien du questionnaire de
+  convocation PDF ; J-2 rappel ; J0 8 h accueil avec le lien de signature
+  de l'apprenant ; chaque matin de session, email d'émargement au formateur
+  (déclencheur `SESSION_JOUR`) ; fin de chaque demi-journée, relance de qui
+  n'a pas signé ; 18 h, relance du formateur si la journée est incomplète
+  (voir Émargement) ; dernier jour 16 h, mail de fin avec le lien du questionnaire de
   satisfaction, et bilan du formateur avec **l'évaluation des acquis** de
   chaque apprenant ; J+1 passage à « Terminée », facture Henrri émise et
   rangée dans le dossier de l'apprenant (pas envoyée), attestation et
@@ -183,42 +186,75 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   tourne avec le réveil `POST /api/automatisations/executer` et via le bouton
   « Relever la boîte maintenant ». Elle range aussi les feuilles d'émargement
   signées renvoyées par les formateurs (voir Émargement). À planifier toutes
-  les heures en Phase 18.
+  les heures en Phase 18 — le réveil aussi, pour les relances de fin de
+  demi-journée.
 
 ## Émargement
 
-- Feuilles d'émargement PDF générées à la demande (une page par
-  demi-journée, une seule colonne « Signature », `lib/emargement-pdf.ts`),
-  affichées avant impression, à imprimer ou à faire signer via BoldSign ; la
-  feuille signée est déposée comme document de type `EMARGEMENT`. Seuls les
-  jours déjà arrivés sont produits (jamais à l'avance). Les
-  horaires de la session se saisissent « matin / après-midi », séparés par
-  une barre oblique.
+- **Émargement numérique** (décision du client du 29/09/2026, sur le modèle
+  qu'il a fourni ; `lib/emargement-numerique.ts`) : chaque participant,
+  apprenant **et formateur**, signe chaque demi-journée au doigt ou à la
+  souris, depuis son **lien personnel** (`/emargement/[jeton]`, page publique
+  sans compte) ou le **QR code** de ce lien. Un lien par participant et par
+  session (`liens_emargement`), valable toute la session ; son jeton se
+  recalcule (HMAC de l'identifiant avec `BETTER_AUTH_SECRET`), seule son
+  empreinte est en base — changer ce secret change les liens, déjà envoyés
+  compris. Signature électronique simple : chaque signature
+  (`signatures_emargement`) garde son image PNG, l'heure, l'adresse réseau,
+  l'appareil et l'empreinte de l'image.
+- Une séance ne se signe que **le jour même**, à partir de 30 min avant son
+  début (horaires de la session ; sans horaire lisible, dès minuit le matin et
+  dès midi l'après-midi) et jusqu'à minuit ; jamais à l'avance, jamais après
+  coup, jamais pour une demi-journée où une absence est signalée.
+- **Écran d'émargement de la session** (équipe et formateur) : section
+  « Signatures », une ligne par participant (nombre de séances signées,
+  « Copier le lien », « QR code ») qui s'ouvre sur chaque séance (« A signé »
+  avec l'image et l'heure, « Non signé », « À signer », « Absent », « À
+  venir ») ; bouton « QR codes (PDF) » pour la salle.
+- **La feuille du jour se range seule** (document `EMARGEMENT`, origine
+  `NUMERIQUE`) dès que toutes les signatures attendues sont là — inscrits
+  non signalés absents et formateur, matin et après-midi
+  (`rangerFeuillesNumeriques`, appelée après chaque signature et chaque
+  saisie d'absence). Le PDF (`lib/emargement-pdf.ts`, une page par
+  demi-journée) porte les signatures, leur heure et « Absent » pour les
+  absents ; il se génère aussi à la demande.
+- Emails : l'accueil de J0 (`ACCUEIL_SESSION`) porte le lien de l'apprenant
+  (`{{emargement.lien}}`) ; l'email du matin au formateur (`EMARGEMENT_JOUR`)
+  porte son lien, les QR codes des apprenants (`joindre: QR_EMARGEMENT`) et
+  la feuille papier du jour en secours. Liens masqués dans l'historique.
+- **Relances** : à la fin de chaque demi-journée (déclencheur
+  `FIN_DEMI_JOURNEE`, heure de fin lue dans les horaires, à défaut 12 h 30 et
+  17 h 30 ; action `RELANCE_SIGNATURE`), chaque participant qui n'a pas signé
+  reçoit son lien (modèles `EMARGEMENT_SIGNATURE_RELANCE` et
+  `EMARGEMENT_SIGNATURE_FORMATEUR`), une fois par demi-journée ; les absents
+  signalés et les sans-email ne le sont pas. À 18 h, puis le lendemain de la
+  fin à 10 h (action `RELANCE_EMARGEMENT`, modèle `EMARGEMENT_RELANCE`), le
+  formateur reçoit, pour chaque jour sans feuille, les signatures manquantes
+  nom par nom (`{{emargement.manquants}}`) et la feuille papier en dernier
+  recours. Un jour sans feuille apparaît au tableau de bord (« émargement
+  incomplet »).
+- **Papier en secours** (automatisation A-05, 28/09/2026) : le formateur
+  renvoie la feuille signée **en répondant à l'email du matin** (photo ou
+  scan) ; la relève de la boîte Gmail la reconnaît par l'en-tête
+  `In-Reply-To` (identifiant de notre email, `emails.fournisseurId`),
+  n'accepte que l'adresse à laquelle l'email est parti et un expéditeur
+  authentifié par Gmail (DKIM ou SPF, `emailAuthentifiePour`), assemble
+  pièces jointes PDF/JPEG/PNG en un seul PDF (photos redressées selon leur
+  orientation EXIF) et la range pour le bon jour (`lib/emargement-boite.ts`,
+  `lib/emargement-feuilles.ts`). Une réponse à une relance n'est attribuée
+  que si un seul jour manquait. À défaut, dépôt jour par jour sur l'écran
+  d'émargement (section « Feuilles signées »), par l'équipe ou le formateur ;
+  un nouveau dépôt ajoute une version.
 - Les présences (`presences`, une ligne par apprenant et demi-journée) ne se
   saisissent que pour une absence (présomption de présence, voir
   « Déroulement sans intervention »), par l'équipe ou par le formateur de la
-  session, jamais pour un jour à venir.
-- **Feuilles signées, une par jour de formation** (`feuilles_emargement_signees`,
-  automatisation A-05 du client, 28/09/2026) : le formateur renvoie la feuille
-  du jour **en répondant à l'email du matin** (photo ou scan) ; la relève de
-  la boîte Gmail la reconnaît par l'en-tête `In-Reply-To` (identifiant de
-  notre email, `emails.fournisseurId`), n'accepte que l'adresse à laquelle
-  l'email est parti et un expéditeur authentifié par Gmail (DKIM ou SPF,
-  `emailAuthentifiePour`), assemble pièces jointes PDF/JPEG/PNG en un seul PDF
-  (photos redressées selon leur orientation EXIF) et la range pour le bon jour
-  (`lib/emargement-boite.ts`, `lib/emargement-feuilles.ts`). Une réponse à
-  une relance n'est attribuée que si un seul jour manquait. À défaut, dépôt
-  jour par jour sur l'écran d'émargement (section « Feuilles signées »), par
-  l'équipe ou le formateur ; un nouveau dépôt ajoute une version.
-- **Relance** (action `RELANCE_EMARGEMENT`, modèle `EMARGEMENT_RELANCE`) :
-  chaque jour de formation à 18 h, puis le lendemain de la fin à 10 h, le
-  formateur est relancé pour les jours sans feuille, feuilles jointes ; une
-  relance au plus par jour, rien quand tout est arrivé. Les feuilles
-  manquantes apparaissent au tableau de bord (« À surveiller »). Les
-  apprenants ne sont pas relancés : ils signent sur papier en salle.
-- Le déclencheur « chaque jour » (`SESSION_JOUR`) ne vise que les jours de
-  formation (`joursDeSession`) : les samedis et dimanches au milieu d'une
-  session n'ont ni feuille ni relance.
+  session, jamais pour un jour à venir. Les horaires de la session se
+  saisissent « matin / après-midi », séparés par une barre oblique
+  (« 9h00–12h30 / 13h30–17h00 ») : ils bornent la signature et les relances.
+- Les déclencheurs « chaque jour » (`SESSION_JOUR`) et « fin de
+  demi-journée » ne visent que les jours de formation (`joursDeSession`) :
+  les samedis et dimanches au milieu d'une session n'ont ni feuille ni
+  relance.
 
 ## Fin de formation
 

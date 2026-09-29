@@ -91,16 +91,18 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       });
     }
 
-    // Feuilles d'émargement signées : le formateur est relancé chaque soir ;
-    // passé le lendemain de la fin, une feuille manquante devient à régler
-    // (preuve de présence exigée par Qualiopi et les financeurs).
+    // Émargement : un jour passé sans feuille est un jour dont une signature
+    // au moins manque (la feuille numérique se range seule dès que tout le
+    // monde a signé). Le formateur est relancé chaque soir ; passé le
+    // lendemain de la fin, c'est à régler (preuve de présence exigée par
+    // Qualiopi et les financeurs) : absence à signaler ou feuille papier.
     const manquantes = joursDeSession(s.dateDebut, s.dateFin).filter(
       (j) => j < aujourdhui && !s.feuillesSignees.some((f) => f.jour.getTime() === j.getTime()),
     );
     if (manquantes.length > 0) {
       alertes.push({
         niveau: s.dateFin < ajouterJours(aujourdhui, -1) ? "bloquant" : "attente",
-        texte: `${s.numero} : feuille${manquantes.length > 1 ? "s" : ""} d'émargement signée${manquantes.length > 1 ? "s" : ""} pas encore reçue${manquantes.length > 1 ? "s" : ""} (${manquantes.map((j) => jourCourt.format(j)).join(", ")}).`,
+        texte: `${s.numero} : émargement incomplet (${manquantes.map((j) => jourCourt.format(j)).join(", ")}) — signature manquante, absence à signaler ou feuille papier à déposer.`,
         lien: `/sessions/${s.id}/emargement`,
       });
     }
