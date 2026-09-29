@@ -115,16 +115,18 @@ et que le projet peut migrer ailleurs en quelques heures.
   « Prochain audit »), email aux administrateurs (destinataire
   `ADMINISTRATEURS`, modèle `AUDIT_QUALIOPI_RAPPEL`) avec les indicateurs à
   reprendre — non conformes, ou conformes sans preuve déposée
-  (`lib/qualiopi-audit.ts`) — et tâche « Préparer l'audit ». Le client a cité
-  un audit le 28/03/2028 alors que les paramètres portent le 15/03/2028 et
-  une certification expirant le 21/03/2028 : date à confirmer par lui.
-- **Synthèse de la semaine aux formateurs** (A-14, déclencheur
+  (`lib/qualiopi-audit.ts`) — et tâche « Préparer l'audit ». La date d'audit
+  2028 n'est pas encore connue (client, 29/09/2026) : **aucune date devinée**,
+  ni tirée de l'expiration de la certification ; le rappel ne part qu'une
+  fois la vraie date saisie. Au 29/09/2026, la case contient le 15/03/2028,
+  que le client dit ne pas être une date fixée.
+- **Planning de la semaine aux formateurs** (A-14, déclencheur
   `HEBDOMADAIRE`, lundi 7 h ; action `SYNTHESE_FORMATEURS`, modèle
-  `SYNTHESE_FORMATEUR`) : sessions des 7 prochains jours, bilans de fin de
-  session non remplis, jours d'émargement incomplets des 60 derniers jours.
-  **Rien à un formateur sans session dans la semaine** (précision du client,
-  29/09/2026), même s'il a un bilan ou un émargement en attente. Une
-  activation en cours de semaine attend la semaine suivante.
+  `SYNTHESE_FORMATEUR`) : les sessions du formateur des 7 prochains jours,
+  **rien d'autre** — planning et relances (émargement…) sont deux choses
+  distinctes, sans lien (précision du client, 29/09/2026). Rien à un
+  formateur sans session dans la semaine. Une activation en cours de semaine
+  attend la semaine suivante.
 - Une exécution en échec se relance depuis Paramètres → Automatisations
   (bouton « Relancer », admin) une fois la cause corrigée (`relancerExecution`) :
   même clé, rien de ce qui avait abouti ne se refait.

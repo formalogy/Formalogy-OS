@@ -121,7 +121,7 @@ export function decrireAction(action: unknown): string {
     return "Relancer le client du devis avec son devis en pièce jointe ; après la dernière relance sans réponse, classer le devis « sans suite »";
   }
   if (a.type === "SYNTHESE_FORMATEURS") {
-    return "Envoyer à chaque formateur la synthèse de sa semaine : ses sessions et ce qui l'attend (bilans, émargements) ; rien à qui n'a pas de session dans la semaine";
+    return "Envoyer à chaque formateur le planning de sa semaine (ses sessions, sans aucune relance) ; rien à qui n'a pas de session dans la semaine";
   }
   if (a.type === "DOCUMENTS_FIN_FORMATION") {
     return "Générer l'attestation et le certificat de réalisation des apprenants prêts (mêmes règles que le bouton manuel)";

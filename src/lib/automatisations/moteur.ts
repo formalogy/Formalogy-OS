@@ -103,9 +103,9 @@ const schemaAction = z.discriminatedUnion("type", [
     type: z.literal("RELANCE_DEVIS"),
   }),
   z.object({
-    /// Synthèse de la semaine à chaque formateur (A-14, modèle
-    /// SYNTHESE_FORMATEUR) : ses sessions des 7 prochains jours et ce qui
-    /// l'attend. Rien à qui n'a pas de session dans la semaine.
+    /// Planning de la semaine à chaque formateur (A-14, modèle
+    /// SYNTHESE_FORMATEUR) : ses sessions des 7 prochains jours, sans aucune
+    /// relance. Rien à qui n'a pas de session dans la semaine.
     type: z.literal("SYNTHESE_FORMATEURS"),
   }),
   z.object({
@@ -678,10 +678,10 @@ async function relancerDevis(p: { cas: Cas; executionId: string; comptes: Compte
 const jourSemaineCourt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const jourSemaineLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
-/// Synthèse de la semaine à chaque formateur actif (A-14) : ses sessions des
-/// 7 prochains jours, puis ce qui l'attend — bilans de fin de session pas
-/// encore remplis, jours d'émargement incomplets des deux derniers mois. Un
-/// formateur sans session dans la semaine ne reçoit rien (choix du client).
+/// Planning de la semaine à chaque formateur actif (A-14) : ses sessions des
+/// 7 prochains jours, rien d'autre — les relances (émargement…) sont une
+/// affaire distincte, sans lien avec ce planning (choix du client). Un
+/// formateur sans session dans la semaine ne reçoit rien.
 async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
   const { executionId, comptes } = p;
   const modele = await prisma.emailTemplate.findUnique({ where: { code: "SYNTHESE_FORMATEUR" } });
@@ -692,35 +692,19 @@ async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
   const enRoute = { deletedAt: null, statut: { notIn: ["BROUILLON" as const, "ANNULEE" as const] } };
 
   for (const formateur of formateurs) {
-    const [sessions, bilans, recentes] = await Promise.all([
-      prisma.trainingSession.findMany({
-        where: { ...enRoute, trainerId: formateur.id, dateDebut: { lte: fin }, dateFin: { gte: aujourdhui } },
-        orderBy: { dateDebut: "asc" },
-        select: {
-          numero: true,
-          dateDebut: true,
-          dateFin: true,
-          horaires: true,
-          lieu: true,
-          formation: { select: { titre: true } },
-          _count: { select: { inscriptions: true } },
-        },
-      }),
-      prisma.questionnaire.findMany({
-        where: { type: "CHAUD_FORMATEUR", trainerId: formateur.id, reponduAt: null, expireAt: { gt: new Date() }, session: { deletedAt: null } },
-        select: { session: { select: { numero: true, formation: { select: { titre: true } } } } },
-      }),
-      prisma.trainingSession.findMany({
-        where: { ...enRoute, trainerId: formateur.id, dateDebut: { lt: aujourdhui }, dateFin: { gte: ajouterJours(aujourdhui, -60) } },
-        orderBy: { dateDebut: "asc" },
-        select: { id: true, numero: true, dateDebut: true, dateFin: true },
-      }),
-    ]);
-    const aFaire = bilans.flatMap(({ session }) => (session ? [`- Bilan de fin de session à remplir : ${session.formation.titre} (${session.numero}), avec le lien reçu par email`] : []));
-    for (const s of recentes) {
-      const manquants = await joursSansFeuille(s, ajouterJours(aujourdhui, -1));
-      if (manquants.length > 0) aFaire.push(`- Émargement incomplet (${s.numero}) : ${manquants.map((j) => jourSemaineCourt.format(j)).join(", ")}`);
-    }
+    const sessions = await prisma.trainingSession.findMany({
+      where: { ...enRoute, trainerId: formateur.id, dateDebut: { lte: fin }, dateFin: { gte: aujourdhui } },
+      orderBy: { dateDebut: "asc" },
+      select: {
+        numero: true,
+        dateDebut: true,
+        dateFin: true,
+        horaires: true,
+        lieu: true,
+        formation: { select: { titre: true } },
+        _count: { select: { inscriptions: true } },
+      },
+    });
     if (sessions.length === 0) {
       comptes.ignores++;
       continue;
@@ -751,7 +735,6 @@ async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
       trainerId: formateur.id,
       synthesePeriode: `du ${jourSemaineLong.format(aujourdhui)} au ${jourSemaineLong.format(fin)}`,
       syntheseSessions: lignes.join("\n"),
-      syntheseAFaire: aFaire.length > 0 ? aFaire.join("\n") : "Rien en attente.",
     });
     const email = await envoyerEmail({
       destinataire: formateur.email,

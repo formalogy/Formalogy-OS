@@ -44,7 +44,6 @@ export async function construireContexte(ids: {
   /// Synthèse hebdomadaire du formateur
   synthesePeriode?: string;
   syntheseSessions?: string;
-  syntheseAFaire?: string;
 }): Promise<Contexte> {
   const [organisme, apprenant, formateurDestinataire, session, entreprise, prospect, dossier, facture, devis, audit] = await Promise.all([
     lireOrganisme(),
@@ -109,6 +108,5 @@ export async function construireContexte(ids: {
     "qualiopi.lien": audit ? `${adresseApplication()}/qualiopi` : undefined,
     "synthese.periode": ids.synthesePeriode,
     "synthese.sessions": ids.syntheseSessions,
-    "synthese.aFaire": ids.syntheseAFaire,
   };
 }
