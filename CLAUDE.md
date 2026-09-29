@@ -285,8 +285,9 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   fiche facture et de chaque inscrit sur la fiche session, et le bloc
   « Paiements attendus » (60 jours) du tableau de bord
   (`lib/paiements-prevision.ts` : factures émises, et inscriptions des
-  sessions lancées pas encore facturées). Délai de France Travail, des
-  entreprises et des apprenants : non communiqué.
+  sessions lancées pas encore facturées). France Travail ne finance aucune
+  formation de Formalogy (client, 29/09/2026) ; délai des entreprises et des
+  apprenants non communiqué.
 - Suivi des paiements : fait **dans Henrri**, pas dans Formalogy OS (décision
   du client du 29/09/2026 : pas de relance des impayés, mention
   « acquittée » posée dans Henrri). Un paiement non saisi ici laisse la
