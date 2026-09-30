@@ -2,6 +2,7 @@
 
 import {
   IconActivity,
+  IconArrowLeft,
   IconAddressBook,
   IconBook2,
   IconBuilding,
@@ -11,6 +12,7 @@ import {
   IconCertificate,
   IconChalkboard,
   IconChartBar,
+  IconChevronRight,
   IconChecklist,
   IconClipboardCheck,
   IconCode,
@@ -34,6 +36,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import type { GroupeMenu } from "@/lib/navigation";
 
@@ -82,8 +85,91 @@ function IconeMenu({ nom, className }: { nom: string; className?: string }) {
   return <Composant className={className} stroke={1.75} aria-hidden="true" />;
 }
 
+/// Entrée qui correspond le mieux à la page affichée : son chemin, ou celui
+/// dont la page est une sous-page (/sessions/… → Sessions). Le plus long
+/// l'emporte (/crm/devis → Devis, pas CRM).
+function meilleureEntree(groupes: GroupeMenu[], chemin: string): string | null {
+  let meilleur: string | null = null;
+  for (const e of groupes.flatMap((g) => g.entrees)) {
+    if (!e.chemin) continue;
+    if ((chemin === e.chemin || chemin.startsWith(`${e.chemin}/`)) && e.chemin.length > (meilleur?.length ?? 0)) meilleur = e.chemin;
+  }
+  return meilleur;
+}
+
+function LienEntree({ entree, actif, onChoisir }: { entree: GroupeMenu["entrees"][number]; actif: boolean; onChoisir: () => void }) {
+  if (!entree.chemin) {
+    return (
+      <div
+        title={`Module construit en Phase ${entree.phase}`}
+        className="flex cursor-default items-center gap-2.5 rounded-full px-3.5 py-2 text-[13px] text-barre-texte-tenu"
+      >
+        <IconeMenu nom={entree.icone} className="size-[18px] shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
+        <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-px font-texte text-[10px]">P{entree.phase}</span>
+      </div>
+    );
+  }
+  return (
+    <Link
+      href={entree.chemin}
+      onClick={onChoisir}
+      aria-current={actif ? "page" : undefined}
+      className={`flex items-center gap-2.5 rounded-full px-3.5 py-2 text-[13px] transition ${actif ? PASTILLE_ACTIVE : PASTILLE_SURVOL}`}
+    >
+      <IconeMenu nom={entree.icone} className={`size-[18px] shrink-0 ${actif ? "text-accent-clair" : ""}`} />
+      <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
+    </Link>
+  );
+}
+
+/// Surbrillance en pastille, sur le modèle choisi par le client (PDF Expert) :
+/// l'entrée active se détache en capsule plus claire sur un bandeau translucide.
+const PASTILLE_ACTIVE = "bg-white/[0.22] font-medium text-white shadow-sm ring-1 ring-white/15";
+const PASTILLE_SURVOL = "text-barre-texte-doux hover:bg-white/[0.07] hover:text-barre-texte";
+const BANDEAU = "rounded-[22px] bg-white/[0.05] p-1.5 ring-1 ring-white/[0.08]";
+
+/// Menu en deux temps, sur le modèle choisi par le client (30/09/2026) : la
+/// colonne ne montre que les grandes rubriques ; un clic sur l'une d'elles
+/// ouvre à côté un panneau avec ses sous-menus, qui se referme dès qu'on a
+/// choisi (ou d'un clic ailleurs, ou avec Échap). Une rubrique à une seule
+/// entrée est un lien direct ; un menu d'une seule rubrique (formateur)
+/// s'affiche à plat.
 export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
   const cheminActuel = usePathname();
+  const [deplie, setDeplie] = useState<string | null>(null);
+  const barre = useRef<HTMLElement>(null);
+  const panneau = useRef<HTMLDivElement>(null);
+  const entreeActive = meilleureEntree(groupes, cheminActuel);
+  const groupeActif = groupes.find((g) => g.entrees.some((e) => e.chemin && e.chemin === entreeActive))?.titre ?? null;
+  const plat = groupes.length === 1;
+  const groupeDeplie = groupes.find((g) => g.titre === deplie) ?? null;
+
+  // Le panneau se referme à chaque changement de page, d'un clic ailleurs ou avec Échap.
+  const [cheminVu, setCheminVu] = useState(cheminActuel);
+  if (cheminVu !== cheminActuel) {
+    setCheminVu(cheminActuel);
+    setDeplie(null);
+  }
+  useEffect(() => {
+    if (!deplie) return;
+    const clic = (e: MouseEvent) => {
+      const cible = e.target as Node;
+      if (!barre.current?.contains(cible) && !panneau.current?.contains(cible)) setDeplie(null);
+    };
+    const touche = (e: KeyboardEvent) => e.key === "Escape" && setDeplie(null);
+    document.addEventListener("mousedown", clic);
+    document.addEventListener("keydown", touche);
+    return () => {
+      document.removeEventListener("mousedown", clic);
+      document.removeEventListener("keydown", touche);
+    };
+  }, [deplie]);
+
+  const choisir = () => {
+    setDeplie(null);
+    onFermer();
+  };
 
   return (
     <>
@@ -97,6 +183,7 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
       )}
 
       <aside
+        ref={barre}
         className={`fixed inset-y-3 left-3 z-30 flex w-64 flex-col rounded-2xl bg-barre transition-transform lg:translate-x-0 ${
           ouverte ? "translate-x-0" : "-translate-x-[calc(100%+0.75rem)]"
         }`}
@@ -116,59 +203,74 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
-          {groupes.map((groupe) => (
-            <div key={groupe.titre} className="mt-4 first:mt-0">
-              <div className="px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-barre-texte-tenu">
-                {groupe.titre}
-              </div>
-
-              {groupe.entrees.map((entree) => {
-                if (!entree.chemin) {
+          <div className={BANDEAU}>
+          {plat
+            ? groupes[0].entrees.map((entree) => (
+                <LienEntree key={entree.libelle} entree={entree} actif={entree.chemin === entreeActive} onChoisir={choisir} />
+              ))
+            : groupes.map((groupe) => {
+                const surPage = groupe.titre === groupeActif;
+                if (groupe.entrees.length === 1) {
                   return (
-                    <div
-                      key={entree.libelle}
-                      title={`Module construit en Phase ${entree.phase}`}
-                      className="flex cursor-default items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] text-barre-texte-tenu"
-                    >
-                      <IconeMenu nom={entree.icone} className="size-[18px] shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
-                      <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-px font-texte text-[10px]">
-                        P{entree.phase}
-                      </span>
+                    <div key={groupe.titre} className="mb-0.5">
+                      <LienEntree
+                        entree={{ ...groupe.entrees[0], libelle: groupe.titre, icone: groupe.icone }}
+                        actif={surPage && !deplie}
+                        onChoisir={choisir}
+                      />
                     </div>
                   );
                 }
-
-                const actif = cheminActuel === entree.chemin;
-
+                const ouvert = deplie === groupe.titre;
                 return (
-                  <Link
-                    key={entree.libelle}
-                    href={entree.chemin}
-                    onClick={onFermer}
-                    aria-current={actif ? "page" : undefined}
-                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition ${
-                      actif
-                        ? "bg-barre-actif font-medium text-barre-texte"
-                        : "text-barre-texte-doux hover:bg-white/5 hover:text-barre-texte"
+                  <button
+                    key={groupe.titre}
+                    type="button"
+                    aria-expanded={ouvert}
+                    aria-controls="sous-menu"
+                    onClick={() => setDeplie(ouvert ? null : groupe.titre)}
+                    className={`mb-0.5 flex w-full items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13.5px] transition ${
+                      ouvert || (surPage && !deplie) ? PASTILLE_ACTIVE : PASTILLE_SURVOL
                     }`}
                   >
-                    <IconeMenu
-                      nom={entree.icone}
-                      className={`size-[18px] shrink-0 ${actif ? "text-accent-clair" : ""}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
-                  </Link>
+                    <IconeMenu nom={groupe.icone} className={`size-[18px] shrink-0 ${surPage ? "text-accent-clair" : ""}`} />
+                    <span className="min-w-0 flex-1 truncate">{groupe.titre}</span>
+                    <IconChevronRight className={`size-4 shrink-0 transition ${ouvert ? "translate-x-0.5" : ""}`} stroke={1.75} aria-hidden="true" />
+                  </button>
                 );
               })}
-            </div>
-          ))}
+          </div>
         </nav>
-
-        <div className="shrink-0 border-t border-white/10 px-4 py-3 text-[11px] text-barre-texte-tenu">
-          Les entrées grisées seront construites lors des phases indiquées.
-        </div>
       </aside>
+
+      {/* Sous-menus de la rubrique choisie : à côté de la colonne sur grand
+          écran, par-dessus sur téléphone (avec un retour). */}
+      {groupeDeplie && (
+        <div
+          ref={panneau}
+          id="sous-menu"
+          className="fixed inset-y-3 left-3 z-40 flex w-64 flex-col rounded-2xl bg-barre shadow-2xl lg:bottom-auto lg:left-[17.25rem] lg:max-h-[calc(100vh-1.5rem)] lg:w-60"
+        >
+          <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-5">
+            <button
+              type="button"
+              onClick={() => setDeplie(null)}
+              aria-label="Revenir aux rubriques"
+              className="flex size-7 items-center justify-center rounded-lg text-barre-texte-doux hover:bg-white/5 hover:text-barre-texte lg:hidden"
+            >
+              <IconArrowLeft className="size-4" stroke={1.75} aria-hidden="true" />
+            </button>
+            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-barre-texte-tenu">{groupeDeplie.titre}</span>
+          </div>
+          <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label={groupeDeplie.titre}>
+            <div className={BANDEAU}>
+              {groupeDeplie.entrees.map((entree) => (
+                <LienEntree key={entree.libelle} entree={entree} actif={entree.chemin === entreeActive} onChoisir={choisir} />
+              ))}
+            </div>
+          </nav>
+        </div>
+      )}
     </>
   );
 }

@@ -35,41 +35,38 @@ export const MENU: GroupeMenu[] = [
     ],
   },
   {
-    titre: "Pilotage",
-    icone: "jauge",
-    entrees: [
-      { libelle: "Tableau de bord", chemin: "/tableau-de-bord", icone: "accueil" },
-      { libelle: "Activité", chemin: "/activite", icone: "activite" },
-      { libelle: "Statistiques", chemin: "/statistiques", icone: "statistiques" },
-    ],
+    // Une rubrique à une seule entrée s'affiche comme un lien direct.
+    titre: "Accueil",
+    icone: "accueil",
+    entrees: [{ libelle: "Tableau de bord", chemin: "/tableau-de-bord", icone: "accueil" }],
   },
   {
-    titre: "Gestion",
+    titre: "Clients",
     icone: "personnes",
     entrees: [
       { libelle: "Apprenants", chemin: "/apprenants", icone: "personnes" },
       { libelle: "Entreprises", chemin: "/entreprises", icone: "entreprise" },
-      { libelle: "CRM", chemin: "/crm", icone: "carnet" },
+      { libelle: "Prospects (CRM)", chemin: "/crm", icone: "carnet" },
       { libelle: "Devis", chemin: "/crm/devis", icone: "facture" },
-      { libelle: "Formateurs", chemin: "/formateurs", icone: "tableau" },
     ],
   },
   {
-    titre: "Pédagogie",
+    titre: "Formations",
     icone: "livre",
     entrees: [
-      { libelle: "Formations", chemin: "/formations", icone: "livre" },
+      { libelle: "Catalogue", chemin: "/formations", icone: "livre" },
       { libelle: "Sessions", chemin: "/sessions", icone: "calendrier" },
       { libelle: "Planning", chemin: "/planning", icone: "planning" },
+      { libelle: "Formateurs", chemin: "/formateurs", icone: "tableau" },
+      { libelle: "Émargements", chemin: "/emargements", icone: "emargement" },
     ],
   },
   {
-    titre: "Administratif",
+    titre: "Documents",
     icone: "document",
     entrees: [
       { libelle: "Bibliothèque", chemin: "/documents", icone: "document" },
       { libelle: "Signatures", chemin: "/signatures", icone: "signature" },
-      { libelle: "Émargements", chemin: "/emargements", icone: "emargement" },
       { libelle: "Attestations", chemin: "/attestations", icone: "certificat" },
     ],
   },
@@ -87,8 +84,16 @@ export const MENU: GroupeMenu[] = [
     icone: "etoile",
     entrees: [
       { libelle: "Qualiopi", chemin: "/qualiopi", icone: "etoile" },
-      { libelle: "Questionnaires", chemin: "/questionnaires", icone: "sondage" },
       { libelle: "Plan d'actions", chemin: "/qualiopi/actions", icone: "liste" },
+      { libelle: "Questionnaires", chemin: "/questionnaires", icone: "sondage" },
+    ],
+  },
+  {
+    titre: "Rapports",
+    icone: "statistiques",
+    entrees: [
+      { libelle: "Statistiques", chemin: "/statistiques", icone: "statistiques" },
+      { libelle: "Activité", chemin: "/activite", icone: "activite" },
     ],
   },
   {
