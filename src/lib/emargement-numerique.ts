@@ -595,9 +595,9 @@ export type ParticipantSuivi = {
   /// Lien personnel à copier : celui du formateur seulement (un apprenant ne
   /// signe qu'en scannant son QR code sur place)
   url: string | null;
-  /// QR code à présenter : pour un apprenant, celui de la demi-journée en
-  /// cours ; pour le formateur, son lien
-  qr: { url: string; libelle: string } | null;
+  /// QR codes à présenter : pour un apprenant, ceux des demi-journées du jour
+  /// (celle en cours marquée) ; pour le formateur, son lien
+  qrs: { url: string; libelle: string; actuel: boolean }[];
   seances: SeanceSuivie[];
 };
 
@@ -636,11 +636,15 @@ export async function suiviSignatures(session: {
     personnes.map(async ({ participant, nom, detail }) => {
       const lien = await lienEmargement(session.id, participant);
       const apprenant = "learnerId" in participant;
-      const qr = !apprenant
-        ? { url: lien.url, libelle: "Lien personnel du formateur" }
+      const qrs = !apprenant
+        ? [{ url: lien.url, libelle: "Lien personnel du formateur", actuel: true }]
         : moment
-          ? { url: urlSeance(lien.id, moment.jour, moment.creneau), libelle: `${LIBELLE_CRENEAU[moment.creneau]} du ${libelleJour(moment.jour)}` }
-          : null;
+          ? CRENEAUX.map((creneau) => ({
+              url: urlSeance(lien.id, moment.jour, creneau),
+              libelle: LIBELLE_CRENEAU[creneau],
+              actuel: creneau === moment.creneau,
+            }))
+          : [];
       const siennes = signatures.filter((s) =>
         "learnerId" in participant ? s.lien.learnerId === participant.learnerId : s.lien.trainerId === participant.trainerId,
       );
@@ -651,7 +655,7 @@ export async function suiviSignatures(session: {
         detail,
         formateur: !apprenant,
         url: apprenant ? null : lien.url,
-        qr,
+        qrs,
         seances: seancesDuParticipant(session, siennes, absences).map(({ jour, creneau, etat }) => {
           const signature = siennes.find((s) => s.jour.getTime() === jour.getTime() && s.creneau === creneau);
           return {

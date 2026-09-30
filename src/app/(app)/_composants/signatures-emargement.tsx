@@ -16,7 +16,9 @@ const ETATS: Record<SeanceSuivie["etat"], { texte: string; ton: string }> = {
 /// Séances passées ou du jour : celles qu'on attend signées.
 const attendue = (s: SeanceSuivie) => s.etat === "signee" || s.etat === "non_signee" || s.etat === "ouverte";
 
-function FenetreQr({ nom, qr, fermer }: { nom: string; qr: { url: string; libelle: string }; fermer: () => void }) {
+function FenetreQr({ nom, qrs, fermer }: { nom: string; qrs: ParticipantSuivi["qrs"]; fermer: () => void }) {
+  const [choix, setChoix] = useState(Math.max(0, qrs.findIndex((q) => q.actuel)));
+  const qr = qrs[choix];
   const [svg, setSvg] = useState("");
   useEffect(() => {
     QRCode.toString(qr.url, { type: "svg", margin: 1, errorCorrectionLevel: "M" }).then(setSvg, () => setSvg(""));
@@ -25,7 +27,25 @@ function FenetreQr({ nom, qr, fermer }: { nom: string; qr: { url: string; libell
     <div role="dialog" aria-modal="true" aria-label={`QR code de ${nom}`} className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={fermer}>
       <div className="w-full max-w-xs rounded-xl bg-white p-5 text-center text-[#111827] shadow-xl" onClick={(e) => e.stopPropagation()}>
         <p className="text-[16px] font-bold">{nom}</p>
-        <p className="text-[12.5px] text-[#4b5563]">Scannez pour signer — {qr.libelle.charAt(0).toLowerCase() + qr.libelle.slice(1)}</p>
+        {qrs.length > 1 ? (
+          <div className="mt-2 flex justify-center gap-1.5" role="tablist" aria-label="Demi-journée">
+            {qrs.map((q, i) => (
+              <button
+                key={q.libelle}
+                type="button"
+                role="tab"
+                aria-selected={i === choix}
+                onClick={() => setChoix(i)}
+                className={`rounded-full px-3 py-1 text-[12.5px] font-semibold ${i === choix ? "bg-[#111827] text-white" : "border border-[#d1d5db] text-[#374151]"}`}
+              >
+                {q.libelle}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12.5px] text-[#4b5563]">{qr.libelle}</p>
+        )}
+        <p className="mt-2 text-[12.5px] text-[#4b5563]">Scannez pour signer{qrs.length > 1 ? ` — ${qr.libelle.toLowerCase()}` : ""}</p>
         {/* SVG produit ici même à partir du lien : aucun contenu extérieur. */}
         <div className="mx-auto mt-3 w-60" dangerouslySetInnerHTML={{ __html: svg }} />
         <button type="button" onClick={fermer} className="mt-4 rounded-lg border border-[#d1d5db] px-4 py-2 text-[13px] font-semibold">
@@ -77,7 +97,7 @@ function LigneParticipant({ participant }: { participant: ParticipantSuivi }) {
             {copie ? "Lien copié ✓" : "Copier le lien"}
           </button>
         )}
-        {participant.qr ? (
+        {participant.qrs.length > 0 ? (
           <button type="button" onClick={() => setQr(true)} className="rounded-md border border-bordure px-2.5 py-1 text-[12px] font-semibold text-accent-fort hover:bg-surface-creuse">
             QR code
           </button>
@@ -109,7 +129,7 @@ function LigneParticipant({ participant }: { participant: ParticipantSuivi }) {
           ))}
         </ul>
       )}
-      {qr && participant.qr && <FenetreQr nom={participant.nom} qr={participant.qr} fermer={() => setQr(false)} />}
+      {qr && participant.qrs.length > 0 && <FenetreQr nom={participant.nom} qrs={participant.qrs} fermer={() => setQr(false)} />}
     </li>
   );
 }

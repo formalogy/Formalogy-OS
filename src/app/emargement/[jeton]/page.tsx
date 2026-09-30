@@ -67,7 +67,14 @@ export default async function PageEmargement({ params, searchParams }: { params:
     : !duQr
       ? { titre: "Scannez le QR code de votre formateur", texte: "Pour signer, scannez avec votre téléphone le QR code que votre formateur vous présente au début de chaque demi-journée." }
       : duQr.etat.etat === "signee"
-        ? { titre: "Séance déjà signée", texte: `Votre signature a été enregistrée à ${heure.format(duQr.etat.signeAt)}. Merci !` }
+        ? {
+            titre: `QR code du ${LIBELLE_CRENEAU[duQr.creneau].toLowerCase()} : déjà signé`,
+            texte: `Votre signature du ${LIBELLE_CRENEAU[duQr.creneau].toLowerCase()} a été enregistrée à ${heure.format(duQr.etat.signeAt)}.${
+              seances.some((s) => s.etat.etat === "ouverte")
+                ? ` Pour signer ${duQr.creneau === "MATIN" ? "l'après-midi" : "une autre séance"}, scannez le QR code ${duQr.creneau === "MATIN" ? "de l'après-midi" : "de cette séance"} que vous présente votre formateur.`
+                : " Merci !"
+            }`,
+          }
         : duQr.etat.etat === "a_venir"
           ? { titre: "Pas encore ouverte", texte: duQr.etat.ouverture !== null ? `Cette séance se signe à partir de ${heureLisible(duQr.etat.ouverture)}.` : "Cette séance n'a pas encore commencé." }
           : duQr.etat.etat === "absent"
