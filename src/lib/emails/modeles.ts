@@ -1,3 +1,5 @@
+import { adressePublique } from "@/lib/adresse-publique";
+
 /// Variables utilisables dans les modèles d'emails, avec leur description.
 /// Cette liste sert à la fois à l'aide affichée dans l'éditeur et au contrôle
 /// des modèles : une variable inconnue est signalée avant l'enregistrement.
@@ -91,9 +93,6 @@ export function texteVersHtml(texte: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#1b2422;max-width:600px">${paragraphes}</div>`;
 }
 
-function adresseApplication(): string {
-  return (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
 
 /// Pixel invisible de suivi d'ouverture : son chargement par le client de
 /// messagerie du destinataire appelle /api/emails/[id]/pixel, qui enregistre
@@ -101,5 +100,5 @@ function adresseApplication(): string {
 /// preuve : certains clients bloquent les images, d'autres (Apple Mail) les
 /// préchargent systématiquement même sans lecture réelle.
 export function pixelSuivi(emailId: string): string {
-  return `<img src="${adresseApplication()}/api/emails/${emailId}/pixel" width="1" height="1" alt="" style="display:none" />`;
+  return `<img src="${adressePublique()}/api/emails/${emailId}/pixel" width="1" height="1" alt="" style="display:none" />`;
 }

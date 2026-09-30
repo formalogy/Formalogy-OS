@@ -219,6 +219,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   compris. Signature électronique simple : chaque signature
   (`signatures_emargement`) garde son image PNG, l'heure, l'adresse réseau,
   l'appareil et l'empreinte de l'image.
+- **Adresse des liens envoyés** (émargement, QR codes, questionnaires, pixel
+  de suivi) : `ADRESSE_PUBLIQUE`, à défaut `BETTER_AUTH_URL`
+  (`lib/adresse-publique.ts`). En local, elle vaut l'adresse du Mac sur le
+  Wi-Fi (http://192.168.0.48:3000, reprise dans `allowedDevOrigins` de
+  `next.config.ts`) : un téléphone du même réseau ouvre les liens, ce que
+  « localhost » ne permet pas (constaté au test du 30/09/2026). En ligne :
+  laisser vide.
 - Une séance ne se signe que **le jour même**, à partir de 30 min avant son
   début (horaires de la session ; sans horaire lisible, dès minuit le matin et
   dès midi l'après-midi) et jusqu'à minuit ; jamais à l'avance, jamais après

@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import QRCode from "qrcode";
 
+import { adressePublique } from "@/lib/adresse-publique";
 import { CRENEAUX, horairesDemiJournees, joursDeSession, LIBELLE_CRENEAU } from "@/lib/emargement";
 import { sessionEmargementAutomatique } from "@/lib/emargement-acces";
 import { enregistrerFeuilleSignee, joursSansFeuille, libelleJour } from "@/lib/emargement-feuilles";
@@ -29,9 +30,6 @@ export type Participant = { learnerId: string } | { trainerId: string };
 // Liens personnels
 // ---------------------------------------------------------------------------
 
-function adresseApplication(): string {
-  return (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
 
 /// Le jeton d'un lien se recalcule à partir de son identifiant et d'un secret
 /// du serveur : le même lien peut être affiché, copié ou mis en QR code
@@ -43,7 +41,7 @@ function jetonDuLien(lienId: string): string {
   return createHmac("sha256", secret).update(`emargement:${lienId}`).digest("base64url");
 }
 
-const urlDuJeton = (jeton: string) => `${adresseApplication()}/emargement/${jeton}`;
+const urlDuJeton = (jeton: string) => `${adressePublique()}/emargement/${jeton}`;
 
 /// Lien personnel d'émargement d'un participant pour une session, créé au
 /// premier besoin. Il reste le même toute la session.

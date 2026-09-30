@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 
 import type { ResultatAcquis, TypeQuestionnaire } from "@prisma/client";
 
+import { adressePublique } from "@/lib/adresse-publique";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
@@ -14,9 +15,6 @@ import { empreinteJeton } from "@/lib/satisfaction";
 /// Durée de validité d'un lien de questionnaire, comme pour la satisfaction.
 const JOURS_VALIDITE = 60;
 
-function adresseApplication(): string {
-  return (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
 
 export type DestinataireQuestionnaire =
   | { type: "POSITIONNEMENT"; sessionId: string; learnerId: string }
@@ -67,7 +65,7 @@ export async function preparerLienQuestionnaireQualite(dest: DestinataireQuestio
       },
     });
   }
-  return `${adresseApplication()}/questionnaires/${jeton}`;
+  return `${adressePublique()}/questionnaires/${jeton}`;
 }
 
 /// Questionnaire correspondant à un jeton, s'il est encore utilisable.

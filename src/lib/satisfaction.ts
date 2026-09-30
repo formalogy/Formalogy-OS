@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
+import { adressePublique } from "@/lib/adresse-publique";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { rendre } from "@/lib/emails/modeles";
@@ -12,9 +13,6 @@ const JOURS_VALIDITE = 60;
 
 export const empreinteJeton = (jeton: string) => createHash("sha256").update(jeton).digest("hex");
 
-function adresseApplication(): string {
-  return (process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
-}
 
 /// Prépare le lien personnel d'un apprenant vers le questionnaire d'une
 /// session. Un nouveau jeton est créé à chaque appel : seul le dernier lien
@@ -38,7 +36,7 @@ export async function preparerLienQuestionnaire(sessionId: string, learnerId: st
     create: { sessionId, learnerId, ...donnees },
     update: donnees,
   });
-  return `${adresseApplication()}/questionnaire/${jeton}`;
+  return `${adressePublique()}/questionnaire/${jeton}`;
 }
 
 /// Questionnaire correspondant à un jeton, s'il est encore utilisable.
