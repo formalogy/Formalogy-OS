@@ -115,7 +115,7 @@ function LienEntree({ entree, actif, onChoisir }: { entree: GroupeMenu["entrees"
       href={entree.chemin}
       onClick={onChoisir}
       aria-current={actif ? "page" : undefined}
-      className={`flex items-center gap-2.5 rounded-full px-3.5 py-2 text-[13px] transition ${actif ? PASTILLE_ACTIVE : PASTILLE_SURVOL}`}
+      className={`flex items-center gap-2.5 rounded-full px-3.5 py-2 text-[13px] transition ${FOCUS} ${actif ? PASTILLE_ACTIVE : PASTILLE_SURVOL}`}
     >
       <IconeMenu nom={entree.icone} className={`size-[18px] shrink-0 ${actif ? "text-accent-clair" : ""}`} />
       <span className="min-w-0 flex-1 truncate">{entree.libelle}</span>
@@ -127,6 +127,8 @@ function LienEntree({ entree, actif, onChoisir }: { entree: GroupeMenu["entrees"
 /// l'entrée active se détache en capsule plus claire sur un bandeau translucide.
 const PASTILLE_ACTIVE = "bg-white/[0.32] font-semibold text-white shadow-md ring-1 ring-white/40";
 const PASTILLE_SURVOL = "text-barre-texte-doux hover:bg-white/[0.12] hover:text-barre-texte";
+/// Contour de navigation au clavier, à la place du contour bleu du navigateur.
+const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-white/70";
 const BANDEAU = "rounded-[22px] bg-white/[0.05] p-1.5 ring-1 ring-white/[0.08]";
 
 /// Menu en deux temps, sur le modèle choisi par le client (30/09/2026) : la
@@ -189,7 +191,7 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
         }`}
       >
         <div className="flex shrink-0 items-center gap-2.5 px-4 py-5">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-accent text-white">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-barre-logo text-white">
             <IconGauge className="size-5" stroke={1.75} aria-hidden="true" />
           </div>
           <div className="leading-tight">
@@ -229,7 +231,7 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
                     aria-expanded={ouvert}
                     aria-controls="sous-menu"
                     onClick={() => setDeplie(ouvert ? null : groupe.titre)}
-                    className={`mb-0.5 flex w-full items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13.5px] transition ${
+                    className={`mb-0.5 flex w-full items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13.5px] transition ${FOCUS} ${
                       ouvert || (surPage && !deplie) ? PASTILLE_ACTIVE : PASTILLE_SURVOL
                     }`}
                   >

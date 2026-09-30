@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* Palette Formalogy V2 (19/09/2026) : neutres bleu-gris, accent bleu sarcelle
-   — même esprit colorimétrique que HubSpot, sans son orange. La barre
+   — même esprit colorimétrique que HubSpot. Barre bleu nuit et logo orange
+   depuis le 30/09/2026, à la demande du client. La barre
    latérale reste sombre en permanence, indépendamment du thème clair/sombre
    du reste de l'application (choix visuel validé avec le client). */
 :root {
@@ -27,9 +28,11 @@
      --alerte, trop proche du rouge pour être distingué à côté de lui. */
   --graphique-neutre: #8b9cab;
 
-  /* Barre latérale : toujours sombre. */
-  --barre: #2d3e50;
-  --barre-actif: #3a4e63;
+  /* Barre latérale : toujours sombre, bleu nuit (choix du client du
+     30/09/2026), logo orange. */
+  --barre: #0f1c33;
+  --barre-actif: #1d2c48;
+  --barre-logo: #f7931e;
   --barre-texte: #ffffff;
   --barre-texte-doux: #f1f5f9;
   --barre-texte-tenu: #c3d0dc;
@@ -83,6 +86,7 @@
   --color-graphique-neutre: var(--graphique-neutre);
   --color-barre: var(--barre);
   --color-barre-actif: var(--barre-actif);
+  --color-barre-logo: var(--barre-logo);
   --color-barre-texte: var(--barre-texte);
   --color-barre-texte-doux: var(--barre-texte-doux);
   --color-barre-texte-tenu: var(--barre-texte-tenu);
