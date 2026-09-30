@@ -226,6 +226,14 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   `next.config.ts`) : un téléphone du même réseau ouvre les liens, ce que
   « localhost » ne permet pas (constaté au test du 30/09/2026). En ligne :
   laisser vide.
+- **L'apprenant ne signe qu'en scannant sur place le QR code** présenté par
+  le formateur (décision du client du 30/09/2026 : un absent non signalé ne
+  doit pas pouvoir émarger à distance). Chaque QR code porte, en plus du
+  lien, un code propre à une demi-journée (`urlSeance`, `seanceDuCode`,
+  HMAC) : le lien seul ne permet pas à un apprenant de signer, et le QR du
+  matin ne vaut pas pour l'après-midi. Le formateur signe avec son lien.
+  Aucun lien de signature dans les emails des apprenants, aucune relance
+  aux apprenants.
 - Une séance ne se signe que **le jour même**, à partir de 30 min avant son
   début (horaires de la session ; sans horaire lisible, dès minuit le matin et
   dès midi l'après-midi) et jusqu'à minuit ; jamais à l'avance, jamais après
@@ -242,16 +250,18 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   saisie d'absence). Le PDF (`lib/emargement-pdf.ts`, une page par
   demi-journée) porte les signatures, leur heure et « Absent » pour les
   absents ; il se génère aussi à la demande.
-- Emails : l'accueil de J0 (`ACCUEIL_SESSION`) porte le lien de l'apprenant
-  (`{{emargement.lien}}`) ; l'email du matin au formateur (`EMARGEMENT_JOUR`)
-  porte son lien, les QR codes des apprenants (`joindre: QR_EMARGEMENT`) et
-  la feuille papier du jour en secours. Liens masqués dans l'historique.
+- Emails : l'accueil de J0 (`ACCUEIL_SESSION`) annonce le QR code ; l'email
+  du matin au formateur (`EMARGEMENT_JOUR`) porte son lien, le PDF des QR
+  codes (`joindre: QR_EMARGEMENT`, une page par demi-journée) et la feuille
+  papier du jour en secours. Sur l'écran d'émargement, « QR code » montre
+  celui de la demi-journée en cours ; « Copier le lien » n'existe que pour
+  le formateur. Liens masqués dans l'historique.
 - **Relances** : à la fin de chaque demi-journée (déclencheur
   `FIN_DEMI_JOURNEE`, heure de fin lue dans les horaires, à défaut 12 h 30 et
-  17 h 30 ; action `RELANCE_SIGNATURE`), chaque participant qui n'a pas signé
-  reçoit son lien (modèles `EMARGEMENT_SIGNATURE_RELANCE` et
-  `EMARGEMENT_SIGNATURE_FORMATEUR`), une fois par demi-journée ; les absents
-  signalés et les sans-email ne le sont pas. À 18 h, puis le lendemain de la
+  17 h 30 ; action `RELANCE_SIGNATURE`), le formateur reçoit la liste de qui
+  n'a pas signé, lui compris (modèle `EMARGEMENT_SIGNATURE_FORMATEUR`), une
+  fois par demi-journée ; le modèle `EMARGEMENT_SIGNATURE_RELANCE` (relance
+  des apprenants) est désactivé. À 18 h, puis le lendemain de la
   fin à 10 h (action `RELANCE_EMARGEMENT`, modèle `EMARGEMENT_RELANCE`), le
   formateur reçoit, pour chaque jour sans feuille, les signatures manquantes
   nom par nom (`{{emargement.manquants}}`) et la feuille papier en dernier

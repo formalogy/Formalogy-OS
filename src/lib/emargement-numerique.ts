@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import type { Creneau } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -35,13 +35,52 @@ export type Participant = { learnerId: string } | { trainerId: string };
 /// du serveur : le même lien peut être affiché, copié ou mis en QR code
 /// autant de fois que nécessaire, sans que la base en garde une copie
 /// utilisable (seule son empreinte y figure).
+function secret(): string {
+  const valeur = process.env.BETTER_AUTH_SECRET;
+  if (!valeur) throw new Error("BETTER_AUTH_SECRET est absente : les liens d'émargement ne peuvent pas être produits.");
+  return valeur;
+}
+
 function jetonDuLien(lienId: string): string {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) throw new Error("BETTER_AUTH_SECRET est absente : les liens d'émargement ne peuvent pas être produits.");
-  return createHmac("sha256", secret).update(`emargement:${lienId}`).digest("base64url");
+  return createHmac("sha256", secret()).update(`emargement:${lienId}`).digest("base64url");
 }
 
 const urlDuJeton = (jeton: string) => `${adressePublique()}/emargement/${jeton}`;
+
+// ---------------------------------------------------------------------------
+// QR codes par demi-journée (décision du client du 30/09/2026) : un apprenant
+// ne signe qu'en scannant, sur place, le QR code que lui présente le
+// formateur. Le QR code porte, en plus du lien personnel, un code propre à
+// une demi-journée : le lien seul (reçu par email, gardé dans l'historique du
+// téléphone) ne permet pas de signer, et le QR du matin ne vaut pas pour
+// l'après-midi. Un absent ne peut donc pas émarger à distance.
+// ---------------------------------------------------------------------------
+
+const LETTRE_CRENEAU: Record<Creneau, string> = { MATIN: "M", APRES_MIDI: "A" };
+
+function codeSeance(lienId: string, jour: Date, creneau: Creneau): string {
+  return createHmac("sha256", secret())
+    .update(`seance:${lienId}:${jour.toISOString().slice(0, 10)}:${creneau}`)
+    .digest("base64url")
+    .slice(0, 16);
+}
+
+/// Adresse contenue dans le QR code d'une demi-journée.
+export function urlSeance(lienId: string, jour: Date, creneau: Creneau): string {
+  return `${urlDuJeton(jetonDuLien(lienId))}?s=${jour.toISOString().slice(0, 10)}${LETTRE_CRENEAU[creneau]}.${codeSeance(lienId, jour, creneau)}`;
+}
+
+/// Demi-journée désignée par le code d'un QR code, s'il est authentique.
+export function seanceDuCode(lienId: string, code: string | null | undefined): { jour: Date; creneau: Creneau } | null {
+  const m = /^(\d{4}-\d{2}-\d{2})([MA])\.([A-Za-z0-9_-]{16})$/.exec(code ?? "");
+  if (!m) return null;
+  const jour = new Date(`${m[1]}T00:00:00.000Z`);
+  if (Number.isNaN(jour.getTime())) return null;
+  const creneau: Creneau = m[2] === "M" ? "MATIN" : "APRES_MIDI";
+  const attendu = Buffer.from(codeSeance(lienId, jour, creneau));
+  const recu = Buffer.from(m[3]);
+  return attendu.length === recu.length && timingSafeEqual(attendu, recu) ? { jour, creneau } : null;
+}
 
 /// Lien personnel d'émargement d'un participant pour une session, créé au
 /// premier besoin. Il reste le même toute la session.
@@ -365,10 +404,18 @@ export async function enregistrerSignature(p: {
   image: Uint8Array<ArrayBuffer>;
   ip: string | null;
   appareil: string | null;
+  /// Code de demi-journée du QR code scanné (obligatoire pour un apprenant)
+  seance?: string | null;
 }): Promise<{ erreur?: string }> {
   const participation = await participationParJeton(p.jeton);
   if (!participation) return { erreur: "Ce lien n'est plus valable. Adressez-vous à votre formateur." };
   const { session } = participation;
+  if (!participation.formateur) {
+    const seance = seanceDuCode(participation.lienId, p.seance);
+    if (!seance || seance.jour.getTime() !== p.jour.getTime() || seance.creneau !== p.creneau) {
+      return { erreur: "Pour signer, scannez le QR code que vous présente votre formateur." };
+    }
+  }
 
   if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === p.jour.getTime())) {
     return { erreur: "Cette séance ne fait pas partie de la formation." };
@@ -421,13 +468,35 @@ export async function enregistrerSignature(p: {
 // QR codes à afficher en salle
 // ---------------------------------------------------------------------------
 
+/// Jour de formation dont on montre les QR codes : aujourd'hui si c'en est
+/// un, sinon le prochain (préparation), sinon le dernier.
+export function jourDesQrCodes(session: { dateDebut: Date; dateFin: Date }): Date | null {
+  const jours = joursDeSession(session.dateDebut, session.dateFin);
+  const aujourdhui = aujourdhuiUTC();
+  return jours.find((j) => j.getTime() === aujourdhui.getTime()) ?? jours.find((j) => j > aujourdhui) ?? jours.at(-1) ?? null;
+}
+
+/// Demi-journée dont le QR code s'affiche à l'écran : la dernière ouverte
+/// aujourd'hui, sinon la première du jour ; aucune hors des jours de formation.
+function seanceDuMoment(session: { dateDebut: Date; dateFin: Date; horaires: string | null }): { jour: Date; creneau: Creneau } | null {
+  const aujourdhui = aujourdhuiUTC();
+  if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) return null;
+  const ouvertes = CRENEAUX.filter((c) => ouvertureSeance(session.horaires, aujourdhui, c).etat === "ouverte");
+  return { jour: aujourdhui, creneau: ouvertes.at(-1) ?? "MATIN" };
+}
+
 /// PDF des QR codes des apprenants, joint à l'email du matin du formateur :
-/// un apprenant sans son email sous la main scanne le sien pour signer.
+/// une page par demi-journée du jour, un QR code par apprenant, qui ne vaut
+/// que pour cette demi-journée. Le formateur le présente ; l'apprenant le
+/// scanne avec son téléphone pour signer.
 export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8Array | null> {
   const session = await prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null },
     select: {
       numero: true,
+      dateDebut: true,
+      dateFin: true,
+      horaires: true,
       formation: { select: { titre: true } },
       inscriptions: {
         where: { learner: { deletedAt: null } },
@@ -436,7 +505,12 @@ export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8
       },
     },
   });
-  if (!session || session.inscriptions.length === 0) return null;
+  const jour = session ? jourDesQrCodes(session) : null;
+  if (!session || !jour || session.inscriptions.length === 0) return null;
+  const horaires = horairesDemiJournees(session.horaires);
+  const liens = new Map(
+    await Promise.all(session.inscriptions.map(async ({ learner }) => [learner.id, (await lienEmargement(sessionId, { learnerId: learner.id })).id] as const)),
+  );
 
   const pdf = await PDFDocument.create();
   pdf.setTitle(`QR codes d'émargement ${session.numero}`);
@@ -453,45 +527,49 @@ export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8
   const hauteurCase = (H - 2 * MARGE - 70) / LIGNES;
   const COTE_QR = 140;
 
-  let page = pdf.addPage([L, H]);
-  for (const [rang, { learner }] of session.inscriptions.entries()) {
-    const place = rang % (COLONNES * LIGNES);
-    if (rang > 0 && place === 0) page = pdf.addPage([L, H]);
-    if (place === 0) {
-      page.drawText(tronquer(gras, organisme, 10, L - 2 * MARGE), { x: MARGE, y: H - MARGE, size: 10, font: gras, color: GRIS });
-      page.drawText(tronquer(gras, `QR codes d'émargement — ${session.formation.titre}`, 14, L - 2 * MARGE), { x: MARGE, y: H - MARGE - 22, size: 14, font: gras, color: NOIR });
-      page.drawText(`Session ${session.numero} · chaque QR code est personnel : il ouvre la page de signature de l'apprenant nommé.`, {
-        x: MARGE,
-        y: H - MARGE - 40,
-        size: 8.5,
-        font: normal,
-        color: GRIS,
-      });
-    }
-
-    const colonne = place % COLONNES;
-    const ligne = Math.floor(place / COLONNES);
-    const x0 = MARGE + colonne * largeurCase;
-    const haut = H - MARGE - 70 - ligne * hauteurCase;
-    page.drawRectangle({ x: x0 + 6, y: haut - hauteurCase + 6, width: largeurCase - 12, height: hauteurCase - 12, borderColor: rgb(0.8, 0.82, 0.85), borderWidth: 0.6 });
-    const nom = `${learner.prenom} ${learner.nom.toUpperCase()}`;
-    page.drawText(tronquer(gras, nom, 12, largeurCase - 32), { x: x0 + 16, y: haut - 28, size: 12, font: gras, color: NOIR });
-    if (learner.company) {
-      page.drawText(tronquer(normal, learner.company.raisonSociale, 9, largeurCase - 32), { x: x0 + 16, y: haut - 42, size: 9, font: normal, color: GRIS });
-    }
-
-    // QR code dessiné module par module : net à toutes les tailles d'impression.
-    const { url } = await lienEmargement(sessionId, { learnerId: learner.id });
-    const modules = QRCode.create(url, { errorCorrectionLevel: "M" }).modules;
-    const cote = COTE_QR / modules.size;
-    const qx = x0 + (largeurCase - COTE_QR) / 2;
-    const qy = haut - 56 - COTE_QR;
-    for (let r = 0; r < modules.size; r++) {
-      for (let c = 0; c < modules.size; c++) {
-        if (modules.get(r, c)) page.drawRectangle({ x: qx + c * cote, y: qy + (modules.size - 1 - r) * cote, width: cote, height: cote, color: NOIR });
+  for (const creneau of CRENEAUX) {
+    let page = pdf.addPage([L, H]);
+    for (const [rang, { learner }] of session.inscriptions.entries()) {
+      const place = rang % (COLONNES * LIGNES);
+      if (rang > 0 && place === 0) page = pdf.addPage([L, H]);
+      if (place === 0) {
+        const seance = `${LIBELLE_CRENEAU[creneau]} du ${libelleJour(jour)}`;
+        page.drawText(tronquer(gras, `${organisme} · ${session.formation.titre} · session ${session.numero}`, 10, L - 2 * MARGE), { x: MARGE, y: H - MARGE, size: 10, font: gras, color: GRIS });
+        page.drawText(tronquer(gras, `QR codes d'émargement — ${seance}`, 14, L - 2 * MARGE), { x: MARGE, y: H - MARGE - 22, size: 14, font: gras, color: NOIR });
+        const consigne = "Chaque QR code est personnel et ne vaut que pour cette demi-journée : l'apprenant le scanne sur place pour signer.";
+        page.drawText(tronquer(normal, horaires[creneau] ? `Horaire : ${horaires[creneau]} · ${consigne}` : consigne, 8.5, L - 2 * MARGE), {
+          x: MARGE,
+          y: H - MARGE - 40,
+          size: 8.5,
+          font: normal,
+          color: GRIS,
+        });
       }
+
+      const colonne = place % COLONNES;
+      const ligne = Math.floor(place / COLONNES);
+      const x0 = MARGE + colonne * largeurCase;
+      const haut = H - MARGE - 70 - ligne * hauteurCase;
+      page.drawRectangle({ x: x0 + 6, y: haut - hauteurCase + 6, width: largeurCase - 12, height: hauteurCase - 12, borderColor: rgb(0.8, 0.82, 0.85), borderWidth: 0.6 });
+      const nom = `${learner.prenom} ${learner.nom.toUpperCase()}`;
+      page.drawText(tronquer(gras, nom, 12, largeurCase - 32), { x: x0 + 16, y: haut - 28, size: 12, font: gras, color: NOIR });
+      if (learner.company) {
+        page.drawText(tronquer(normal, learner.company.raisonSociale, 9, largeurCase - 32), { x: x0 + 16, y: haut - 42, size: 9, font: normal, color: GRIS });
+      }
+
+      // QR code dessiné module par module : net à toutes les tailles d'impression.
+      const modules = QRCode.create(urlSeance(liens.get(learner.id)!, jour, creneau), { errorCorrectionLevel: "M" }).modules;
+      const cote = COTE_QR / modules.size;
+      const qx = x0 + (largeurCase - COTE_QR) / 2;
+      const qy = haut - 56 - COTE_QR;
+      for (let r = 0; r < modules.size; r++) {
+        for (let c = 0; c < modules.size; c++) {
+          if (modules.get(r, c)) page.drawRectangle({ x: qx + c * cote, y: qy + (modules.size - 1 - r) * cote, width: cote, height: cote, color: NOIR });
+        }
+      }
+      const legende = `Scannez pour signer · ${LIBELLE_CRENEAU[creneau].toLowerCase()}`;
+      page.drawText(legende, { x: x0 + (largeurCase - normal.widthOfTextAtSize(legende, 9)) / 2, y: qy - 14, size: 9, font: normal, color: GRIS });
     }
-    page.drawText("Scannez pour signer", { x: x0 + (largeurCase - normal.widthOfTextAtSize("Scannez pour signer", 9)) / 2, y: qy - 14, size: 9, font: normal, color: GRIS });
   }
   return pdf.save();
 }
@@ -514,7 +592,12 @@ export type ParticipantSuivi = {
   nom: string;
   detail: string | null;
   formateur: boolean;
-  url: string;
+  /// Lien personnel à copier : celui du formateur seulement (un apprenant ne
+  /// signe qu'en scannant son QR code sur place)
+  url: string | null;
+  /// QR code à présenter : pour un apprenant, celui de la demi-journée en
+  /// cours ; pour le formateur, son lien
+  qr: { url: string; libelle: string } | null;
   seances: SeanceSuivie[];
 };
 
@@ -548,9 +631,16 @@ export async function suiviSignatures(session: {
       : []),
   ];
 
+  const moment = seanceDuMoment(session);
   return Promise.all(
     personnes.map(async ({ participant, nom, detail }) => {
-      const { url } = await lienEmargement(session.id, participant);
+      const lien = await lienEmargement(session.id, participant);
+      const apprenant = "learnerId" in participant;
+      const qr = !apprenant
+        ? { url: lien.url, libelle: "Lien personnel du formateur" }
+        : moment
+          ? { url: urlSeance(lien.id, moment.jour, moment.creneau), libelle: `${LIBELLE_CRENEAU[moment.creneau]} du ${libelleJour(moment.jour)}` }
+          : null;
       const siennes = signatures.filter((s) =>
         "learnerId" in participant ? s.lien.learnerId === participant.learnerId : s.lien.trainerId === participant.trainerId,
       );
@@ -559,8 +649,9 @@ export async function suiviSignatures(session: {
         cle: "learnerId" in participant ? `apprenant:${participant.learnerId}` : `formateur:${participant.trainerId}`,
         nom,
         detail,
-        formateur: "trainerId" in participant,
-        url,
+        formateur: !apprenant,
+        url: apprenant ? null : lien.url,
+        qr,
         seances: seancesDuParticipant(session, siennes, absences).map(({ jour, creneau, etat }) => {
           const signature = siennes.find((s) => s.jour.getTime() === jour.getTime() && s.creneau === creneau);
           return {

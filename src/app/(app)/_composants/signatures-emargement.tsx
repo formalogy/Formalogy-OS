@@ -16,16 +16,16 @@ const ETATS: Record<SeanceSuivie["etat"], { texte: string; ton: string }> = {
 /// Séances passées ou du jour : celles qu'on attend signées.
 const attendue = (s: SeanceSuivie) => s.etat === "signee" || s.etat === "non_signee" || s.etat === "ouverte";
 
-function FenetreQr({ participant, fermer }: { participant: ParticipantSuivi; fermer: () => void }) {
+function FenetreQr({ nom, qr, fermer }: { nom: string; qr: { url: string; libelle: string }; fermer: () => void }) {
   const [svg, setSvg] = useState("");
   useEffect(() => {
-    QRCode.toString(participant.url, { type: "svg", margin: 1, errorCorrectionLevel: "M" }).then(setSvg, () => setSvg(""));
-  }, [participant.url]);
+    QRCode.toString(qr.url, { type: "svg", margin: 1, errorCorrectionLevel: "M" }).then(setSvg, () => setSvg(""));
+  }, [qr.url]);
   return (
-    <div role="dialog" aria-modal="true" aria-label={`QR code de ${participant.nom}`} className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={fermer}>
+    <div role="dialog" aria-modal="true" aria-label={`QR code de ${nom}`} className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={fermer}>
       <div className="w-full max-w-xs rounded-xl bg-white p-5 text-center text-[#111827] shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <p className="text-[16px] font-bold">{participant.nom}</p>
-        <p className="text-[12.5px] text-[#4b5563]">Scannez pour signer</p>
+        <p className="text-[16px] font-bold">{nom}</p>
+        <p className="text-[12.5px] text-[#4b5563]">Scannez pour signer — {qr.libelle.charAt(0).toLowerCase() + qr.libelle.slice(1)}</p>
         {/* SVG produit ici même à partir du lien : aucun contenu extérieur. */}
         <div className="mx-auto mt-3 w-60" dangerouslySetInnerHTML={{ __html: svg }} />
         <button type="button" onClick={fermer} className="mt-4 rounded-lg border border-[#d1d5db] px-4 py-2 text-[13px] font-semibold">
@@ -44,13 +44,13 @@ function LigneParticipant({ participant }: { participant: ParticipantSuivi }) {
   const signees = attendues.filter((s) => s.etat === "signee").length;
   const manquantes = participant.seances.filter((s) => s.etat === "non_signee").length;
 
-  async function copier() {
+  async function copier(url: string) {
     try {
-      await navigator.clipboard.writeText(participant.url);
+      await navigator.clipboard.writeText(url);
       setCopie(true);
       setTimeout(() => setCopie(false), 2000);
     } catch {
-      window.prompt("Copiez le lien :", participant.url);
+      window.prompt("Copiez le lien :", url);
     }
   }
 
@@ -72,12 +72,18 @@ function LigneParticipant({ participant }: { participant: ParticipantSuivi }) {
         <span className={`text-[12.5px] font-semibold ${manquantes > 0 ? "text-danger" : attendues.length > 0 ? "text-succes" : "text-texte-tenu"}`}>
           {attendues.length === 0 ? "Pas encore commencé" : `${signees} / ${attendues.length} signée${attendues.length > 1 ? "s" : ""}`}
         </span>
-        <button type="button" onClick={copier} className="rounded-md border border-bordure px-2.5 py-1 text-[12px] font-semibold text-accent-fort hover:bg-surface-creuse">
-          {copie ? "Lien copié ✓" : "Copier le lien"}
-        </button>
-        <button type="button" onClick={() => setQr(true)} className="rounded-md border border-bordure px-2.5 py-1 text-[12px] font-semibold text-accent-fort hover:bg-surface-creuse">
-          QR code
-        </button>
+        {participant.url && (
+          <button type="button" onClick={() => copier(participant.url!)} className="rounded-md border border-bordure px-2.5 py-1 text-[12px] font-semibold text-accent-fort hover:bg-surface-creuse">
+            {copie ? "Lien copié ✓" : "Copier le lien"}
+          </button>
+        )}
+        {participant.qr ? (
+          <button type="button" onClick={() => setQr(true)} className="rounded-md border border-bordure px-2.5 py-1 text-[12px] font-semibold text-accent-fort hover:bg-surface-creuse">
+            QR code
+          </button>
+        ) : (
+          !participant.formateur && <span className="text-[11.5px] text-texte-tenu">QR code le jour de la formation</span>
+        )}
       </div>
 
       {ouvert && (
@@ -103,7 +109,7 @@ function LigneParticipant({ participant }: { participant: ParticipantSuivi }) {
           ))}
         </ul>
       )}
-      {qr && <FenetreQr participant={participant} fermer={() => setQr(false)} />}
+      {qr && participant.qr && <FenetreQr nom={participant.nom} qr={participant.qr} fermer={() => setQr(false)} />}
     </li>
   );
 }

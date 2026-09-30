@@ -25,7 +25,20 @@ function BoutonValider({ actif }: { actif: boolean }) {
 }
 
 /// Pavé de signature au doigt (ou à la souris) pour une demi-journée.
-export function PaveSignature({ jeton, jour, creneau, intitule }: { jeton: string; jour: string; creneau: string; intitule: string }) {
+export function PaveSignature({
+  jeton,
+  jour,
+  creneau,
+  intitule,
+  seance,
+}: {
+  jeton: string;
+  jour: string;
+  creneau: string;
+  intitule: string;
+  /// Code de demi-journée du QR code scanné (apprenant)
+  seance?: string;
+}) {
   const [etat, envoyer] = useActionState<EtatSignature, FormData>(signerEmargement, {});
   const toile = useRef<HTMLCanvasElement>(null);
   const champ = useRef<HTMLInputElement>(null);
@@ -102,6 +115,7 @@ export function PaveSignature({ jeton, jour, creneau, intitule }: { jeton: strin
       <input type="hidden" name="jeton" value={jeton} />
       <input type="hidden" name="jour" value={jour} />
       <input type="hidden" name="creneau" value={creneau} />
+      {seance && <input type="hidden" name="seance" value={seance} />}
       <input ref={champ} type="hidden" name="signature" />
 
       <p className="text-[15px] font-bold">{intitule}</p>

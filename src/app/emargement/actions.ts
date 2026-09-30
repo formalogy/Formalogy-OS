@@ -14,6 +14,8 @@ const schema = z.object({
   jour: z.string(),
   creneau: z.enum(["MATIN", "APRES_MIDI"]),
   signature: z.string().startsWith("data:image/png;base64,").max(420_000),
+  /// Code de demi-journée du QR code scanné (apprenant)
+  seance: z.string().max(100).optional(),
 });
 
 /// Signature d'une demi-journée, sans compte : le jeton du lien personnel
@@ -24,6 +26,7 @@ export async function signerEmargement(_precedent: EtatSignature, donnees: FormD
     jour: donnees.get("jour"),
     creneau: donnees.get("creneau"),
     signature: donnees.get("signature"),
+    seance: donnees.get("seance") || undefined,
   });
   const jour = r.success ? jourDepuisSaisie(r.data.jour) : null;
   if (!r.success || !jour) return { erreur: "Signature incomplète : tracez votre signature, puis validez." };
@@ -40,6 +43,7 @@ export async function signerEmargement(_precedent: EtatSignature, donnees: FormD
     image,
     ip,
     appareil: entetes.get("user-agent"),
+    seance: r.data.seance,
   });
   if (resultat.erreur) return { erreur: resultat.erreur };
   revalidatePath(`/emargement/${r.data.jeton}`);

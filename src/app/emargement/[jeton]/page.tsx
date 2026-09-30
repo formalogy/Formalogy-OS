@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { PaveSignature } from "@/app/emargement/[jeton]/pave-signature";
 import { horairesDemiJournees, LIBELLE_CRENEAU } from "@/lib/emargement";
-import { heureLisible, participationParJeton, seancesDuParticipant, type EtatSeance } from "@/lib/emargement-numerique";
+import { heureLisible, participationParJeton, seanceDuCode, seancesDuParticipant, type EtatSeance } from "@/lib/emargement-numerique";
 import { lireOrganisme } from "@/lib/organisme";
 import { formaterPeriode, jourVersSaisie } from "@/lib/sessions-libelles";
 
@@ -29,9 +29,12 @@ function Etat({ etat }: { etat: EtatSeance }) {
 }
 
 /// Page de signature d'un participant : la séance ouverte à signer, puis
-/// l'état de toutes ses séances.
-export default async function PageEmargement({ params }: { params: Promise<{ jeton: string }> }) {
+/// l'état de toutes ses séances. Un apprenant n'y signe qu'en arrivant par le
+/// QR code de la demi-journée, présenté sur place par le formateur ; le
+/// formateur signe avec son lien.
+export default async function PageEmargement({ params, searchParams }: { params: Promise<{ jeton: string }>; searchParams: Promise<{ s?: string }> }) {
   const { jeton } = await params;
+  const { s: codeQr } = await searchParams;
   const [participation, organisme] = await Promise.all([participationParJeton(jeton), lireOrganisme()]);
 
   const cadre = (contenu: React.ReactNode) => (
@@ -55,7 +58,21 @@ export default async function PageEmargement({ params }: { params: Promise<{ jet
   const { session, personne } = participation;
   const horaires = horairesDemiJournees(session.horaires);
   const seances = seancesDuParticipant(session, participation.signatures, participation.absences);
-  const aSigner = seances.find((s) => s.etat.etat === "ouverte");
+  const seanceQr = participation.formateur ? null : seanceDuCode(participation.lienId, codeQr);
+  const duQr = seanceQr ? seances.find((s) => s.jour.getTime() === seanceQr.jour.getTime() && s.creneau === seanceQr.creneau) : undefined;
+  const aSigner = participation.formateur ? seances.find((s) => s.etat.etat === "ouverte") : duQr?.etat.etat === "ouverte" ? duQr : undefined;
+  // Pourquoi un apprenant ne peut pas signer ici, le cas échéant.
+  const empechement = participation.formateur || aSigner
+    ? null
+    : !duQr
+      ? { titre: "Scannez le QR code de votre formateur", texte: "Pour signer, scannez avec votre téléphone le QR code que votre formateur vous présente au début de chaque demi-journée." }
+      : duQr.etat.etat === "signee"
+        ? { titre: "Séance déjà signée", texte: `Votre signature a été enregistrée à ${heure.format(duQr.etat.signeAt)}. Merci !` }
+        : duQr.etat.etat === "a_venir"
+          ? { titre: "Pas encore ouverte", texte: duQr.etat.ouverture !== null ? `Cette séance se signe à partir de ${heureLisible(duQr.etat.ouverture)}.` : "Cette séance n'a pas encore commencé." }
+          : duQr.etat.etat === "absent"
+            ? { titre: "Absence signalée", texte: "Une absence est signalée pour cette séance. Si vous êtes présent, prévenez votre formateur." }
+            : { titre: "Séance terminée", texte: "Cette séance ne peut plus être signée." };
   const intitule = (jour: Date, creneau: keyof typeof LIBELLE_CRENEAU) =>
     `${LIBELLE_CRENEAU[creneau]} du ${jourLong.format(jour)}${horaires[creneau] ? ` (${horaires[creneau]})` : ""}`;
 
@@ -71,7 +88,7 @@ export default async function PageEmargement({ params }: { params: Promise<{ jet
           Bonjour {personne.prenom} {personne.nom},{" "}
           {participation.formateur
             ? "signez chaque demi-journée que vous animez, comme les apprenants."
-            : "signez à chaque demi-journée de formation, au début de la séance."}
+            : "signez au début de chaque demi-journée, en scannant le QR code que vous présente votre formateur."}
         </p>
       </header>
 
@@ -82,7 +99,13 @@ export default async function PageEmargement({ params }: { params: Promise<{ jet
           jour={jourVersSaisie(aSigner.jour)}
           creneau={aSigner.creneau}
           intitule={intitule(aSigner.jour, aSigner.creneau)}
+          seance={participation.formateur ? undefined : codeQr}
         />
+      ) : empechement ? (
+        <div className="rounded-xl border border-bordure bg-surface p-5 text-center shadow-sm">
+          <p className="text-[15px] font-bold">{empechement.titre}</p>
+          <p className="mt-1 text-[13px] text-texte-doux">{empechement.texte}</p>
+        </div>
       ) : (
         <div className="rounded-xl border border-bordure bg-surface p-5 text-center shadow-sm">
           <p className="text-[15px] font-bold">Rien à signer pour le moment</p>

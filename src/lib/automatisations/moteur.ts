@@ -89,11 +89,10 @@ const schemaAction = z.discriminatedUnion("type", [
     type: z.literal("RELANCE_EMARGEMENT"),
   }),
   z.object({
-    /// Émargement numérique : relance, à la fin d'une demi-journée, de chaque
-    /// participant qui ne l'a pas signée (modèles
-    /// EMARGEMENT_SIGNATURE_RELANCE pour un apprenant,
-    /// EMARGEMENT_SIGNATURE_FORMATEUR pour le formateur), avec son lien
-    /// personnel. Les absents signalés ne sont pas relancés.
+    /// Émargement numérique : à la fin d'une demi-journée, le formateur reçoit
+    /// la liste de qui ne l'a pas signée (modèle
+    /// EMARGEMENT_SIGNATURE_FORMATEUR). Les apprenants ne sont pas relancés
+    /// par email : ils signent sur place, par le QR code du formateur.
     type: z.literal("RELANCE_SIGNATURE"),
   }),
   z.object({
@@ -525,9 +524,11 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
   else comptes.emails++;
 }
 
-/// Relance de signature en fin de demi-journée (émargement numérique) :
-/// chaque participant attendu qui n'a pas signé reçoit un email avec son
-/// lien personnel. Le lien ne sert que le jour même : passé ce jour (réveil
+/// Relance de signature en fin de demi-journée (émargement numérique) : le
+/// formateur reçoit la liste de qui n'a pas signé, lui compris, avec son
+/// lien. Les apprenants ne sont pas relancés : ils ne signent qu'en scannant
+/// sur place le QR code du formateur (décision du client du 30/09/2026), un
+/// lien par email permettrait de signer à distance. Passé ce jour (réveil
 /// manqué), la relance n'a plus d'objet et rien ne part.
 async function relancerSignatures(p: { cas: Cas; executionId: string; comptes: Comptes }) {
   const { cas, executionId, comptes } = p;
@@ -543,54 +544,61 @@ async function relancerSignatures(p: { cas: Cas; executionId: string; comptes: C
     return;
   }
 
-  const [modeleApprenant, modeleFormateur, session] = await Promise.all([
-    prisma.emailTemplate.findUnique({ where: { code: "EMARGEMENT_SIGNATURE_RELANCE" } }),
+  const [modele, session] = await Promise.all([
     prisma.emailTemplate.findUnique({ where: { code: "EMARGEMENT_SIGNATURE_FORMATEUR" } }),
-    prisma.trainingSession.findUnique({ where: { id: cas.sessionId }, select: { horaires: true } }),
+    prisma.trainingSession.findUnique({
+      where: { id: cas.sessionId },
+      select: { horaires: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
+    }),
   ]);
-  // Une relance par personne et par demi-journée : un email du même modèle
-  // parti depuis la fin de cette demi-journée compte comme déjà servi.
-  const finDemiJournee = instantDeParis(jour, bornesDemiJournees(session?.horaires ?? null)[creneau].fin);
-  const seance = `${LIBELLE_CRENEAU[creneau].toLowerCase()} du ${libelleJour(jour)}`;
-
-  for (const personne of manquants) {
-    const modele = personne.trainerId ? modeleFormateur : modeleApprenant;
-    if (!modele?.actif) continue;
-    if (!personne.email) {
-      comptes.sansAdresse++;
-      continue;
-    }
-    const deja = await prisma.email.count({
-      where: {
-        templateId: modele.id,
-        sessionId: cas.sessionId,
-        destinataire: personne.email,
-        statut: { not: "ECHEC" },
-        automationRunId: { not: null },
-        envoyeAt: { gte: finDemiJournee },
-      },
-    });
-    if (deja > 0) {
-      comptes.dejaServis++;
-      continue;
-    }
-    const participant = personne.trainerId ? { trainerId: personne.trainerId } : { learnerId: personne.learnerId as string };
-    const { url } = await lienEmargement(cas.sessionId, participant);
-    const contexte = await construireContexte({ ...participant, sessionId: cas.sessionId, lienEmargement: url, seanceEmargement: seance });
-    const email = await envoyerEmail({
-      destinataire: personne.email,
-      sujet: rendre(modele.sujet, contexte).resultat,
-      corps: rendre(modele.corps, contexte).resultat,
-      corpsJournal: rendre(modele.corps, { ...contexte, "emargement.lien": "[lien personnel masqué]" }).resultat,
-      templateId: modele.id,
-      learnerId: personne.learnerId,
-      sessionId: cas.sessionId,
-      automationRunId: executionId,
-    });
-    if (email.statut === "SIMULE") comptes.simules++;
-    else if (email.statut === "ECHEC") throw new Error(`Relance de signature (${personne.email}) : ${email.erreur}`);
-    else comptes.emails++;
+  if (!modele?.actif) throw new Error("Modèle d'email « EMARGEMENT_SIGNATURE_FORMATEUR » introuvable ou désactivé.");
+  const formateur = session?.trainer && !session.trainer.deletedAt ? session.trainer : null;
+  if (!formateur) {
+    comptes.sansFormateur++;
+    return;
   }
+  if (!formateur.email) {
+    comptes.sansAdresse++;
+    return;
+  }
+  // Une relance par demi-journée : un email du même modèle parti depuis la
+  // fin de cette demi-journée compte comme déjà servi.
+  const finDemiJournee = instantDeParis(jour, bornesDemiJournees(session?.horaires ?? null)[creneau].fin);
+  const deja = await prisma.email.count({
+    where: {
+      templateId: modele.id,
+      sessionId: cas.sessionId,
+      destinataire: formateur.email,
+      statut: { not: "ECHEC" },
+      automationRunId: { not: null },
+      envoyeAt: { gte: finDemiJournee },
+    },
+  });
+  if (deja > 0) {
+    comptes.dejaServis++;
+    return;
+  }
+
+  const { url } = await lienEmargement(cas.sessionId, { trainerId: formateur.id });
+  const contexte = await construireContexte({
+    trainerId: formateur.id,
+    sessionId: cas.sessionId,
+    lienEmargement: url,
+    seanceEmargement: `${LIBELLE_CRENEAU[creneau].toLowerCase()} du ${libelleJour(jour)}`,
+    manquantsEmargement: manquants.map((m) => (m.trainerId === formateur.id ? "vous-même" : m.nom)).join(", "),
+  });
+  const email = await envoyerEmail({
+    destinataire: formateur.email,
+    sujet: rendre(modele.sujet, contexte).resultat,
+    corps: rendre(modele.corps, contexte).resultat,
+    corpsJournal: rendre(modele.corps, { ...contexte, "emargement.lien": "[lien personnel masqué]" }).resultat,
+    templateId: modele.id,
+    sessionId: cas.sessionId,
+    automationRunId: executionId,
+  });
+  if (email.statut === "SIMULE") comptes.simules++;
+  else if (email.statut === "ECHEC") throw new Error(`Relance de signature au formateur (${formateur.email}) : ${email.erreur}`);
+  else comptes.emails++;
 }
 
 /// Jour calendaire (minuit UTC) d'un instant, selon l'heure de Paris.

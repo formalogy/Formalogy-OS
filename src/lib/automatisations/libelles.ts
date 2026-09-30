@@ -115,7 +115,7 @@ export function decrireAction(action: unknown): string {
     return "Relancer le formateur si l'émargement d'un jour est incomplet, avec les signatures manquantes et la feuille papier en secours (rien ne part quand tout est signé)";
   }
   if (a.type === "RELANCE_SIGNATURE") {
-    return "Relancer chaque participant (apprenant ou formateur) qui n'a pas signé la demi-journée, avec son lien personnel (les absents signalés ne sont pas relancés)";
+    return "Envoyer au formateur la liste de qui n'a pas signé la demi-journée, lui compris (les apprenants signent sur place par QR code, sans relance par email)";
   }
   if (a.type === "RELANCE_DEVIS") {
     return "Relancer le client du devis avec son devis en pièce jointe ; après la dernière relance sans réponse, classer le devis « sans suite »";
