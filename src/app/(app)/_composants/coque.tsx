@@ -85,7 +85,7 @@ export function Coque({ utilisateur, groupes, children }: Props) {
               {LIBELLE_ROLE[utilisateur.role]}
             </div>
           </div>
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent font-titre text-[12.5px] font-semibold text-white">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-barre-logo font-titre text-[12.5px] font-semibold text-white">
             {initiales(utilisateur.name)}
           </div>
           <button
