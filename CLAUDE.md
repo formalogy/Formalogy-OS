@@ -374,11 +374,16 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 
 ## Facturation automatique en fin de session (Phase 16)
 
-- Action d'automatisation `FACTURE_HENRRI`, déclenchée par `SESSION_TERMINEE`,
-  c'est-à-dire le lendemain du dernier jour (passage automatique à
-  « Terminée ») ou au passage manuel (même mécanisme que les autres
-  automatisations : réservée par un `AutomationRun` à clé unique, ne
-  s'exécute jamais deux fois pour la même session). **La facture n'est
+- Action d'automatisation `FACTURE_HENRRI`, déclenchée par
+  `REALISATION_COMPLETE` (demande du client du 30/09/2026) : **dès que la
+  réalisation est prouvée** — feuille d'émargement signée pour chaque jour,
+  attestation et certificat de chaque inscrit (`manquesRealisation`,
+  `lib/realisation.ts`) —, vérifié à chaque réveil, après les documents de
+  fin de formation. Plus de lien avec le passage à « Terminée ». Tant qu'une
+  preuve manque, rien n'est facturé et le tableau de bord dit laquelle.
+  Réservée par un `AutomationRun` à clé unique : jamais deux fois pour la
+  même session. Un brouillon que Henrri refuse de finaliser est supprimé
+  (jamais un document finalisé), pour ne pas encombrer le compte. **La facture n'est
   envoyée à personne** (décision du client du 25/09/2026) : pour le CPF, le
   payeur est la Caisse des Dépôts, qui se facture sur sa propre plateforme,
   hors de portée de l'application. Le modèle d'email `FACTURE` existe mais
@@ -428,6 +433,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   qui fixe aussi la série de numérotation). Jusqu'au 29/09/2026, l'échéance
   y était envoyée par erreur : les factures du bac à sable sont datées un
   mois trop tard (série « 26-10 » créée en septembre).
+  Conséquence constatée au test du 30/09/2026 : le bac à sable refuse toute
+  facture datée avant le 25/10/2026 (« A document with a later number
+  already exists with a later date », chronologie des numéros). Bac à sable
+  à faire réinitialiser par Henrri ; le vrai compte n'est pas concerné.
 - Le document est **finalisé** (numéro définitif, verrouillé côté Henrri) dès
   la création : irréversible. Le PDF est ensuite récupéré et rangé comme
   document (catégorie FINANCE, type FACTURE, rattaché à la session, à

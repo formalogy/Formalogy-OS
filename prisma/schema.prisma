@@ -935,6 +935,10 @@ enum DeclencheurAutomatisation {
   HEBDOMADAIRE
   /// Devis Henrri resté sans réponse (relance tous les N jours)
   DEVIS_EN_ATTENTE
+  /// Tous les documents qui prouvent la réalisation d'une session sont là
+  /// (feuilles d'émargement signées, attestation et certificat de chaque
+  /// apprenant) : facturation
+  REALISATION_COMPLETE
 }
 
 /// Règle DÉCLENCHEUR → CONDITION → ACTION.

@@ -2,6 +2,7 @@ import "server-only";
 
 import { joursDeSession } from "@/lib/emargement";
 import { prisma } from "@/lib/prisma";
+import { manquesRealisation } from "@/lib/realisation";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
 
 /// Un point qui empêche le déroulement automatique d'aller au bout : le seul
@@ -125,9 +126,14 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       if ((s.statut === "TERMINEE" || s.statut === "CLOTUREE") && !s.factures.some((f) => f.origine === "MANUEL")) {
         const nonFacturees = s.inscriptions.filter((i) => !i.factureId).length;
         if (nonFacturees > 0) {
+          // La facture part dès que la réalisation est prouvée : on dit ce
+          // qui la retient encore.
+          const manques = await manquesRealisation(s.id);
           alertes.push({
             niveau: "bloquant",
-            texte: `${s.numero} : ${nonFacturees} inscription${nonFacturees > 1 ? "s" : ""} pas encore facturée${nonFacturees > 1 ? "s" : ""}.`,
+            texte: manques?.length
+              ? `${s.numero} : facture en attente de la preuve de réalisation — manque : ${manques.join(" ; ")}.`
+              : `${s.numero} : ${nonFacturees} inscription${nonFacturees > 1 ? "s" : ""} pas encore facturée${nonFacturees > 1 ? "s" : ""}.`,
             lien,
           });
         }

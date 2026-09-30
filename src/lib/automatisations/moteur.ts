@@ -29,6 +29,7 @@ import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
 import { genererFacturesHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme } from "@/lib/organisme";
+import { manquesRealisation } from "@/lib/realisation";
 import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
@@ -1423,6 +1424,37 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
       compter(
         await traiterCas(automation, {
           cle: `${automation.id}:session:${session.id}:${await empreinteInscrits(session.id)}:${await empreinteEvaluations(session.id)}`,
+          entityType: "TrainingSession",
+          entityId: session.id,
+          sessionId: session.id,
+          companyId: session.companyId ?? undefined,
+        }),
+      );
+    }
+  }
+
+  // Réalisation prouvée (émargement signé chaque jour, attestation et
+  // certificat de chaque inscrit) : la facture part aussitôt, sans attendre
+  // le passage à « Terminée ». Placé après les documents de fin de
+  // formation, pour qu'une attestation produite à ce réveil compte déjà.
+  for (const automation of await automationsActives("REALISATION_COMPLETE")) {
+    // Pas de rattrapage : l'historique antérieur à l'activation n'est pas facturé.
+    const depuis = automation.activeeAt ? ajouterJours(jourDeParis(automation.activeeAt), -7) : null;
+    const sessions = await prisma.trainingSession.findMany({
+      where: {
+        ...SESSIONS_EN_ROUTE,
+        statut: { notIn: ["ANNULEE", "BROUILLON"] },
+        dateFin: { lte: aujourdhui, ...(depuis ? { gte: depuis } : {}) },
+        inscriptions: { some: { factureId: null } },
+      },
+      select: { id: true, companyId: true },
+    });
+    for (const session of sessions) {
+      const manques = await manquesRealisation(session.id);
+      if (!manques || manques.length > 0) continue;
+      compter(
+        await traiterCas(automation, {
+          cle: `${automation.id}:session:${session.id}`,
           entityType: "TrainingSession",
           entityId: session.id,
           sessionId: session.id,

@@ -425,47 +425,65 @@ async function emettreFacture(
     }),
   });
 
-  // Une ligne par inscription, à son tarif. Une ligne facturable exige soit
-  // un article du catalogue (itemId), soit un article transmis en ligne —
-  // jamais uniquement une description : Henrri refuse sinon la ligne
-  // (« requires an itemId or an item object »).
+  // Un brouillon que Henrri refuse de finaliser (chronologie, ligne rejetée…)
+  // est supprimé : sinon chaque nouvel essai en laisserait un de plus dans le
+  // compte Henrri.
+  let finalise: { identity: string | null } = { identity: null };
   let totalCentimes = 0;
-  for (const inscription of g.inscriptions) {
-    const montant = tarif(session, inscription)!;
-    totalCentimes += enCentimes(montant);
-    const description =
-      g.type === "CAISSE_DES_DEPOTS"
-        ? `${session.formation.titre} — ${references}`
-        : g.type === "APPRENANT"
-          ? `${session.formation.titre} — ${recapitulatif}`
-          : `${session.formation.titre} — ${nomComplet(inscription)}`;
-    await henrriFetch(`/v1/documents/${document.id}/lines`, {
-      method: "POST",
-      body: JSON.stringify({
-        typeId: types.ligneTypeId,
-        description,
-        sellingPriceWithoutTax: Number(montant),
-        quantity: 1,
-        vatPercent: Number(TAUX_TVA),
-        isTaxIncluded: false,
-        item: {
+  let finaliseEnvoye = false;
+  try {
+    // Une ligne par inscription, à son tarif. Une ligne facturable exige soit
+    // un article du catalogue (itemId), soit un article transmis en ligne —
+    // jamais uniquement une description : Henrri refuse sinon la ligne
+    // (« requires an itemId or an item object »).
+    for (const inscription of g.inscriptions) {
+      const montant = tarif(session, inscription)!;
+      totalCentimes += enCentimes(montant);
+      const description =
+        g.type === "CAISSE_DES_DEPOTS"
+          ? `${session.formation.titre} — ${references}`
+          : g.type === "APPRENANT"
+            ? `${session.formation.titre} — ${recapitulatif}`
+            : `${session.formation.titre} — ${nomComplet(inscription)}`;
+      await henrriFetch(`/v1/documents/${document.id}/lines`, {
+        method: "POST",
+        body: JSON.stringify({
+          typeId: types.ligneTypeId,
           description,
-          itemCategoryId: types.itemCategoryId,
           sellingPriceWithoutTax: Number(montant),
+          quantity: 1,
           vatPercent: Number(TAUX_TVA),
           isTaxIncluded: false,
-        },
-      }),
-    });
-  }
+          item: {
+            description,
+            itemCategoryId: types.itemCategoryId,
+            sellingPriceWithoutTax: Number(montant),
+            vatPercent: Number(TAUX_TVA),
+            isTaxIncluded: false,
+          },
+        }),
+      });
+    }
 
-  // Irréversible côté Henrri à partir d'ici : le document est verrouillé et
-  // reçoit son numéro définitif.
-  const finalise = await henrriFetch<{ identity: string | null }>(`/v1/documents/${document.id}/finalize`, { method: "POST" });
-  if (!finalise.identity) {
-    throw new HenrriError(
-      `Le document Henrri #${document.id} a été finalisé mais n'a reçu aucun numéro. Vérifiez-le dans Henrri : la facture n'a pas été enregistrée dans Formalogy OS.`,
-    );
+    // Irréversible côté Henrri à partir d'ici : le document est verrouillé et
+    // reçoit son numéro définitif.
+    finalise = await henrriFetch<{ identity: string | null }>(`/v1/documents/${document.id}/finalize`, { method: "POST" });
+    finaliseEnvoye = true;
+    if (!finalise.identity) {
+      throw new HenrriError(
+        `Le document Henrri #${document.id} a été finalisé mais n'a reçu aucun numéro. Vérifiez-le dans Henrri : la facture n'a pas été enregistrée dans Formalogy OS.`,
+      );
+    }
+  } catch (erreur) {
+    // Un document finalisé ne se supprime jamais : seul un brouillon l'est.
+    if (!finaliseEnvoye) await henrriFetch(`/v1/documents/${document.id}`, { method: "DELETE" }).catch(() => undefined);
+    if (erreur instanceof HenrriError && /later number already exists with a later date/i.test(erreur.message)) {
+      throw new HenrriError(
+        "Henrri refuse la date de la facture : une facture plus récente, datée plus tard, existe déjà dans le compte (chronologie des numéros). Vérifiez les dernières factures dans Henrri, puis « Relancer ».",
+        erreur.status,
+      );
+    }
+    throw erreur;
   }
 
   const montantHT = depuisCentimes(totalCentimes);

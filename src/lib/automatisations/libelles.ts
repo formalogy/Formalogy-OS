@@ -19,6 +19,8 @@ export const LIBELLE_DECLENCHEUR: Record<DeclencheurAutomatisation, string> = {
   AVANT_AUDIT_QUALIOPI: "Quelques mois avant le prochain audit Qualiopi (date saisie dans Paramètres → Organisme)",
   HEBDOMADAIRE: "Chaque semaine, le jour choisi",
   DEVIS_EN_ATTENTE: "Quand un devis Henrri reste sans réponse (tous les N jours)",
+  REALISATION_COMPLETE:
+    "Dès que la réalisation d'une session est prouvée : feuille d'émargement signée pour chaque jour, attestation et certificat de chaque apprenant",
 };
 
 /// Déclencheurs traités par le réveil quotidien plutôt qu'au moment d'une action.
@@ -33,6 +35,7 @@ export const DECLENCHEURS_PLANIFIES: DeclencheurAutomatisation[] = [
   "AVANT_AUDIT_QUALIOPI",
   "HEBDOMADAIRE",
   "DEVIS_EN_ATTENTE",
+  "REALISATION_COMPLETE",
 ];
 
 export const LIBELLE_STATUT_EMAIL: Record<StatutEmail, string> = {
