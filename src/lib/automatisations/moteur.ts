@@ -138,6 +138,8 @@ const schemaParametres = z.object({
   moisAvant: z.number().int().min(1).max(24).optional(),
   /// HEBDOMADAIRE : jour de la semaine (1 = lundi, 7 = dimanche).
   jourSemaine: z.number().int().min(1).max(7).optional(),
+  /// FIN_DEMI_JOURNEE : ne réagir qu'à la fin de cette demi-journée.
+  creneau: z.enum(["MATIN", "APRES_MIDI"]).optional(),
 });
 
 export function lireRegle(automation: Automation) {
@@ -381,7 +383,7 @@ async function envoyerAuFormateur(p: {
       destinataire: formateur.email,
       statut: { not: "ECHEC" },
       automationRunId: { not: null },
-      ...(p.automation.declencheur === "SESSION_JOUR" ? { envoyeAt: { gte: aujourdhuiUTC() } } : {}),
+      ...(p.automation.declencheur === "SESSION_JOUR" || p.automation.declencheur === "FIN_DEMI_JOURNEE" ? { envoyeAt: { gte: aujourdhuiUTC() } } : {}),
     },
   });
   if (deja > 0) {
@@ -412,9 +414,12 @@ async function envoyerAuFormateur(p: {
       });
     }
   }
-  if (p.joindre?.includes("QR_EMARGEMENT")) {
-    const qr = await genererQrCodesEmargement(cas.sessionId);
-    if (qr) piecesJointes.push({ nom: "QR-codes-emargement.pdf", contenu: qr, typeMime: "application/pdf" });
+  // Un seul jeu de QR codes par email : ceux du matin avec l'email du matin,
+  // ceux de l'après-midi avec l'email de fin de matinée.
+  const creneauQr: Creneau | null = cas.demiJournee ? (cas.demiJournee.creneau === "MATIN" ? "APRES_MIDI" : null) : "MATIN";
+  if (p.joindre?.includes("QR_EMARGEMENT") && creneauQr) {
+    const qr = await genererQrCodesEmargement(cas.sessionId, creneauQr);
+    if (qr) piecesJointes.push({ nom: `QR-codes-emargement-${creneauQr === "MATIN" ? "matin" : "apres-midi"}.pdf`, contenu: qr, typeMime: "application/pdf" });
   }
 
   const lienSignature = `${modele.sujet}${modele.corps}`.includes("{{emargement.lien}}")
@@ -1473,6 +1478,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
       const bornes = bornesDemiJournees(session.horaires);
       for (const creneau of CRENEAUX) {
         if (maintenant < bornes[creneau].fin) continue;
+        if (lireRegle(automation).parametres.creneau && lireRegle(automation).parametres.creneau !== creneau) continue;
         compter(
           await traiterCas(automation, {
             // Une inscription le jour même rouvre le cas pour le nouvel

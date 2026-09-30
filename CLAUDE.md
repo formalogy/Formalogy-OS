@@ -251,9 +251,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   demi-journée) porte les signatures, leur heure et « Absent » pour les
   absents ; il se génère aussi à la demande.
 - Emails : l'accueil de J0 (`ACCUEIL_SESSION`) annonce le QR code ; l'email
-  du matin au formateur (`EMARGEMENT_JOUR`) porte son lien, le PDF des QR
-  codes (`joindre: QR_EMARGEMENT`, une page par demi-journée) et la feuille
-  papier du jour en secours. Sur l'écran d'émargement, « QR code » montre
+  du matin au formateur (`EMARGEMENT_JOUR`) porte son lien, les QR codes **du
+  matin** (`joindre: QR_EMARGEMENT`) et la feuille papier du jour en secours ;
+  ceux **de l'après-midi** partent dans un email à part en fin de matinée
+  (`EMARGEMENT_APRES_MIDI`, déclencheur `FIN_DEMI_JOURNEE` avec
+  `creneau: MATIN`). **Jamais deux demi-journées dans un même document**
+  (demande du client : chacun se tromperait) ; le bouton « QR codes (PDF) »
+  donne ceux de la demi-journée en cours. Sur l'écran d'émargement, « QR code » montre
   celui de la demi-journée en cours ; « Copier le lien » n'existe que pour
   le formateur. Liens masqués dans l'historique.
 - **Relances** : à la fin de chaque demi-journée (déclencheur

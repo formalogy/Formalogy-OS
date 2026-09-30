@@ -485,11 +485,12 @@ function seanceDuMoment(session: { dateDebut: Date; dateFin: Date; horaires: str
   return { jour: aujourdhui, creneau: ouvertes.at(-1) ?? "MATIN" };
 }
 
-/// PDF des QR codes des apprenants, joint à l'email du matin du formateur :
-/// une page par demi-journée du jour, un QR code par apprenant, qui ne vaut
-/// que pour cette demi-journée. Le formateur le présente ; l'apprenant le
-/// scanne avec son téléphone pour signer.
-export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8Array | null> {
+/// PDF des QR codes des apprenants pour une seule demi-journée (jamais deux
+/// dans un même document, à la demande du client : chacun se tromperait) :
+/// un QR code par apprenant, qui ne vaut que pour cette demi-journée. Joint
+/// à l'email du matin (matin) puis à celui de la fin de matinée
+/// (après-midi) ; sans précision, la demi-journée en cours.
+export async function genererQrCodesEmargement(sessionId: string, creneauDemande?: Creneau): Promise<Uint8Array | null> {
   const session = await prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null },
     select: {
@@ -507,6 +508,8 @@ export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8
   });
   const jour = session ? jourDesQrCodes(session) : null;
   if (!session || !jour || session.inscriptions.length === 0) return null;
+  const moment = seanceDuMoment(session);
+  const creneauQr: Creneau = creneauDemande ?? (moment && moment.jour.getTime() === jour.getTime() ? moment.creneau : "MATIN");
   const horaires = horairesDemiJournees(session.horaires);
   const liens = new Map(
     await Promise.all(session.inscriptions.map(async ({ learner }) => [learner.id, (await lienEmargement(sessionId, { learnerId: learner.id })).id] as const)),
@@ -527,7 +530,7 @@ export async function genererQrCodesEmargement(sessionId: string): Promise<Uint8
   const hauteurCase = (H - 2 * MARGE - 70) / LIGNES;
   const COTE_QR = 140;
 
-  for (const creneau of CRENEAUX) {
+  for (const creneau of [creneauQr]) {
     let page = pdf.addPage([L, H]);
     for (const [rang, { learner }] of session.inscriptions.entries()) {
       const place = rang % (COLONNES * LIGNES);

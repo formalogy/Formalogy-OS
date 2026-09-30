@@ -97,7 +97,7 @@ export function decrireAction(action: unknown): string {
       ATTESTATION: "son attestation de fin de formation",
       CERTIFICAT: "son certificat de réalisation",
       EMARGEMENT: "la feuille d'émargement du jour (secours papier)",
-      QR_EMARGEMENT: "les QR codes d'émargement des apprenants",
+      QR_EMARGEMENT: "les QR codes d'émargement des apprenants (ceux du matin le matin, ceux de l'après-midi en fin de matinée)",
       FACTURE: "le PDF de la facture",
     };
     const pieces = (a.joindre ?? []).map((j) => noms[j] ?? j);
