@@ -502,14 +502,17 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 ## Bibliothèque
 
 - L'onglet « Bibliothèque » (route `/documents`, anciennement « Documents »)
-  ne montre que les documents administratifs des sessions de formation :
-  modèles de convention, programmes, feuilles d'émargement… (décision du
-  client du 29/09/2026, `FILTRE_BIBLIOTHEQUE` dans `lib/bibliotheque.ts`).
-- Un document rattaché à une personne (apprenant, formateur) ou à une
-  entreprise **n'y apparaît jamais** : il se consulte uniquement dans la fiche
-  (exemple du client : le CV d'une formatrice). Factures et preuves Qualiopi
-  ont leurs propres écrans. La fiche d'un document et le dépôt renvoient à la
-  fiche d'origine.
+  ne montre que les **documents administratifs de référence** : modèles de
+  convention, programmes… (décisions du client des 29 et 30/09/2026,
+  `FILTRE_BIBLIOTHEQUE` dans `lib/bibliotheque.ts`).
+- Un document produit pour une session (feuille d'émargement, bilan de
+  session, convention d'un apprenant…) se voit **dans la session** ; la
+  feuille d'émargement du jour figure aussi dans la **fiche de chaque
+  apprenant inscrit** (même fichier, affiché dans les deux). Un document
+  rattaché à une personne (apprenant, formateur) ou à une entreprise ne se
+  voit que dans sa fiche (exemple du client : le CV d'une formatrice).
+  Factures et preuves Qualiopi ont leurs propres écrans. La fiche d'un
+  document et le dépôt renvoient à la fiche d'origine.
 
 ## Documents générés
 
@@ -583,7 +586,7 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   (`lib/bilan-session.ts`) produit le PDF « Bilan de session » (logo,
   réponses, évaluation de chaque apprenant) et le range dans la session,
   type `QUESTIONNAIRE_CHAUD_FORMATEUR` renommé « Bilan de session —
-  formateur » (visible dans la Bibliothèque).
+  formateur ».
 - Envoi : POSITIONNEMENT à J-15 (avec la convention), satisfaction à chaud
   le dernier jour à 16 h (lien dans le mail de fin de formation),
   CHAUD_FORMATEUR le dernier jour à 16 h (avec l'évaluation des acquis),

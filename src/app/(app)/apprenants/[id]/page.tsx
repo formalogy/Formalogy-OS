@@ -72,6 +72,19 @@ export default async function PageApprenant({
 
   if (!apprenant) notFound();
 
+  // Les feuilles d'émargement des sessions suivies figurent aussi dans la
+  // fiche (demande du client) : une feuille par jour, rangée dans la session,
+  // qui porte la signature de chaque inscrit.
+  const feuillesEmargement = await prisma.document.findMany({
+    ...SELECTION_DOCUMENT_RESUME,
+    where: {
+      deletedAt: null,
+      type: { code: "EMARGEMENT" },
+      session: { deletedAt: null, inscriptions: { some: { learnerId: apprenant.id } } },
+      NOT: { learnerId: apprenant.id },
+    },
+  });
+
   // Modèles pré-remplis avec les informations de cet apprenant et de sa
   // session la plus récente, prêts à être relus et ajustés avant l'envoi.
   const derniereSession = apprenant.inscriptions[0]?.session;
@@ -285,7 +298,7 @@ export default async function PageApprenant({
         />
       </div>
       <div className="mt-4">
-        <ListeDocuments documents={apprenant.documents} lienAjout={`apprenant=${apprenant.id}`} />
+        <ListeDocuments documents={[...apprenant.documents, ...feuillesEmargement]} lienAjout={`apprenant=${apprenant.id}`} />
       </div>
 
       <ReponsesQuestionnaires questionnaires={apprenant.questionnaires} />

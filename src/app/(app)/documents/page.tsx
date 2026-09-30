@@ -37,15 +37,13 @@ export default async function PageBibliotheque({
       take: 300,
       include: {
         type: { select: { nom: true } },
-        session: { select: { numero: true } },
         formation: { select: { titre: true } },
         versions: { orderBy: { numero: "desc" }, take: 1, select: { numero: true, taille: true } },
       },
     }),
-    // Types proposés au filtre : ceux des sessions et des formations, et ceux
-    // des documents déjà rangés dans la bibliothèque.
+    // Types proposés au filtre : ceux des documents rangés dans la bibliothèque.
     prisma.documentType.findMany({
-      where: { OR: [{ categorie: { in: ["SESSION", "FORMATION"] } }, { documents: { some: { deletedAt: null, ...FILTRE_BIBLIOTHEQUE } } }] },
+      where: { documents: { some: { deletedAt: null, ...FILTRE_BIBLIOTHEQUE } } },
       orderBy: { ordre: "asc" },
     }),
     // Toutes les versions occupent de la place, y compris celles des
@@ -63,9 +61,9 @@ export default async function PageBibliotheque({
         <div>
           <h1 className="text-[22px] font-extrabold tracking-tight">Bibliothèque</h1>
           <p className="mt-1 max-w-2xl text-[12.8px] text-texte-doux">
-            Les documents administratifs des sessions de formation : modèles de convention, programmes, feuilles
-            d&apos;émargement… Les documents propres à une personne ou à une entreprise (CV, pièce d&apos;identité, convention
-            d&apos;un apprenant…) se consultent uniquement dans sa fiche.
+            Les documents administratifs de référence : modèles de convention, programmes… Les documents d&apos;une session
+            (feuilles d&apos;émargement, bilans…) se trouvent dans la session ; ceux d&apos;une personne ou d&apos;une entreprise (CV,
+            pièce d&apos;identité, convention d&apos;un apprenant…) uniquement dans sa fiche.
           </p>
         </div>
         <Link href="/documents/nouveau" className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white">
@@ -131,7 +129,7 @@ export default async function PageBibliotheque({
               </thead>
               <tbody>
                 {documents.map((d) => {
-                  const rattachement = [d.session?.numero, d.formation?.titre].filter(Boolean).join(" · ");
+                  const rattachement = d.formation?.titre ?? "";
                   const version = d.versions[0];
                   return (
                     <tr key={d.id} className="border-t border-bordure-douce hover:bg-surface-creuse">
