@@ -125,8 +125,8 @@ function LienEntree({ entree, actif, onChoisir }: { entree: GroupeMenu["entrees"
 
 /// Surbrillance en pastille, sur le modèle choisi par le client (PDF Expert) :
 /// l'entrée active se détache en capsule plus claire sur un bandeau translucide.
-const PASTILLE_ACTIVE = "bg-white/[0.22] font-medium text-white shadow-sm ring-1 ring-white/15";
-const PASTILLE_SURVOL = "text-barre-texte-doux hover:bg-white/[0.07] hover:text-barre-texte";
+const PASTILLE_ACTIVE = "bg-white/[0.32] font-semibold text-white shadow-md ring-1 ring-white/40";
+const PASTILLE_SURVOL = "text-barre-texte-doux hover:bg-white/[0.12] hover:text-barre-texte";
 const BANDEAU = "rounded-[22px] bg-white/[0.05] p-1.5 ring-1 ring-white/[0.08]";
 
 /// Menu en deux temps, sur le modèle choisi par le client (30/09/2026) : la

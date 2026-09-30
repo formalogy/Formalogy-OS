@@ -30,9 +30,9 @@
   /* Barre latérale : toujours sombre. */
   --barre: #2d3e50;
   --barre-actif: #3a4e63;
-  --barre-texte: #f5f8fa;
-  --barre-texte-doux: #cbd6e2;
-  --barre-texte-tenu: #8b9cab;
+  --barre-texte: #ffffff;
+  --barre-texte-doux: #f1f5f9;
+  --barre-texte-tenu: #c3d0dc;
 
   /* Police unique pour tout le site (titres et texte courant). */
   --font-titre: var(--font-outfit);
