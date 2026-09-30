@@ -37,19 +37,22 @@ export function Coque({ utilisateur, groupes, children }: Props) {
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
 
   return (
-    <div className="min-h-screen lg:pl-[calc(16rem+1.5rem)]">
+    // Mise en page à la manière de HubSpot (choix du client du 30/09/2026) :
+    // l'encadrement — menu et barre du haut — est bleu nuit, et le contenu se
+    // pose dans un grand panneau clair aux coins arrondis.
+    <div className="min-h-screen bg-barre lg:pl-[calc(16rem+1.5rem)]">
       <BarreLaterale
         groupes={groupes}
         ouverte={menuOuvert}
         onFermer={() => setMenuOuvert(false)}
       />
 
-      <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-bordure bg-fond px-5 py-3">
+      <header className="sticky top-0 z-10 flex items-center gap-4 bg-barre px-5 py-3 lg:pl-2">
         <button
           type="button"
           aria-label="Ouvrir le menu"
           onClick={() => setMenuOuvert(true)}
-          className="flex size-9 items-center justify-center rounded-lg border border-bordure bg-surface text-texte-doux lg:hidden"
+          className="flex size-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white lg:hidden"
         >
           <Icone nom="menu" />
         </button>
@@ -61,11 +64,11 @@ export function Coque({ utilisateur, groupes, children }: Props) {
           <Form
             action="/recherche"
             role="search"
-            className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-bordure bg-surface px-3 py-2 text-texte-tenu focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-pale"
+            className="flex max-w-md flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-white/70 focus-within:border-white/40 focus-within:ring-2 focus-within:ring-white/15"
           >
             {/* Un vrai bouton d'envoi : la touche Entrée le déclenche de façon
                 fiable, et il reste cliquable. */}
-            <button type="submit" aria-label="Lancer la recherche" className="shrink-0 hover:text-accent-fort">
+            <button type="submit" aria-label="Lancer la recherche" className="shrink-0 hover:text-white">
               <Icone nom="recherche" className="size-4" />
             </button>
             <input
@@ -73,15 +76,15 @@ export function Coque({ utilisateur, groupes, children }: Props) {
               name="q"
               aria-label="Recherche globale"
               placeholder="Rechercher un apprenant, une entreprise, une session…"
-              className="w-full min-w-0 bg-transparent text-[13px] text-texte outline-none placeholder:text-texte-tenu"
+              className="w-full min-w-0 bg-transparent text-[13px] text-white outline-none placeholder:text-white/60"
             />
           </Form>
         )}
 
         <div className="ml-auto flex items-center gap-3">
           <div className="hidden text-right leading-tight sm:block">
-            <div className="text-[12.8px] font-semibold">{utilisateur.name}</div>
-            <div className="text-[11px] text-texte-tenu">
+            <div className="text-[12.8px] font-semibold text-white">{utilisateur.name}</div>
+            <div className="text-[11px] text-white/70">
               {LIBELLE_ROLE[utilisateur.role]}
             </div>
           </div>
@@ -97,14 +100,16 @@ export function Coque({ utilisateur, groupes, children }: Props) {
               router.push("/connexion");
               router.refresh();
             }}
-            className="rounded-full px-4 py-2 text-[12.5px] font-semibold text-texte-doux transition hover:bg-surface-creuse hover:text-texte disabled:opacity-60"
+            className="rounded-full px-4 py-2 text-[12.5px] font-semibold text-white/85 transition hover:bg-white/10 hover:text-white disabled:opacity-60"
           >
             {deconnexionEnCours ? "…" : "Quitter"}
           </button>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-5 py-6">{children}</main>
+      <div className="mx-3 mb-3 min-h-[calc(100vh-4.5rem)] rounded-3xl bg-fond lg:ml-0">
+        <main className="mx-auto w-full max-w-6xl px-5 py-6">{children}</main>
+      </div>
     </div>
   );
 }
