@@ -13,6 +13,10 @@ import { prisma } from "@/lib/prisma";
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
 
+  // En local, l'application s'ouvre aussi depuis un téléphone du même Wi-Fi,
+  // par l'adresse du Mac (ADRESSE_PUBLIQUE) : connexion acceptée depuis celle-ci.
+  trustedOrigins: process.env.ADRESSE_PUBLIQUE ? [process.env.ADRESSE_PUBLIQUE] : [],
+
   emailAndPassword: {
     enabled: true,
     // Aucune ouverture de compte depuis l'extérieur.
