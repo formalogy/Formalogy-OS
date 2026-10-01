@@ -9,7 +9,7 @@ import { z } from "zod";
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { lireMontant } from "@/lib/factures";
-import { creerSessionBrouillon, formateurValide, schemaSession } from "@/lib/sessions-creation";
+import { creerSessionBrouillon, formateurValide, programmeInvalide, schemaSession } from "@/lib/sessions-creation";
 import { decrirePayeur, estFinanceurTiers, PAYEURS_INSCRIPTION } from "@/lib/inscriptions-facturation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -84,6 +84,9 @@ export async function modifierSession(
     return { erreur: "Ce formateur n'est plus disponible. Rechargez la page.", valeurs: saisie(donnees) };
   }
 
+  const erreurProgramme = await programmeInvalide(d.trainerId, d.programmeId);
+  if (erreurProgramme) return { erreur: erreurProgramme, valeurs: saisie(donnees) };
+
   if (d.placesMax) {
     const inscrits = await prisma.sessionLearner.count({ where: { sessionId: id } });
     if (Number(d.placesMax) < inscrits) {
@@ -107,6 +110,7 @@ export async function modifierSession(
       interne: d.interne,
       plateforme: d.plateforme,
       trainerId: d.trainerId,
+      programmeId: d.programmeId ?? null,
       placesMax: d.placesMax ? Number(d.placesMax) : null,
       notes: d.notes ?? null,
     },

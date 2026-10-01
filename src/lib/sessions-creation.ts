@@ -43,6 +43,7 @@ export const schemaSession = z
     /// pas mise en route.
     statut: z.enum(STATUTS_SESSION as [string, ...string[]]).optional().default("BROUILLON"),
     trainerId: z.string().trim().min(1, "Choisissez le formateur : il est obligatoire, même pour une formation en interne."),
+    programmeId: texteFacultatif,
     placesMax: texteFacultatif.refine(
       (v) => v === undefined || (/^\d+$/.test(v) && Number(v) > 0),
       "Le nombre de places doit être un entier positif.",
@@ -68,6 +69,19 @@ export const schemaSession = z
 /// Modalités qui passent par une plateforme e-learning.
 export function enLigne(modalite: string) {
   return modalite === "E_LEARNING" || modalite === "HYBRIDE";
+}
+
+/// Programme de la session : un des programmes du formateur, obligatoire
+/// dès que le formateur en a au moins un. Renvoie un message d'erreur.
+export async function programmeInvalide(trainerId: string, programmeId: string | undefined): Promise<string | null> {
+  const programmes = await prisma.document.findMany({
+    where: { trainerId, deletedAt: null, type: { code: "PROGRAMME" } },
+    select: { id: true },
+  });
+  if (programmeId) {
+    return programmes.some((p) => p.id === programmeId) ? null : "Ce programme n'appartient pas au formateur choisi.";
+  }
+  return programmes.length > 0 ? "Choisissez le programme de formation du formateur." : null;
 }
 
 /// Un formateur ne peut être affecté que s'il existe et est actif.
@@ -117,6 +131,8 @@ export async function creerSessionBrouillon(
   if (d.trainerId && !(await formateurValide(d.trainerId))) {
     return { erreur: "Ce formateur n'est plus disponible. Rechargez la page." };
   }
+  const erreurProgramme = await programmeInvalide(d.trainerId, d.programmeId);
+  if (erreurProgramme) return { erreur: erreurProgramme };
 
   const session = await creerAvecNumero(d.dateDebut.getUTCFullYear(), (numero) =>
     prisma.trainingSession.create({
@@ -133,6 +149,7 @@ export async function creerSessionBrouillon(
         plateforme: d.plateforme,
         statut: d.statut as never,
         trainerId: d.trainerId,
+        programmeId: d.programmeId ?? null,
         placesMax: d.placesMax ? Number(d.placesMax) : null,
         prixHT: formation.prixHT,
         notes: d.notes,

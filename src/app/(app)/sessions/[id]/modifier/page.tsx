@@ -51,6 +51,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
     plateforme: session.plateforme ?? "",
     statut: session.statut,
     trainerId: session.trainerId ?? "",
+    programmeId: session.programmeId ?? "",
     placesMax: session.placesMax?.toString() ?? "",
     notes: session.notes ?? "",
   };

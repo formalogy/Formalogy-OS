@@ -121,7 +121,7 @@ export default async function PageApprenant({
       },
     }),
   ]);
-  const accueilManquants = await documentsAccueilManquants(derniereSession?.formationId);
+  const accueilManquants = await documentsAccueilManquants(derniereSession?.programmeId);
   const modelesRendus = modeles.map((m) => {
     const sujet = rendre(m.sujet, contexte);
     const corps = rendre(m.corps, contexte);

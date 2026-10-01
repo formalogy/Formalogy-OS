@@ -20,7 +20,7 @@ import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelle
 type Props = {
   formations: { id: string; titre: string; reference: string; modalite: string }[];
   entreprises: { id: string; raisonSociale: string }[];
-  formateurs: { id: string; libelle: string }[];
+  formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[] }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
   initiales?: Record<string, string> & { id: string };
   /// Pré-remplissage d'une création (depuis une fiche formation ou entreprise)
@@ -36,6 +36,8 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
   const v = (nom: string) => etat.valeurs?.[nom] ?? initiales?.[nom] ?? valeursDeDepart?.[nom];
   const [modalite, setModalite] = useState(v("modalite") ?? "PRESENTIEL");
   const [attribution, setAttribution] = useState(v("attribution") ?? "FORMATEUR");
+  const [formateurId, setFormateurId] = useState(v("trainerId") ?? "");
+  const programmes = formateurs.find((f) => f.id === formateurId)?.programmes ?? [];
 
   return (
     <form
@@ -44,6 +46,7 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         const champ = e.target as unknown as HTMLSelectElement;
         if (champ.name === "modalite") setModalite(champ.value);
         if (champ.name === "attribution") setAttribution(champ.value);
+        if (champ.name === "trainerId") setFormateurId(champ.value);
       }}
       className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm"
     >
@@ -126,6 +129,25 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           ]}
           valeurParDefaut={v("trainerId") ?? ""}
         />
+        {formateurId && (
+          programmes.length > 0 ? (
+            <ChampListe
+              // Recréé à chaque changement de formateur : sa liste change.
+              key={formateurId}
+              nom="programmeId"
+              libelle="Programme de formation"
+              options={[
+                ...(programmes.length > 1 ? [{ valeur: "", libelle: "Choisir le programme…" }] : []),
+                ...programmes.map((p) => ({ valeur: p.id, libelle: p.nom })),
+              ]}
+              valeurParDefaut={programmes.some((p) => p.id === v("programmeId")) ? v("programmeId") : programmes.length === 1 ? programmes[0].id : ""}
+            />
+          ) : (
+            <p className="self-end text-[11.5px] text-alerte">
+              Aucun programme déposé pour ce formateur (fiche du formateur → documents, type « Programme ») : rien ne sera joint aux emails de bienvenue.
+            </p>
+          )
+        )}
         {attribution === "FORMALOGY" && (
           <ChampListe
             nom="plateforme"

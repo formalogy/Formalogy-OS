@@ -149,16 +149,16 @@ export async function envoyerEmailApprenant(_precedent: EtatEnvoi, donnees: Form
   const modele = templateId ? await prisma.emailTemplate.findUnique({ where: { id: templateId } }) : null;
   if (templateId && !modele) return { erreur: "Modèle introuvable." };
 
-  // Bienvenue : livret d'accueil, règlement intérieur et programme de la
-  // formation de sa session la plus récente.
+  // Bienvenue : livret d'accueil, règlement intérieur et programme choisi sur
+  // sa session la plus récente.
   let piecesJointes;
   if (modele && MODELES_AVEC_DOCUMENTS_ACCUEIL.includes(modele.code)) {
     const inscription = await prisma.sessionLearner.findFirst({
       where: { learnerId: apprenant.id, session: { deletedAt: null } },
       orderBy: { session: { dateDebut: "desc" } },
-      select: { session: { select: { formationId: true } } },
+      select: { session: { select: { programmeId: true } } },
     });
-    piecesJointes = (await documentsAccueil(inscription?.session.formationId)).pieces;
+    piecesJointes = (await documentsAccueil(inscription?.session.programmeId)).pieces;
   }
 
   const email = await envoyerEmail({

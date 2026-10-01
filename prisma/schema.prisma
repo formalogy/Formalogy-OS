@@ -586,6 +586,10 @@ model TrainingSession {
   /// Formateur principal de la session
   trainerId String?
   trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  /// Programme envoyé aux stagiaires avec l'email de bienvenue : un des
+  /// programmes du formateur (client, 01/10/2026).
+  programmeId String?
+  programme   Document? @relation("ProgrammeSession", fields: [programmeId], references: [id], onDelete: SetNull)
 
   placesMax   Int?
 
@@ -603,7 +607,7 @@ model TrainingSession {
   createdBy   User?   @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   inscriptions SessionLearner[]
-  documents    Document[]
+  documents    Document[] @relation("DocumentsSession")
   presences    Presence[]
   feuillesSignees FeuilleEmargementSignee[]
   liensEmargement LienEmargement[]
@@ -728,7 +732,10 @@ model Document {
   companyId   String?
   company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
   sessionId   String?
-  session     TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  session     TrainingSession? @relation("DocumentsSession", fields: [sessionId], references: [id], onDelete: SetNull)
+
+  /// Sessions qui envoient ce programme (document PROGRAMME d'un formateur)
+  sessionsProgramme TrainingSession[] @relation("ProgrammeSession")
   formationId String?
   formation   Formation?       @relation(fields: [formationId], references: [id], onDelete: SetNull)
   trainerId   String?

@@ -25,11 +25,23 @@ export async function optionsFormateurs(actuelId?: string | null) {
       OR: [{ actif: true }, ...(actuelId ? [{ id: actuelId }] : [])],
     },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
-    select: { id: true, prenom: true, nom: true, specialites: true },
+    select: {
+      id: true,
+      prenom: true,
+      nom: true,
+      specialites: true,
+      // Ses programmes, à choisir pour la session (client, 01/10/2026)
+      documents: {
+        where: { deletedAt: null, type: { code: "PROGRAMME" } },
+        orderBy: { nom: "asc" },
+        select: { id: true, nom: true },
+      },
+    },
   });
   return formateurs.map((f) => ({
     id: f.id,
     libelle: `${f.nom} ${f.prenom}${f.specialites ? ` — ${f.specialites}` : ""}`,
+    programmes: f.documents,
   }));
 }
 

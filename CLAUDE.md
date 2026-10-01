@@ -104,8 +104,11 @@ et que le projet peut migrer ailleurs en quelques heures.
   charge par le financeur, plus les modèles existants adressés aux
   stagiaires. Les trois bienvenues (`NOUVEL_ENTRANT_*`) partent avec livret
   d'accueil, règlement intérieur (derniers déposés dans la Bibliothèque) et
-  programme de la formation de la dernière session — document `PROGRAMME`
-  rattaché à cette formation, jamais un autre (`lib/emails/documents-accueil.ts`) ;
+  programme choisi sur la dernière session (`sessions.programmeId`) : chaque
+  formateur a ses programmes (documents `PROGRAMME` de sa fiche) ; choisir le
+  formateur d'une session propose les siens, choix obligatoire s'il en a, et
+  pré-rempli s'il n'en a qu'un (`programmeInvalide`) ; jamais un autre
+  programme (`lib/emails/documents-accueil.ts`) ;
   un absent est signalé avant l'envoi et omis. Un passage `[À COMPLÉTER : …]` bloque tout envoi
   (`envoyerEmail`) tant qu'il n'est pas remplacé ; l'assistant ne propose
   pas ces modèles-là.
