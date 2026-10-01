@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
 
 import "./globals.css";
 
@@ -11,6 +11,13 @@ const outfit = Outfit({
   weight: ["400", "500", "600"],
 });
 
+// Chiffres des cartes du tableau de bord (choix du client, 01/10/2026).
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["700"],
+});
+
 export const metadata: Metadata = {
   title: "Formalogy OS",
   description: "Centre de pilotage de l'organisme de formation Formalogy",
@@ -20,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${outfit.variable} h-full antialiased`}
+      className={`${outfit.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

@@ -50,7 +50,7 @@ function Indicateur({
   return (
     <Link href={href} className="block rounded-xl border border-bordure bg-surface p-4 shadow-sm transition hover:border-accent">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-texte-tenu">{libelle}</div>
-      <div className="mt-2 font-mono text-2xl font-semibold tabular-nums">{valeur}</div>
+      <div className="mt-2 font-chiffre text-2xl font-bold tabular-nums">{valeur}</div>
       <div className="mt-2.5 border-t border-bordure-douce pt-2.5 text-[11.5px] text-texte-doux">{precision}</div>
     </Link>
   );

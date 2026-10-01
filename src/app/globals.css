@@ -40,6 +40,7 @@
   /* Police unique pour tout le site (titres et texte courant). */
   --font-titre: var(--font-outfit);
   --font-texte: var(--font-outfit);
+  --font-chiffre: var(--font-inter);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -92,6 +93,7 @@
   --color-barre-texte-tenu: var(--barre-texte-tenu);
   --font-titre: var(--font-titre);
   --font-texte: var(--font-texte);
+  --font-chiffre: var(--font-chiffre);
 }
 
 body {
