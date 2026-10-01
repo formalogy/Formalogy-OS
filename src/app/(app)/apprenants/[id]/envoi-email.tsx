@@ -5,7 +5,14 @@ import { useActionState, useState } from "react";
 import { BoutonEnvoyer, MessageErreur } from "@/app/(app)/_composants/formulaire";
 import { envoyerEmailApprenant, type EtatEnvoi } from "@/app/(app)/apprenants/actions";
 
-type ModeleRendu = { id: string; nom: string; sujet: string; corps: string; manquantes: string[] };
+type ModeleRendu = {
+  id: string;
+  nom: string;
+  sujet: string;
+  corps: string;
+  manquantes: string[];
+  jointes: { libelle: string; manquants: string[] } | null;
+};
 
 type Props = {
   learnerId: string;
@@ -83,6 +90,14 @@ export function EnvoiEmail({ learnerId, email, modeles, envoiReel }: Props) {
       )}
 
       <p className="text-[12px] text-texte-tenu">À : {email}</p>
+      {choisi?.jointes && (
+        <p className="text-[12px] text-texte-tenu">
+          Pièces jointes : {choisi.jointes.libelle}.
+          {choisi.jointes.manquants.length > 0 && (
+            <span className="text-alerte"> Absent de la Bibliothèque, non joint : {choisi.jointes.manquants.join(", ")}.</span>
+          )}
+        </p>
+      )}
       <label className="text-[12.5px] font-semibold">
         Sujet
         <input name="sujet" value={sujet} onChange={(e) => setSujet(e.target.value)} required className={CHAMP} />

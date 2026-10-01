@@ -102,7 +102,11 @@ et que le projet peut migrer ailleurs en quelques heures.
   stagiaire et à l'assistant — bienvenue présentiel/visio, e-learning, mixte,
   fin de parcours TOSA, félicitations TOSA, lien d'inscription, prise en
   charge par le financeur, plus les modèles existants adressés aux
-  stagiaires. Un passage `[À COMPLÉTER : …]` bloque tout envoi
+  stagiaires. Les trois bienvenues (`NOUVEL_ENTRANT_*`) partent avec livret
+  d'accueil, règlement intérieur (derniers déposés dans la Bibliothèque) et
+  programme de la formation de la dernière session — document `PROGRAMME`
+  rattaché à cette formation, jamais un autre (`lib/emails/documents-accueil.ts`) ;
+  un absent est signalé avant l'envoi et omis. Un passage `[À COMPLÉTER : …]` bloque tout envoi
   (`envoyerEmail`) tant qu'il n'est pas remplacé ; l'assistant ne propose
   pas ces modèles-là.
 - **Modèles d'emails** : Paramètres → Modèles d'emails ; un administrateur
@@ -758,3 +762,6 @@ npm run configurer-gmail  # saisit le mot de passe d'application (masqué)
 ```
 
 Node.js est installé dans `~/.local/node` (ajouté au PATH via `~/.zshrc`).
+Le projet est sur le Bureau synchronisé par iCloud : des copies « … 2 »
+apparaissent dans `.next` et cassent `tsc` ; les supprimer
+(`find .next -name "* 2*" -maxdepth 3 -exec rm -rf {} +`).

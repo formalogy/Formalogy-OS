@@ -7,6 +7,7 @@ import { z } from "zod";
 import { creerFicheApprenant, schemaApprenant, STATUTS_APPRENANT as STATUTS } from "@/lib/apprenants-creation";
 import { LIBELLE_STATUT_APPRENANT } from "@/lib/apprenants-libelles";
 import { cheminPhoto, verifierPhoto } from "@/lib/apprenants-photo";
+import { documentsAccueil, MODELES_AVEC_DOCUMENTS_ACCUEIL } from "@/lib/emails/documents-accueil";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -145,8 +146,19 @@ export async function envoyerEmailApprenant(_precedent: EtatEnvoi, donnees: Form
   if (!apprenant.email) return { erreur: "Cet apprenant n'a pas d'adresse email." };
 
   const templateId = r.data.templateId || undefined;
-  if (templateId && !(await prisma.emailTemplate.findUnique({ where: { id: templateId } }))) {
-    return { erreur: "Modèle introuvable." };
+  const modele = templateId ? await prisma.emailTemplate.findUnique({ where: { id: templateId } }) : null;
+  if (templateId && !modele) return { erreur: "Modèle introuvable." };
+
+  // Bienvenue : livret d'accueil, règlement intérieur et programme de la
+  // formation de sa session la plus récente.
+  let piecesJointes;
+  if (modele && MODELES_AVEC_DOCUMENTS_ACCUEIL.includes(modele.code)) {
+    const inscription = await prisma.sessionLearner.findFirst({
+      where: { learnerId: apprenant.id, session: { deletedAt: null } },
+      orderBy: { session: { dateDebut: "desc" } },
+      select: { session: { select: { formationId: true } } },
+    });
+    piecesJointes = (await documentsAccueil(inscription?.session.formationId)).pieces;
   }
 
   const email = await envoyerEmail({
@@ -154,6 +166,7 @@ export async function envoyerEmailApprenant(_precedent: EtatEnvoi, donnees: Form
     sujet: r.data.sujet,
     corps: r.data.corps,
     templateId,
+    piecesJointes,
     learnerId: apprenant.id,
     companyId: apprenant.companyId ?? undefined,
     createdById: utilisateur.id,

@@ -11,6 +11,7 @@ import { SelecteurStatutApprenant } from "@/app/(app)/apprenants/[id]/selecteur-
 import { LIBELLE_STATUT_EMAIL, TON_STATUT_EMAIL } from "@/lib/automatisations/libelles";
 import { construireContexte } from "@/lib/emails/contexte";
 import { envoiReelActif } from "@/lib/emails/envoi";
+import { documentsAccueilManquants, MODELES_AVEC_DOCUMENTS_ACCUEIL } from "@/lib/emails/documents-accueil";
 import { rendre } from "@/lib/emails/modeles";
 import {
   LIBELLE_FINANCEMENT,
@@ -120,6 +121,7 @@ export default async function PageApprenant({
       },
     }),
   ]);
+  const accueilManquants = await documentsAccueilManquants(derniereSession?.formationId);
   const modelesRendus = modeles.map((m) => {
     const sujet = rendre(m.sujet, contexte);
     const corps = rendre(m.corps, contexte);
@@ -129,6 +131,9 @@ export default async function PageApprenant({
       sujet: sujet.resultat,
       corps: corps.resultat,
       manquantes: [...new Set([...sujet.manquantes, ...corps.manquantes])],
+      jointes: MODELES_AVEC_DOCUMENTS_ACCUEIL.includes(m.code)
+        ? { libelle: "livret d'accueil, règlement intérieur, programme", manquants: accueilManquants }
+        : null,
     };
   });
 
