@@ -210,6 +210,8 @@ const schemaOrganisme = z.object({
   telephone: facultatif,
   email: facultatif.refine((v) => v === null || z.email().safeParse(v).success, "L'adresse email n'est pas valide."),
   siteWeb: facultatif,
+  adresseEforma: facultatif,
+  adresseMonParcours: facultatif,
   representantNom: facultatif,
   representantFonction: facultatif,
   referentHandicapNom: facultatif,

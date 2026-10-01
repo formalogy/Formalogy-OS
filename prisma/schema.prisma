@@ -506,6 +506,9 @@ model Formation {
   /// Certification visée (RS, RNCP, TOSA…), le cas échéant
   certification String?
 
+  /// Plateforme en ligne (e-learning, hybride) : choisit l'adresse donnée
+  /// dans l'email de connexion.
+  plateforme PlateformeElearning?
   dureeHeures Decimal? @db.Decimal(6, 2)
   dureeJours  Decimal? @db.Decimal(4, 1)
   /// Prix de référence hors taxes, en euros
@@ -659,6 +662,12 @@ model SessionLearner {
 }
 
 /// Catégories de la bibliothèque documentaire (cahier des charges, section 15).
+/// Plateforme en ligne d'une formation e-learning (client, 01/10/2026).
+enum PlateformeElearning {
+  EFORMA
+  MON_PARCOURS_EN_LIGNE
+}
+
 enum CategorieDocument {
   APPRENANT
   ENTREPRISE
@@ -1226,6 +1235,9 @@ model Organisme {
   telephone  String?
   email      String?
   siteWeb    String?
+  /// Adresses des plateformes de formation en ligne
+  adresseEforma         String?
+  adresseMonParcours    String?
 
   /// Signataire des attestations, ex. « Jimmy Struzyk », « Dirigeant »
   representantNom      String?

@@ -39,3 +39,9 @@ export function formaterDuree(heures: unknown, jours: unknown): string {
   }
   return parties.length ? parties.join(" · ") : "—";
 }
+
+/// Plateformes de formation en ligne (client, 01/10/2026).
+export const LIBELLE_PLATEFORME = {
+  EFORMA: "E-forma",
+  MON_PARCOURS_EN_LIGNE: "Mon Parcours En Ligne",
+} as const;

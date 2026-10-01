@@ -39,6 +39,13 @@ export function FormulaireOrganisme({ initiales, lectureSeule }: { initiales: Re
           <Champ nom="siteWeb" libelle="Site web" valeurParDefaut={v("siteWeb")} />
         </div>
 
+        <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Plateformes de formation en ligne</h2>
+        <p className="mb-3 text-[12px] text-texte-tenu">Adresses données aux stagiaires dans l&apos;email de connexion, selon la plateforme de leur formation.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Champ nom="adresseEforma" libelle="E-forma" placeholder="https://…" valeurParDefaut={v("adresseEforma")} />
+          <Champ nom="adresseMonParcours" libelle="Mon Parcours En Ligne" placeholder="https://…" valeurParDefaut={v("adresseMonParcours")} />
+        </div>
+
         <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Signataire des attestations</h2>
         <p className="mb-3 text-[12px] text-texte-tenu">Personne qui atteste la réalisation des formations, en général le dirigeant.</p>
         <div className="grid gap-4 sm:grid-cols-2">

@@ -12,6 +12,8 @@ const EXEMPLE: Record<string, string> = {
   "organisme.telephone": "07 00 00 00 00",
   "organisme.email": "contact@exemple.fr",
   "formation.duree": "14 heures",
+  "plateforme.nom": "E-forma",
+  "plateforme.adresse": "https://plateforme.exemple.fr",
   "apprenant.prenom": "Camille",
   "apprenant.nom": "Exemple",
   "apprenant.email": "camille.exemple@exemple.fr",

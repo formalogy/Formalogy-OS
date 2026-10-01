@@ -16,6 +16,7 @@ import {
 } from "@/app/(app)/formations/actions";
 import {
   LIBELLE_MODALITE,
+  LIBELLE_PLATEFORME,
   LIBELLE_STATUT_FORMATION,
   MODALITES,
   STATUTS_FORMATION,
@@ -76,6 +77,15 @@ export function FormulaireFormation({ categories, initiales }: Props) {
           libelle="Modalité"
           options={MODALITES.map((m) => ({ valeur: m, libelle: LIBELLE_MODALITE[m] }))}
           valeurParDefaut={v("modalite") ?? "PRESENTIEL"}
+        />
+        <ChampListe
+          nom="plateforme"
+          libelle="Plateforme en ligne"
+          options={[
+            { valeur: "", libelle: "Aucune (pas d'e-learning)" },
+            ...Object.entries(LIBELLE_PLATEFORME).map(([valeur, libelle]) => ({ valeur, libelle })),
+          ]}
+          valeurParDefaut={v("plateforme") ?? ""}
         />
         <ChampListe
           nom="statut"

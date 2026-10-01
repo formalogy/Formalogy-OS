@@ -86,8 +86,12 @@ et que le projet peut migrer ailleurs en quelques heures.
   inscrit reçoit le modèle `CONNEXION_PLATEFORME` : identifiant = son email,
   mot de passe de première connexion = initiales du prénom et du nom en
   majuscules, sans accent, suivies de 12345 (`motDePasseInitial`, variable
-  `{{apprenant.motDePasse}}`, masquée dans l'historique). L'adresse de la
-  plateforme est à compléter dans le modèle : d'ici là, l'envoi échoue.
+  `{{apprenant.motDePasse}}`, masquée dans l'historique). Deux plateformes :
+  **E-forma** et **Mon Parcours En Ligne** ; chaque formation indique la
+  sienne (`formations.plateforme`), leurs adresses se saisissent dans
+  Paramètres → Organisme (variables `{{plateforme.nom}}`,
+  `{{plateforme.adresse}}`). Plateforme ou adresse manquante : la variable
+  vaut « À COMPLÉTER » et l'envoi échoue, visible au tableau de bord.
 - **Bibliothèque des emails aux stagiaires** (01/10/2026, reformulée d'après
   les exemples du client) : modèles cochés « proposé dans Écrire un email »
   (`email_templates.proposeApprenant`), seuls proposés sur la fiche d'un
