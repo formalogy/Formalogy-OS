@@ -9,9 +9,11 @@
     "lint": "eslint",
     "creer-admin": "node --env-file=.env scripts/creer-admin.ts",
     "tester-gmail": "node --env-file=.env scripts/tester-gmail.ts",
-    "configurer-gmail": "node scripts/configurer-gmail.ts"
+    "configurer-gmail": "node scripts/configurer-gmail.ts",
+    "configurer-assistant": "node scripts/configurer-assistant.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@supabase/storage-js": "2.116.0",

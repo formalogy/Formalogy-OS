@@ -630,6 +630,32 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   formateurs) pour ranger les modèles de l'organisme ou des exemplaires
   papier remplis. Ils sont indépendants des questionnaires en ligne.
 
+## Assistant IA (Phase 5, étapes 1 et 2, 01/10/2026)
+
+- Fenêtre « Assistant » en bas à droite (`app/(app)/_composants/assistant.tsx`),
+  réservée à l'équipe (ADMIN, GESTIONNAIRE) ; conversation gardée dans l'onglet
+  (sessionStorage), rien en base. Claude via l'API Anthropic, appelé
+  **depuis le serveur seulement** (`POST /api/assistant`,
+  `lib/assistant/agent.ts`) ; modèle `claude-opus-5` (variable
+  `ASSISTANT_MODELE`), clé `ANTHROPIC_API_KEY` saisie par
+  `npm run configurer-assistant`. Sans clé, l'assistant répond qu'il n'est pas
+  branché. Coût à l'usage, estimé 10 à 40 €/mois (non vérifié).
+- **Lecture** : requêtes SELECT en transaction **lecture seule**, 8 s et
+  200 lignes au plus (`lib/assistant/lecture-base.ts`) ; tables de comptes et
+  connexions (`user`, `account`, `session`, `verification`) et jetons
+  d'émargement exclus. Plan de la base lu dans PostgreSQL (suit les
+  migrations). Outils métier : alertes du déroulement, paiements attendus.
+- **Actions** : l'assistant ne fait que **proposer** (créer un apprenant, avec
+  inscription facultative ; inscrire ; créer une session en brouillon ;
+  signaler une absence ; suspendre, reprendre ou annuler un déroulement —
+  `lib/assistant/propositions.ts`). Rien ne s'exécute sans le clic
+  « Valider », qui passe par les mêmes fonctions et contrôles que les
+  formulaires (`executerProposition`), et laisse une trace au journal
+  (`assistant.validated`). Le détail affiché est relu en base, pas repris de
+  l'IA. Ni email, ni facture, ni suppression.
+- Données d'apprenants transmises à Anthropic pour répondre : à mentionner au
+  registre RGPD (sous-traitant).
+
 ## Sécurité
 
 - Les permissions sont vérifiées **côté serveur** à chaque requête. Le frontend

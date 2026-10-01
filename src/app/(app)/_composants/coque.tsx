@@ -4,6 +4,7 @@ import Form from "next/form";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Assistant } from "@/app/(app)/_composants/assistant";
 import { BarreLaterale } from "@/app/(app)/_composants/barre-laterale";
 import { Icone } from "@/app/(app)/_composants/icones";
 import { signOut } from "@/lib/auth-client";
@@ -110,6 +111,9 @@ export function Coque({ utilisateur, groupes, children }: Props) {
       <div className="mx-3 mb-3 min-h-[calc(100vh-4.5rem)] rounded-3xl bg-fond lg:ml-0">
         <main className="mx-auto w-full max-w-6xl px-5 py-6">{children}</main>
       </div>
+
+      {/* L'assistant IA lit toute la base : réservé à l'équipe. */}
+      {utilisateur.role !== "FORMATEUR" && <Assistant />}
     </div>
   );
 }

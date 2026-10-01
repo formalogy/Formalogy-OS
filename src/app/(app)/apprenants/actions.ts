@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { creerFicheApprenant, schemaApprenant, STATUTS_APPRENANT as STATUTS } from "@/lib/apprenants-creation";
 import { LIBELLE_STATUT_APPRENANT } from "@/lib/apprenants-libelles";
 import { cheminPhoto, verifierPhoto } from "@/lib/apprenants-photo";
-import { declencher } from "@/lib/automatisations/moteur";
 import { envoyerEmail } from "@/lib/emails/envoi";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -36,35 +35,6 @@ function messageStockage(erreur: unknown): string {
   return "Le fichier n'a pas pu être enregistré dans l'espace de stockage. Réessayez dans un instant.";
 }
 
-const texteFacultatif = z
-  .string()
-  .trim()
-  .transform((valeur) => (valeur === "" ? undefined : valeur))
-  .optional();
-
-const STATUTS = ["PROSPECT", "INSCRIT", "EN_FORMATION", "TERMINE", "ABANDONNE"] as const;
-const TYPES = ["ENTREPRISE", "OPCO", "CPF", "FRANCE_TRAVAIL", "PERSONNEL", "AUTRE"] as const;
-
-const schemaApprenant = z.object({
-  prenom: z.string().trim().min(1, "Le prénom est obligatoire."),
-  nom: z.string().trim().min(1, "Le nom est obligatoire."),
-  dateNaissance: texteFacultatif,
-  email: texteFacultatif.refine(
-    (valeur) => valeur === undefined || z.email().safeParse(valeur).success,
-    "L'adresse email n'est pas valide.",
-  ),
-  telephone: texteFacultatif,
-  adresse: texteFacultatif,
-  codePostal: texteFacultatif,
-  ville: texteFacultatif,
-  niveauEtudes: texteFacultatif,
-  companyId: texteFacultatif,
-  statut: z.enum(STATUTS),
-  financement: z.enum(TYPES),
-  numeroDossierCpf: texteFacultatif,
-  notes: texteFacultatif,
-});
-
 export async function creerApprenant(
   _precedent: EtatFormulaire,
   donnees: FormData,
@@ -79,30 +49,7 @@ export async function creerApprenant(
     };
   }
 
-  const { dateNaissance, companyId, ...reste } = resultat.data;
-
-  const apprenant = await prisma.learner.create({
-    data: {
-      ...reste,
-      dateNaissance: dateNaissance ? new Date(dateNaissance) : null,
-      companyId: companyId ?? null,
-      createdById: utilisateur.id,
-    },
-    include: { company: { select: { raisonSociale: true } } },
-  });
-
-  await journaliser({
-    action: "learner.created",
-    summary: `Apprenant créé : ${apprenant.prenom} ${apprenant.nom}${
-      apprenant.company ? ` — ${apprenant.company.raisonSociale}` : ""
-    }`,
-    entityType: "Learner",
-    entityId: apprenant.id,
-    userId: utilisateur.id,
-  });
-
-  // Exécutées après la réponse : l'envoi d'un email ne fait pas attendre l'écran.
-  after(() => declencher({ type: "APPRENANT_CREE", learnerId: apprenant.id }));
+  const apprenant = await creerFicheApprenant(resultat.data, utilisateur.id);
 
   revalidatePath("/apprenants");
   redirect(`/apprenants/${apprenant.id}/inscrire-session?nouveau`);
