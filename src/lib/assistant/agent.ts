@@ -534,18 +534,22 @@ export async function repondre(conversation: MessageConversation[]): Promise<Rep
   const propositions: PropositionAffichee[] = [];
 
   for (let tour = 0; tour < TOURS_MAX; tour++) {
-    const reponse = await client.beta.messages.create({
-      model: MODELE,
-      max_tokens: 32000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      thinking: { type: "adaptive" },
-      output_config: { effort: "medium" },
-      cache_control: { type: "ephemeral" },
-      system: CONSIGNES,
-      tools: OUTILS,
-      messages,
-    });
+    // Réponse reçue au fil de l'eau (exigé pour les longues rédactions,
+    // comme une fiche formation tirée d'un PDF), puis lue en entier.
+    const reponse = await client.beta.messages
+      .stream({
+        model: MODELE,
+        max_tokens: 32000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        thinking: { type: "adaptive" },
+        output_config: { effort: "medium" },
+        cache_control: { type: "ephemeral" },
+        system: CONSIGNES,
+        tools: OUTILS,
+        messages,
+      })
+      .finalMessage();
 
     if (reponse.stop_reason === "refusal") {
       return { texte: "Je ne peux pas répondre à cette demande.", propositions };
