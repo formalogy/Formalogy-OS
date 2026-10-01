@@ -29,7 +29,7 @@ function plateforme(
   const adresse = code === "EFORMA" ? organisme.adresseEforma : organisme.adresseMonParcours;
   return {
     "plateforme.nom": LIBELLE_PLATEFORME[code],
-    "plateforme.adresse": adresse ?? `[À COMPLÉTER : adresse de ${LIBELLE_PLATEFORME[code]}, dans Paramètres → Organisme]`,
+    "plateforme.adresse": adresse ?? `[À COMPLÉTER : site internet de ${LIBELLE_PLATEFORME[code]}, dans Paramètres → Organisme]`,
   };
 }
 

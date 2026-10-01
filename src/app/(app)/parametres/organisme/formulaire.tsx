@@ -40,10 +40,10 @@ export function FormulaireOrganisme({ initiales, lectureSeule }: { initiales: Re
         </div>
 
         <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Plateformes de formation en ligne</h2>
-        <p className="mb-3 text-[12px] text-texte-tenu">Adresses données aux stagiaires dans l&apos;email de connexion, selon la plateforme de leur formation.</p>
+        <p className="mb-3 text-[12px] text-texte-tenu">Site internet de chaque plateforme, donné aux stagiaires dans l&apos;email de connexion, selon la plateforme de leur session.</p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Champ nom="adresseEforma" libelle="E-forma" placeholder="https://…" valeurParDefaut={v("adresseEforma")} />
-          <Champ nom="adresseMonParcours" libelle="Mon Parcours En Ligne" placeholder="https://…" valeurParDefaut={v("adresseMonParcours")} />
+          <Champ nom="adresseEforma" libelle="Site internet d'E-forma" placeholder="https://…" valeurParDefaut={v("adresseEforma")} />
+          <Champ nom="adresseMonParcours" libelle="Site internet de Mon Parcours En Ligne" placeholder="https://…" valeurParDefaut={v("adresseMonParcours")} />
         </div>
 
         <h2 className="mb-1 mt-6 text-[13px] font-bold uppercase tracking-wider text-texte-tenu">Signataire des attestations</h2>

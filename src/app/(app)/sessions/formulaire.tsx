@@ -94,6 +94,9 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           options={MODALITES.map((m) => ({ valeur: m, libelle: LIBELLE_MODALITE[m] }))}
           valeurParDefaut={v("modalite") ?? "PRESENTIEL"}
         />
+        {attribution === "FORMALOGY" && modalite !== "E_LEARNING" && modalite !== "HYBRIDE" && (
+          <p className="text-[11.5px] text-alerte sm:col-span-2">Une session Formalogy est en e-learning ou hybride.</p>
+        )}
         {/* Le statut ne se choisit pas à la création : une nouvelle session
             est un brouillon, qui ne déclenche rien. Le bouton « Lancer le
             déroulement automatique », sur la fiche, la met en route. */}
@@ -123,7 +126,7 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           ]}
           valeurParDefaut={v("trainerId") ?? ""}
         />
-        {attribution === "FORMALOGY" && (modalite === "E_LEARNING" || modalite === "HYBRIDE") && (
+        {attribution === "FORMALOGY" && (
           <ChampListe
             nom="plateforme"
             libelle="Plateforme e-learning"

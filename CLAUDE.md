@@ -89,9 +89,9 @@ et que le projet peut migrer ailleurs en quelques heures.
   `{{apprenant.motDePasse}}`, masquée dans l'historique). Deux plateformes :
   **E-forma** et **Mon Parcours En Ligne**. Une session est « attribuée
   à » Formalogy (en interne, `sessions.interne`) ou au formateur ; le
-  formateur est obligatoire dans les deux cas. Seule une session interne
-  e-learning ou hybride choisit sa plateforme (`sessions.plateforme`,
-  obligatoire) et reçoit cet email (condition `avecPlateforme`) ; sinon le
+  formateur est obligatoire dans les deux cas. Formalogy ne forme qu'en
+  ligne : une session interne est forcément e-learning ou hybride et choisit
+  sa plateforme (`sessions.plateforme`, obligatoire) et reçoit cet email (condition `avecPlateforme`) ; sinon le
   formateur gère l'accès. Adresses des plateformes se saisissent dans
   Paramètres → Organisme (variables `{{plateforme.nom}}`,
   `{{plateforme.adresse}}`). Plateforme ou adresse manquante : la variable

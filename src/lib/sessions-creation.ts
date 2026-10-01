@@ -52,8 +52,13 @@ export const schemaSession = z
   .refine((d) => !d.dateDebut || !d.dateFin || d.dateFin >= d.dateDebut, {
     message: "La date de fin ne peut pas précéder la date de début.",
   })
-  .refine((d) => d.attribution !== "FORMALOGY" || !enLigne(d.modalite) || Boolean(d.plateforme), {
-    message: "Session en interne et en ligne : choisissez la plateforme e-learning.",
+  // Formalogy ne forme qu'en ligne (client, 01/10/2026) : une session
+  // interne est e-learning ou hybride, toujours avec sa plateforme.
+  .refine((d) => d.attribution !== "FORMALOGY" || enLigne(d.modalite), {
+    message: "Une session attribuée à Formalogy est en e-learning ou hybride : changez la modalité.",
+  })
+  .refine((d) => d.attribution !== "FORMALOGY" || Boolean(d.plateforme), {
+    message: "Session attribuée à Formalogy : choisissez la plateforme e-learning.",
   })
   .transform((d) => {
     const interne = d.attribution === "FORMALOGY";

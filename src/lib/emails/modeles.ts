@@ -8,7 +8,7 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "organisme.telephone": "Téléphone de l'organisme (Paramètres → Organisme)",
   "organisme.email": "Adresse email de l'organisme",
   "plateforme.nom": "Plateforme e-learning de la session (E-forma ou Mon Parcours En Ligne)",
-  "plateforme.adresse": "Adresse de la plateforme e-learning de la session (Paramètres → Organisme)",
+  "plateforme.adresse": "Site internet de la plateforme e-learning de la session (Paramètres → Organisme)",
   "formation.duree": "Durée de la formation en heures (ex. 14 heures)",
   "apprenant.prenom": "Prénom de l'apprenant",
   "apprenant.nom": "Nom de l'apprenant",
