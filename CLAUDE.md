@@ -780,6 +780,9 @@ npm run configurer-gmail  # saisit le mot de passe d'application (masqué)
 ```
 
 Node.js est installé dans `~/.local/node` (ajouté au PATH via `~/.zshrc`).
+Après une migration Prisma, **redémarrer le serveur de développement** : il
+garde l'ancien client Prisma en mémoire (erreur « Invalid prisma.….update()
+invocation » sur les nouveaux champs).
 Le projet est sur le Bureau synchronisé par iCloud : des copies « … 2 »
 apparaissent dans `.next` et cassent `tsc` ; les supprimer
 (`find .next -name "* 2*" -maxdepth 3 -exec rm -rf {} +`).
