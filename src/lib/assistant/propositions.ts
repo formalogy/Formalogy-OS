@@ -17,7 +17,23 @@ export const schemaFacturationProposee = z.object({
   financeurEmail: texte,
 });
 
+export const schemaFormateurPropose = z.object({
+  prenom: z.string().trim().min(1),
+  nom: z.string().trim().min(1),
+  email: texte,
+  telephone: texte,
+  statut: z.enum(["INDEPENDANT", "SALARIE", "SOUS_TRAITANT"]).default("INDEPENDANT"),
+  siret: texte,
+  numeroDeclaration: texte,
+  specialites: texte,
+  notes: texte,
+});
+
 export const schemaProposition = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("FORMATEUR"),
+    formateur: schemaFormateurPropose,
+  }),
   z.object({
     type: z.literal("APPRENANT"),
     apprenant: z.object({
@@ -81,6 +97,8 @@ export const schemaProposition = z.discriminatedUnion("type", [
     nomFichier: z.string().trim().min(1).max(200),
     nom: z.string().trim().min(1).max(200),
     trainerId: texte,
+    /// Formateur à créer en même temps, quand il n'a pas encore de fiche.
+    nouveauFormateur: schemaFormateurPropose.optional(),
     /// Formation existante à laquelle rattacher le programme ; sinon,
     /// `formation` décrit la fiche à créer.
     formationId: texte,

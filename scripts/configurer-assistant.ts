@@ -25,14 +25,23 @@ function demanderMasque(question: string): Promise<string> {
     process.stdin.setEncoding("utf8");
 
     let saisie = "";
+    // Un collage arrive d'un bloc, parfois encadré par les marqueurs de
+    // collage du terminal : on retire ces marqueurs et on traite le bloc
+    // caractère par caractère (une étoile par caractère collé).
+    const surBloc = (bloc: string) => {
+      for (const touche of bloc.replace(/\u001b\[20[01]~/g, "")) {
+        if (!process.stdin.listenerCount("data")) return;
+        surTouche(touche);
+      }
+    };
     const surTouche = (touche: string) => {
       // Entrée : on valide. Ctrl+C : on abandonne. Retour arrière : on efface.
       if (touche === "\r" || touche === "\n") {
         process.stdin.setRawMode(false);
         process.stdin.pause();
-        process.stdin.removeListener("data", surTouche);
+        process.stdin.removeListener("data", surBloc);
         process.stdout.write("\n");
-        resoudre(saisie);
+        resoudre(saisie.trim());
       } else if (touche === "\u0003") {
         process.stdout.write("\n  Abandon.\n");
         process.exit(1);
@@ -47,7 +56,7 @@ function demanderMasque(question: string): Promise<string> {
         process.stdout.write("*");
       }
     };
-    process.stdin.on("data", surTouche);
+    process.stdin.on("data", surBloc);
   });
 }
 

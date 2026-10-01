@@ -12,6 +12,7 @@ import { lireFichierAssistant } from "@/lib/assistant/fichiers";
 import { schemaProposition } from "@/lib/assistant/propositions";
 import { cheminStockage } from "@/lib/documents-depot";
 import { envoyerEmail } from "@/lib/emails/envoi";
+import { donneesFormateur, schemaFormateur } from "@/lib/formateurs-creation";
 import { assainirChampsRiches, referenceDejaPrise, schemaFormation } from "@/lib/formations-creation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,22 @@ function formulaire(valeurs: Record<string, string | undefined>): FormData {
   const f = new FormData();
   for (const [cle, valeur] of Object.entries(valeurs)) if (valeur !== undefined) f.set(cle, valeur);
   return f;
+}
+
+/// Fiche formateur proposée par l'assistant, avec les contrôles du formulaire.
+async function creerFormateurPropose(brut: unknown, userId: string): Promise<{ erreur: string } | { id: string; nom: string }> {
+  const r = schemaFormateur.safeParse(brut);
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Fiche formateur invalide." };
+  const formateur = await prisma.trainer.create({ data: { ...donneesFormateur(r.data), createdById: userId } });
+  await journaliser({
+    action: "trainer.created",
+    summary: `Formateur créé : ${formateur.prenom} ${formateur.nom}`,
+    entityType: "Trainer",
+    entityId: formateur.id,
+    userId,
+  });
+  revalidatePath("/formateurs");
+  return { id: formateur.id, nom: `${formateur.prenom} ${formateur.nom}` };
 }
 
 /// Exécute une proposition de l'assistant IA que l'utilisateur vient de
@@ -100,9 +117,19 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
       if (email.statut === "ECHEC") return { erreur: `L'email n'est pas parti : ${email.erreur}`, lien };
       return { succes: email.statut === "SIMULE" ? "Email enregistré (simulation : l'envoi réel n'est pas activé)." : "Email envoyé.", lien };
     }
+    case "FORMATEUR": {
+      const f = await creerFormateurPropose(p.formateur, utilisateur.id);
+      if ("erreur" in f) return { erreur: f.erreur };
+      await tracer(`fiche formateur créée pour ${f.nom}`);
+      return { succes: `Fiche de ${f.nom} créée.`, lien: `/formateurs/${f.id}` };
+    }
     case "PROGRAMME": {
       if (p.trainerId && !(await prisma.trainer.findFirst({ where: { id: p.trainerId, deletedAt: null } }))) {
         return { erreur: "Ce formateur n'existe plus." };
+      }
+      // Vérifications avant toute création, pour ne rien laisser à moitié fait.
+      if (!p.trainerId && p.nouveauFormateur && !schemaFormateur.safeParse(p.nouveauFormateur).success) {
+        return { erreur: schemaFormateur.safeParse(p.nouveauFormateur).error?.issues[0]?.message ?? "Fiche formateur invalide." };
       }
       const typeProgramme = await prisma.documentType.findUnique({ where: { code: "PROGRAMME" } });
       if (!typeProgramme) return { erreur: "Le type de document « Programme » manque." };
@@ -134,6 +161,14 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
         });
       }
 
+      // Formateur créé en même temps, s'il n'avait pas de fiche.
+      let trainerId = p.trainerId;
+      if (!trainerId && p.nouveauFormateur) {
+        const f = await creerFormateurPropose(p.nouveauFormateur, utilisateur.id);
+        if ("erreur" in f) return { erreur: `Fiche formation prête, mais formateur non créé : ${f.erreur}` };
+        trainerId = f.id;
+      }
+
       // Le PDF devient le programme du formateur (proposé sur ses sessions).
       const documentId = randomUUID();
       const chemin = cheminStockage(documentId, 1, "pdf");
@@ -146,7 +181,7 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
             typeId: typeProgramme.id,
             categorie: typeProgramme.categorie,
             formationId: formation.id,
-            trainerId: p.trainerId ?? null,
+            trainerId: trainerId ?? null,
             createdById: utilisateur.id,
             versions: {
               create: {
@@ -168,7 +203,7 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
       await stockage().supprimer([`assistant/${p.fichierId}.pdf`]).catch(() => undefined);
 
       revalidatePath("/formations");
-      if (p.trainerId) revalidatePath(`/formateurs/${p.trainerId}`);
+      if (trainerId) revalidatePath(`/formateurs/${trainerId}`);
       await tracer(`programme « ${p.nom} » rangé (formation ${formation.reference})`);
       return {
         succes: p.formationId ? `Programme « ${p.nom} » rangé.` : `Fiche « ${formation.titre} » créée en brouillon et programme rangé.`,
