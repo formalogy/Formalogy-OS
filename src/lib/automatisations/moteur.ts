@@ -123,6 +123,9 @@ const schemaConditions = z.object({
   /// Ne traiter que les sessions de l'une de ces modalités (accès à la
   /// plateforme : e-learning et hybride seulement).
   modalite: z.array(z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"])).optional(),
+  /// Ne traiter que les sessions dont l'accès e-learning est géré par
+  /// Formalogy (E-forma ou Mon Parcours En Ligne), pas par le formateur.
+  avecPlateforme: z.boolean().optional(),
 });
 
 const schemaParametres = z.object({
@@ -838,10 +841,11 @@ async function envoyerAuPayeur(p: { cas: Cas; modele: ModeleEmail; joindre?: str
 async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | "deja"> {
   // Session hors des modalités visées : le cas ne la concerne pas, rien n'est
   // réservé (un changement de modalité ne serait pas bloqué par une trace).
-  const { modalite } = lireRegle(automation).conditions;
-  if (modalite && cas.sessionId) {
-    const session = await prisma.trainingSession.findUnique({ where: { id: cas.sessionId }, select: { modalite: true } });
-    if (!session || !modalite.includes(session.modalite)) return "deja";
+  const { modalite, avecPlateforme } = lireRegle(automation).conditions;
+  if ((modalite || avecPlateforme) && cas.sessionId) {
+    const session = await prisma.trainingSession.findUnique({ where: { id: cas.sessionId }, select: { modalite: true, plateforme: true } });
+    if (!session || (modalite && !modalite.includes(session.modalite))) return "deja";
+    if (avecPlateforme && (!session.plateforme || session.plateforme === "FORMATEUR")) return "deja";
   }
 
   let executionId: string;

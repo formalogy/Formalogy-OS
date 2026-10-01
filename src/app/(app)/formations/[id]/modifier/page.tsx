@@ -37,7 +37,6 @@ export default async function PageModifierFormation({
     reference: formation.reference,
     categoryId: formation.categoryId ?? "",
     modalite: formation.modalite,
-    plateforme: formation.plateforme ?? "",
     statut: formation.statut,
     dureeHeures: texte(formation.dureeHeures),
     dureeJours: texte(formation.dureeJours),

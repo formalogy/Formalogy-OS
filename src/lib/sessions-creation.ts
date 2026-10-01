@@ -33,11 +33,16 @@ export const schemaSession = z
     horaires: texteFacultatif,
     lieu: texteFacultatif,
     modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
+    /// Attribuée à Formalogy (en interne) ou au formateur.
+    attribution: z.enum(["FORMALOGY", "FORMATEUR"]).optional().default("FORMATEUR"),
+    /// Plateforme : seulement pour une session interne en ligne, où elle est
+    /// obligatoire.
+    plateforme: z.enum(["EFORMA", "MON_PARCOURS_EN_LIGNE", ""]).optional(),
     /// Absent du formulaire de création : une nouvelle session est un
     /// brouillon, qui ne déclenche aucune automatisation tant qu'on ne l'a
     /// pas mise en route.
     statut: z.enum(STATUTS_SESSION as [string, ...string[]]).optional().default("BROUILLON"),
-    trainerId: texteFacultatif,
+    trainerId: z.string().trim().min(1, "Choisissez le formateur : il est obligatoire, même pour une formation en interne."),
     placesMax: texteFacultatif.refine(
       (v) => v === undefined || (/^\d+$/.test(v) && Number(v) > 0),
       "Le nombre de places doit être un entier positif.",
@@ -46,7 +51,19 @@ export const schemaSession = z
   })
   .refine((d) => !d.dateDebut || !d.dateFin || d.dateFin >= d.dateDebut, {
     message: "La date de fin ne peut pas précéder la date de début.",
+  })
+  .refine((d) => d.attribution !== "FORMALOGY" || !enLigne(d.modalite) || Boolean(d.plateforme), {
+    message: "Session en interne et en ligne : choisissez la plateforme e-learning.",
+  })
+  .transform((d) => {
+    const interne = d.attribution === "FORMALOGY";
+    return { ...d, interne, plateforme: interne && enLigne(d.modalite) && d.plateforme ? d.plateforme : null };
   });
+
+/// Modalités qui passent par une plateforme e-learning.
+export function enLigne(modalite: string) {
+  return modalite === "E_LEARNING" || modalite === "HYBRIDE";
+}
 
 /// Un formateur ne peut être affecté que s'il existe et est actif.
 export async function formateurValide(trainerId: string) {
@@ -107,8 +124,10 @@ export async function creerSessionBrouillon(
         horaires: d.horaires,
         lieu: d.lieu,
         modalite: d.modalite,
+        interne: d.interne,
+        plateforme: d.plateforme,
         statut: d.statut as never,
-        trainerId: d.trainerId ?? null,
+        trainerId: d.trainerId,
         placesMax: d.placesMax ? Number(d.placesMax) : null,
         prixHT: formation.prixHT,
         notes: d.notes,

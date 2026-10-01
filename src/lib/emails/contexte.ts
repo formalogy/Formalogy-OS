@@ -15,15 +15,15 @@ function adresseApplication(): string {
 }
 
 
-/// Plateforme en ligne de la formation : une information qui manque reste
+/// Plateforme e-learning de la session : une information qui manque reste
 /// « À COMPLÉTER », ce qui bloque l'envoi plutôt que d'envoyer des accès faux.
 function plateforme(
-  code: keyof typeof LIBELLE_PLATEFORME | null | undefined,
+  code: keyof typeof LIBELLE_PLATEFORME | "FORMATEUR" | null | undefined,
   organisme: { adresseEforma: string | null; adresseMonParcours: string | null },
 ): Contexte {
   if (code === undefined) return {};
-  if (code === null) {
-    const manque = "[À COMPLÉTER : plateforme de la formation, sur sa fiche]";
+  if (code === null || code === "FORMATEUR") {
+    const manque = "[À COMPLÉTER : plateforme e-learning, sur la fiche de la session]";
     return { "plateforme.nom": manque, "plateforme.adresse": manque };
   }
   const adresse = code === "EFORMA" ? organisme.adresseEforma : organisme.adresseMonParcours;
@@ -71,7 +71,7 @@ export async function construireContexte(ids: {
       ? prisma.trainingSession.findUnique({
           where: { id: ids.sessionId },
           include: {
-            formation: { select: { titre: true, dureeHeures: true, plateforme: true } },
+            formation: { select: { titre: true, dureeHeures: true } },
             company: { select: { raisonSociale: true } },
             trainer: { select: { prenom: true, nom: true } },
           },
@@ -89,7 +89,7 @@ export async function construireContexte(ids: {
     "organisme.nom": organisme.raisonSociale,
     "organisme.telephone": organisme.telephone,
     "organisme.email": organisme.email,
-    ...plateforme(session?.formation.plateforme, organisme),
+    ...plateforme(session ? session.plateforme : undefined, organisme),
     "formation.duree": session?.formation.dureeHeures ? `${Number(session.formation.dureeHeures).toLocaleString("fr-FR")} heures` : undefined,
     "apprenant.prenom": apprenant?.prenom,
     "apprenant.nom": apprenant?.nom,

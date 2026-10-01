@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   BoutonEnvoyer,
@@ -14,7 +14,7 @@ import {
   modifierSession,
   type EtatFormulaire,
 } from "@/app/(app)/sessions/actions";
-import { LIBELLE_MODALITE, MODALITES } from "@/lib/formations-libelles";
+import { LIBELLE_MODALITE, LIBELLE_PLATEFORME, MODALITES } from "@/lib/formations-libelles";
 import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = {
@@ -34,10 +34,17 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
     {},
   );
   const v = (nom: string) => etat.valeurs?.[nom] ?? initiales?.[nom] ?? valeursDeDepart?.[nom];
+  const [modalite, setModalite] = useState(v("modalite") ?? "PRESENTIEL");
+  const [attribution, setAttribution] = useState(v("attribution") ?? "FORMATEUR");
 
   return (
     <form
       action={envoyer}
+      onChange={(e) => {
+        const champ = e.target as unknown as HTMLSelectElement;
+        if (champ.name === "modalite") setModalite(champ.value);
+        if (champ.name === "attribution") setAttribution(champ.value);
+      }}
       className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm"
     >
       {initiales && <input type="hidden" name="id" value={initiales.id} />}
@@ -99,14 +106,34 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           />
         )}
         <ChampListe
+          nom="attribution"
+          libelle="Session attribuée à"
+          options={[
+            { valeur: "FORMATEUR", libelle: "Le formateur" },
+            { valeur: "FORMALOGY", libelle: "Formalogy (formation en interne)" },
+          ]}
+          valeurParDefaut={v("attribution") ?? "FORMATEUR"}
+        />
+        <ChampListe
           nom="trainerId"
           libelle="Formateur"
           options={[
-            { valeur: "", libelle: "Pas encore choisi" },
+            { valeur: "", libelle: "Choisir le formateur…" },
             ...formateurs.map((f) => ({ valeur: f.id, libelle: f.libelle })),
           ]}
           valeurParDefaut={v("trainerId") ?? ""}
         />
+        {attribution === "FORMALOGY" && (modalite === "E_LEARNING" || modalite === "HYBRIDE") && (
+          <ChampListe
+            nom="plateforme"
+            libelle="Plateforme e-learning"
+            options={[
+              { valeur: "", libelle: "Choisir…" },
+              ...Object.entries(LIBELLE_PLATEFORME).map(([valeur, libelle]) => ({ valeur, libelle })),
+            ]}
+            valeurParDefaut={v("plateforme") ?? ""}
+          />
+        )}
         <Champ nom="placesMax" libelle="Places maximum" placeholder="12" valeurParDefaut={v("placesMax")} />
         <div className="sm:col-span-2">
           <ChampLong nom="notes" libelle="Notes" valeurParDefaut={v("notes")} />

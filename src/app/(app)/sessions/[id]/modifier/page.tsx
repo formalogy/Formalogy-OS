@@ -47,6 +47,8 @@ export default async function PageModifierSession({ params }: { params: Promise<
     horaires: session.horaires ?? "",
     lieu: session.lieu ?? "",
     modalite: session.modalite,
+    attribution: session.interne ? "FORMALOGY" : "FORMATEUR",
+    plateforme: session.plateforme ?? "",
     statut: session.statut,
     trainerId: session.trainerId ?? "",
     placesMax: session.placesMax?.toString() ?? "",

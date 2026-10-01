@@ -506,9 +506,6 @@ model Formation {
   /// Certification visée (RS, RNCP, TOSA…), le cas échéant
   certification String?
 
-  /// Plateforme en ligne (e-learning, hybride) : choisit l'adresse donnée
-  /// dans l'email de connexion.
-  plateforme PlateformeElearning?
   dureeHeures Decimal? @db.Decimal(6, 2)
   dureeJours  Decimal? @db.Decimal(4, 1)
   /// Prix de référence hors taxes, en euros
@@ -574,6 +571,12 @@ model TrainingSession {
 
   modalite ModaliteFormation
   statut   StatutSession     @default(BROUILLON)
+  /// Session attribuée à Formalogy (formation en interne) plutôt qu'au
+  /// formateur ; le formateur reste désigné dans les deux cas.
+  interne Boolean @default(false)
+  /// Plateforme e-learning, obligatoire pour une session interne en ligne
+  /// (e-learning, hybride) ; vide sinon : le formateur gère l'accès.
+  plateforme PlateformeElearning?
 
   /// Alerte du client : tant qu'elle est posée, plus rien ne part pour cette
   /// session (envois, documents, changement de statut, facture). Le
@@ -666,6 +669,8 @@ model SessionLearner {
 enum PlateformeElearning {
   EFORMA
   MON_PARCOURS_EN_LIGNE
+  /// Inutilisée (choix abandonné le 01/10/2026)
+  FORMATEUR
 }
 
 enum CategorieDocument {

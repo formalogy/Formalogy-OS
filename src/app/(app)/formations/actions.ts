@@ -52,10 +52,6 @@ const schemaFormation = z.object({
     .transform((valeur) => valeur.toUpperCase()),
   categoryId: texteFacultatif,
   modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
-  plateforme: z
-    .enum(["EFORMA", "MON_PARCOURS_EN_LIGNE", ""])
-    .optional()
-    .transform((v) => v || null),
   statut: z.enum(["BROUILLON", "ACTIVE", "ARCHIVEE"]),
   dureeHeures: nombreFacultatif("La durée en heures doit être un nombre positif."),
   dureeJours: nombreFacultatif("La durée en jours doit être un nombre positif."),

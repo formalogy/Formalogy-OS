@@ -45,3 +45,4 @@ export const LIBELLE_PLATEFORME = {
   EFORMA: "E-forma",
   MON_PARCOURS_EN_LIGNE: "Mon Parcours En Ligne",
 } as const;
+
