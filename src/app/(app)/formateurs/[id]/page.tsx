@@ -94,6 +94,7 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
               <Ligne libelle="Email" valeur={f.email} />
               <Ligne libelle="Téléphone" valeur={f.telephone} />
               <Ligne libelle="Statut" valeur={LIBELLE_STATUT_FORMATEUR[f.statut]} />
+              <Ligne libelle="Travaille en" valeur={f.modalite === "PRESENTIEL" ? "Présentiel" : f.modalite === "DISTANCIEL" ? "Distanciel (visio)" : "Non précisé"} />
               <Ligne libelle="SIRET" valeur={f.siret} />
               <Ligne libelle="Numéro de déclaration d'activité" valeur={f.numeroDeclaration} />
               <Ligne libelle="Spécialités" valeur={f.specialites} />

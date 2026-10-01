@@ -689,7 +689,9 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   (`assistant.validated`). Le détail affiché est relu en base, pas repris de
   l'IA. Ni facture, ni suppression.
 - **Formateurs** : proposition `FORMATEUR` (fiche, mêmes contrôles que le
-  formulaire, `lib/formateurs-creation.ts`, homonyme signalé) ; un programme
+  formulaire, `lib/formateurs-creation.ts`, homonyme signalé) ; modalité
+  habituelle du formateur (`trainers.modalite`, présentiel/distanciel),
+  pré-sélectionnée sur la session quand on le choisit (hors session Formalogy) ; un programme
   PDF peut créer son formateur en même temps (`nouveauFormateur`).
 - **Programmes PDF** (01/10/2026) : trombone de la fenêtre → PDF déposé
   (`POST /api/assistant/fichier`, stockage `assistant/<uuid>.pdf`, seule la
@@ -698,7 +700,8 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   contrôles que le formulaire, `lib/formations-creation.ts`) ou formation
   existante, et PDF rangé comme document `PROGRAMME` du formateur ; le PDF
   temporaire est supprimé à la validation. Contenu repris fidèlement, rien
-  d'inventé ; modalité e-learning ou hybride. Clé branchée le 01/10/2026
+  d'inventé ; modalité reprise du PDF (formateurs surtout en présentiel,
+  seules les formations propres à Formalogy en ligne). Clé branchée le 01/10/2026
   (une clé doit être rattachée à un workspace Anthropic).
 - **Emails** : l'assistant n'en rédige aucun ; il choisit un modèle actif
   d'après sa rubrique « Quand l'utiliser » et propose l'envoi à un apprenant

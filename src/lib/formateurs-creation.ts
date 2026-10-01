@@ -19,6 +19,11 @@ export const schemaFormateur = z.object({
   ),
   telephone: texteFacultatif,
   statut: z.enum(["INDEPENDANT", "SALARIE", "SOUS_TRAITANT"]),
+  /// Façon habituelle de travailler ; vide = non précisée.
+  modalite: z
+    .enum(["PRESENTIEL", "DISTANCIEL", ""])
+    .optional()
+    .transform((v) => v || null),
   siret: texteFacultatif.refine(
     (v) => v === undefined || /^\d{14}$/.test(v.replace(/\s/g, "")),
     "Le SIRET doit comporter 14 chiffres.",
@@ -39,6 +44,7 @@ export function donneesFormateur(d: z.infer<typeof schemaFormateur>) {
     email: d.email?.toLowerCase() ?? null,
     telephone: d.telephone ?? null,
     statut: d.statut,
+    modalite: d.modalite,
     siret: d.siret?.replace(/\s/g, "") ?? null,
     numeroDeclaration: d.numeroDeclaration ?? null,
     specialites: d.specialites ?? null,

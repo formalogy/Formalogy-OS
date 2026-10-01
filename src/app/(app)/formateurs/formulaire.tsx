@@ -48,6 +48,16 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
         />
         <Champ nom="telephone" libelle="Téléphone" valeurParDefaut={v("telephone")} />
         <ChampListe nom="statut" libelle="Statut" options={STATUTS} valeurParDefaut={v("statut") ?? "INDEPENDANT"} />
+        <ChampListe
+          nom="modalite"
+          libelle="Travaille habituellement en"
+          options={[
+            { valeur: "", libelle: "Non précisé" },
+            { valeur: "PRESENTIEL", libelle: "Présentiel" },
+            { valeur: "DISTANCIEL", libelle: "Distanciel (visio)" },
+          ]}
+          valeurParDefaut={v("modalite") ?? ""}
+        />
         <Champ nom="siret" libelle="SIRET" placeholder="14 chiffres" valeurParDefaut={v("siret")} />
         <Champ
           nom="numeroDeclaration"

@@ -23,6 +23,7 @@ export const schemaFormateurPropose = z.object({
   email: texte,
   telephone: texte,
   statut: z.enum(["INDEPENDANT", "SALARIE", "SOUS_TRAITANT"]).default("INDEPENDANT"),
+  modalite: z.enum(["PRESENTIEL", "DISTANCIEL"]).optional(),
   siret: texte,
   numeroDeclaration: texte,
   specialites: texte,

@@ -20,7 +20,7 @@ import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelle
 type Props = {
   formations: { id: string; titre: string; reference: string; modalite: string }[];
   entreprises: { id: string; raisonSociale: string }[];
-  formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[] }[];
+  formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[]; modalite: string | null }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
   initiales?: Record<string, string> & { id: string };
   /// Pré-remplissage d'une création (depuis une fiche formation ou entreprise)
@@ -46,7 +46,17 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         const champ = e.target as unknown as HTMLSelectElement;
         if (champ.name === "modalite") setModalite(champ.value);
         if (champ.name === "attribution") setAttribution(champ.value);
-        if (champ.name === "trainerId") setFormateurId(champ.value);
+        if (champ.name === "trainerId") {
+          setFormateurId(champ.value);
+          // Sa façon habituelle de travailler devient la modalité proposée
+          // (une session Formalogy reste en ligne).
+          const habituelle = formateurs.find((f) => f.id === champ.value)?.modalite;
+          const liste = champ.form?.elements.namedItem("modalite") as HTMLSelectElement | null;
+          if (habituelle && attribution !== "FORMALOGY" && liste) {
+            liste.value = habituelle;
+            setModalite(habituelle);
+          }
+        }
       }}
       className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm"
     >

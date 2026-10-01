@@ -30,6 +30,7 @@ export async function optionsFormateurs(actuelId?: string | null) {
       prenom: true,
       nom: true,
       specialites: true,
+      modalite: true,
       // Ses programmes, à choisir pour la session (client, 01/10/2026)
       documents: {
         where: { deletedAt: null, type: { code: "PROGRAMME" } },
@@ -42,6 +43,7 @@ export async function optionsFormateurs(actuelId?: string | null) {
     id: f.id,
     libelle: `${f.nom} ${f.prenom}${f.specialites ? ` — ${f.specialites}` : ""}`,
     programmes: f.documents,
+    modalite: f.modalite,
   }));
 }
 

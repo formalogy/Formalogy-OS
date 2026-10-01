@@ -21,6 +21,7 @@ export default async function PageModifierFormateur({ params }: { params: Promis
     email: f.email ?? "",
     telephone: f.telephone ?? "",
     statut: f.statut,
+    modalite: f.modalite ?? "",
     siret: f.siret ?? "",
     numeroDeclaration: f.numeroDeclaration ?? "",
     specialites: f.specialites ?? "",

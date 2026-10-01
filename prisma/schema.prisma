@@ -1050,6 +1050,9 @@ model Trainer {
   telephone String?
 
   statut StatutFormateur @default(INDEPENDANT)
+  /// Façon habituelle de travailler (présentiel ou distanciel) : proposée
+  /// d'office sur ses sessions. Vide = non précisée.
+  modalite ModaliteFormation?
   siret  String?
   /// Numéro de déclaration d'activité (NDA), pour un formateur indépendant ou
   /// sous-traitant lui-même organisme de formation déclaré.
