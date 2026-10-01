@@ -5,6 +5,9 @@ import { adressePublique } from "@/lib/adresse-publique";
 /// des modèles : une variable inconnue est signalée avant l'enregistrement.
 export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "organisme.nom": "Nom de l'organisme",
+  "organisme.telephone": "Téléphone de l'organisme (Paramètres → Organisme)",
+  "organisme.email": "Adresse email de l'organisme",
+  "formation.duree": "Durée de la formation en heures (ex. 14 heures)",
   "apprenant.prenom": "Prénom de l'apprenant",
   "apprenant.nom": "Nom de l'apprenant",
   "apprenant.email": "Adresse email de l'apprenant (identifiant de la plateforme en ligne)",

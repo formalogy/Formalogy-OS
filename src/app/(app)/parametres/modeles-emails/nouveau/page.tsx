@@ -15,7 +15,7 @@ export default async function PageNouveauModele() {
         </Link>
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Nouveau modèle d&apos;email</h1>
       </header>
-      <EditeurModele lectureSeule={false} initial={{ id: "", nom: "", description: "", sujet: "", corps: "", actif: true }} />
+      <EditeurModele lectureSeule={false} initial={{ id: "", nom: "", description: "", sujet: "", corps: "", actif: true, proposeApprenant: true }} />
     </>
   );
 }

@@ -110,6 +110,13 @@ export async function envoyerEmail(message: MessageAEnvoyer) {
     });
   }
 
+  // Un passage à compléter du modèle ne part jamais tel quel.
+  if (/À COMPLÉTER/i.test(`${message.sujet}\n${message.corps}`)) {
+    return prisma.email.create({
+      data: { ...base, statut: "ECHEC", erreur: "Le message contient encore un passage « À COMPLÉTER » : remplacez-le avant l'envoi." },
+    });
+  }
+
   if (!envoiReelActif()) {
     return prisma.email.create({ data: { ...base, statut: "SIMULE" } });
   }

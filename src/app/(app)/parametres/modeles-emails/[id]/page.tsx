@@ -49,6 +49,7 @@ export default async function PageModeleEmail({ params }: { params: Promise<{ id
           sujet: modele.sujet,
           corps: modele.corps,
           actif: modele.actif,
+          proposeApprenant: modele.proposeApprenant,
         }}
       />
     </>

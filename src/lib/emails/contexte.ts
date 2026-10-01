@@ -53,7 +53,7 @@ export async function construireContexte(ids: {
       ? prisma.trainingSession.findUnique({
           where: { id: ids.sessionId },
           include: {
-            formation: { select: { titre: true } },
+            formation: { select: { titre: true, dureeHeures: true } },
             company: { select: { raisonSociale: true } },
             trainer: { select: { prenom: true, nom: true } },
           },
@@ -69,6 +69,9 @@ export async function construireContexte(ids: {
 
   return {
     "organisme.nom": organisme.raisonSociale,
+    "organisme.telephone": organisme.telephone,
+    "organisme.email": organisme.email,
+    "formation.duree": session?.formation.dureeHeures ? `${Number(session.formation.dureeHeures).toLocaleString("fr-FR")} heures` : undefined,
     "apprenant.prenom": apprenant?.prenom,
     "apprenant.nom": apprenant?.nom,
     "apprenant.email": apprenant?.email,

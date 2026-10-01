@@ -811,6 +811,9 @@ model EmailTemplate {
   sujet       String
   corps       String
   actif       Boolean @default(true)
+  /// Proposé dans « Écrire un email » de la fiche d'un stagiaire (et à
+  /// l'assistant IA) : la bibliothèque des emails aux stagiaires.
+  proposeApprenant Boolean @default(false)
 
   emails Email[]
 

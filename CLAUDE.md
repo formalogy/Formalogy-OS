@@ -81,13 +81,22 @@ et que le projet peut migrer ailleurs en quelques heures.
   convocation de J-7 mais sans le PDF : active, elle partait la première et
   bloquait l'envoi de la vraie convocation). Une automatisation nouvelle est
   livrée active.
-- **Accès à la plateforme en ligne** (01/10/2026) : à l'inscription à une
-  session e-learning ou hybride (condition `modalite`), l'apprenant reçoit le
-  modèle `CONNEXION_PLATEFORME` : identifiant = son email, mot de passe de
-  première connexion = initiales du prénom et du nom en majuscules, sans
-  accent, suivies de 12345 (`motDePasseInitial`, variable
+- **Accès à la plateforme en ligne** (01/10/2026) : le jour du démarrage
+  d'une session e-learning ou hybride, à 8 h (condition `modalite`), chaque
+  inscrit reçoit le modèle `CONNEXION_PLATEFORME` : identifiant = son email,
+  mot de passe de première connexion = initiales du prénom et du nom en
+  majuscules, sans accent, suivies de 12345 (`motDePasseInitial`, variable
   `{{apprenant.motDePasse}}`, masquée dans l'historique). L'adresse de la
-  plateforme est à compléter dans le modèle.
+  plateforme est à compléter dans le modèle : d'ici là, l'envoi échoue.
+- **Bibliothèque des emails aux stagiaires** (01/10/2026, reformulée d'après
+  les exemples du client) : modèles cochés « proposé dans Écrire un email »
+  (`email_templates.proposeApprenant`), seuls proposés sur la fiche d'un
+  stagiaire et à l'assistant — bienvenue présentiel/visio, e-learning, mixte,
+  fin de parcours TOSA, félicitations TOSA, lien d'inscription, prise en
+  charge par le financeur, plus les modèles existants adressés aux
+  stagiaires. Un passage `[À COMPLÉTER : …]` bloque tout envoi
+  (`envoyerEmail`) tant qu'il n'est pas remplacé ; l'assistant ne propose
+  pas ces modèles-là.
 - **Modèles d'emails** : Paramètres → Modèles d'emails ; un administrateur
   peut en créer (« Nouveau modèle », code tiré du nom). La rubrique « Quand
   l'utiliser » (`description`) guide l'assistant IA dans son choix.

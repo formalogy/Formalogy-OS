@@ -94,7 +94,7 @@ export default async function PageApprenant({
     // Les modèles à lien personnel (questionnaire) partent depuis la fin de
     // formation, où le lien est créé : pas depuis la fiche.
     prisma.emailTemplate.findMany({
-      where: { actif: true, NOT: [{ corps: { contains: "questionnaire.lien" } }, { sujet: { contains: "questionnaire.lien" } }] },
+      where: { actif: true, proposeApprenant: true, NOT: [{ corps: { contains: "questionnaire.lien" } }, { sujet: { contains: "questionnaire.lien" } }] },
       orderBy: { nom: "asc" },
     }),
     construireContexte({

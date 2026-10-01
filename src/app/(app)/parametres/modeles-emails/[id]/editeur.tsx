@@ -9,6 +9,9 @@ import { rendre, VARIABLES_DISPONIBLES, variablesInconnues } from "@/lib/emails/
 /// Valeurs d'exemple pour l'aperçu. Clairement fictives.
 const EXEMPLE: Record<string, string> = {
   "organisme.nom": "Formalogy",
+  "organisme.telephone": "07 00 00 00 00",
+  "organisme.email": "contact@exemple.fr",
+  "formation.duree": "14 heures",
   "apprenant.prenom": "Camille",
   "apprenant.nom": "Exemple",
   "apprenant.email": "camille.exemple@exemple.fr",
@@ -33,7 +36,7 @@ const CHAMP =
 type Props = {
   lectureSeule: boolean;
   /// id vide : création d'un nouveau modèle.
-  initial: { id: string; nom: string; description: string; sujet: string; corps: string; actif: boolean };
+  initial: { id: string; nom: string; description: string; sujet: string; corps: string; actif: boolean; proposeApprenant: boolean };
 };
 
 export function EditeurModele({ lectureSeule, initial }: Props) {
@@ -76,6 +79,13 @@ export function EditeurModele({ lectureSeule, initial }: Props) {
             <input type="checkbox" name="actif" defaultChecked={initial.actif} />
             Modèle actif
           </label>
+          <label className="flex items-center gap-2 text-[12.5px] font-semibold">
+            <input type="checkbox" name="proposeApprenant" defaultChecked={initial.proposeApprenant} />
+            Proposé dans « Écrire un email » de la fiche d&apos;un stagiaire
+          </label>
+          <p className="-mt-2 text-[11.5px] text-texte-tenu">
+            Un passage « [À COMPLÉTER : …] » empêche l&apos;envoi tant qu&apos;il n&apos;a pas été remplacé.
+          </p>
 
           {inconnues.length > 0 && (
             <p className="rounded-lg bg-danger-pale px-3 py-2 text-[12px] text-danger">

@@ -27,6 +27,7 @@ const schemaModele = z.object({
   sujet: z.string().trim().min(1, "Le sujet est obligatoire.").max(200, "Le sujet est trop long (200 caractères maximum)."),
   corps: z.string().trim().min(1, "Le message est obligatoire."),
   actif: z.enum(["on"]).optional(),
+  proposeApprenant: z.enum(["on"]).optional(),
 });
 
 export async function modifierModele(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
@@ -52,6 +53,7 @@ export async function modifierModele(_precedent: EtatFormulaire, donnees: FormDa
     sujet: r.data.sujet,
     corps: r.data.corps,
     actif: r.data.actif === "on",
+    proposeApprenant: r.data.proposeApprenant === "on",
   };
   const nouveau = !r.data.id;
   const modele = nouveau

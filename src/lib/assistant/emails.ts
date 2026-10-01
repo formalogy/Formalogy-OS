@@ -19,6 +19,10 @@ export async function emailDepuisModele(p: { learnerId: string; modeleCode: stri
     throw new Error("cet apprenant n'est pas inscrit à cette session");
   }
 
+  if (/À COMPLÉTER/i.test(`${modele.sujet}\n${modele.corps}`)) {
+    throw new Error(`le modèle « ${modele.nom} » contient un passage à compléter : il s'envoie depuis « Écrire un email » sur la fiche du stagiaire`);
+  }
+
   const contexte = await construireContexte({ learnerId: apprenant.id, sessionId: p.sessionId, companyId: apprenant.companyId ?? undefined });
   const sujet = rendre(modele.sujet, contexte);
   const corps = rendre(modele.corps, contexte);
