@@ -2,14 +2,22 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { assistantConfigure, repondre } from "@/lib/assistant/agent";
+import { schemaFichierAssistant } from "@/lib/assistant/fichiers";
 import { lireUtilisateur } from "@/lib/session";
 
-/// Une réponse de l'assistant peut demander plusieurs lectures de la base.
-export const maxDuration = 120;
+/// Une réponse de l'assistant peut demander plusieurs lectures de la base,
+/// ou la lecture d'un programme PDF.
+export const maxDuration = 300;
 
 const schema = z.object({
   messages: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(20_000) }))
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().min(1).max(20_000),
+        fichiers: z.array(schemaFichierAssistant).max(5).optional(),
+      }),
+    )
     .min(1)
     .max(60),
 });

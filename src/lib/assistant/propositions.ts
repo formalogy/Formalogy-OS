@@ -73,6 +73,36 @@ export const schemaProposition = z.discriminatedUnion("type", [
     sessionId: texte,
   }),
   z.object({
+    /// Programme PDF transmis à l'assistant, mis au format de l'application :
+    /// fiche formation (nouvelle, ou existante) et PDF rangé comme programme
+    /// du formateur.
+    type: z.literal("PROGRAMME"),
+    fichierId: z.uuid(),
+    nomFichier: z.string().trim().min(1).max(200),
+    nom: z.string().trim().min(1).max(200),
+    trainerId: texte,
+    /// Formation existante à laquelle rattacher le programme ; sinon,
+    /// `formation` décrit la fiche à créer.
+    formationId: texte,
+    formation: z
+      .object({
+        titre: z.string().trim().min(1),
+        reference: z.string().trim().min(1),
+        modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
+        dureeHeures: texte,
+        dureeJours: texte,
+        prixHT: texte,
+        description: z.string().trim().max(20000).optional(),
+        objectifs: z.string().trim().max(20000).optional(),
+        programme: z.string().trim().max(20000).optional(),
+        prerequis: z.string().trim().max(20000).optional(),
+        publicVise: z.string().trim().max(20000).optional(),
+        competences: z.string().trim().max(20000).optional(),
+        certification: texte,
+      })
+      .optional(),
+  }),
+  z.object({
     type: z.literal("DEROULEMENT"),
     sessionId: z.string().min(1),
     operation: z.enum(["suspendre", "reprendre", "annuler"]),

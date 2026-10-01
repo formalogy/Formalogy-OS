@@ -1,6 +1,6 @@
 "use client";
 
-import { IconCheck, IconLoader2, IconSend, IconSparkles, IconX } from "@tabler/icons-react";
+import { IconCheck, IconFileTypePdf, IconLoader2, IconPaperclip, IconSend, IconSparkles, IconX } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,7 +9,8 @@ import type { PropositionAffichee } from "@/lib/assistant/propositions";
 
 type EtatProposition = "attente" | "encours" | "validee" | "ecartee" | "erreur";
 type PropositionSuivie = PropositionAffichee & { etat: EtatProposition; retour?: string; lien?: string };
-type Entree = { role: "user" | "assistant"; content: string; propositions?: PropositionSuivie[] };
+type Fichier = { id: string; nom: string };
+type Entree = { role: "user" | "assistant"; content: string; fichiers?: Fichier[]; propositions?: PropositionSuivie[] };
 
 const CLE_STOCKAGE = "formalogy-assistant";
 const EXEMPLES = [
@@ -17,6 +18,7 @@ const EXEMPLES = [
   "Qu'est-ce qui bloque en ce moment ?",
   "Quels paiements sont attendus d'ici la fin du mois ?",
 ];
+const DEMANDE_PROGRAMME = "Mets ce programme au format de l'application.";
 const LIBELLE_ETAT: Partial<Record<EtatProposition, string>> = { validee: "validée et faite", ecartee: "écartée", erreur: "échouée", attente: "en attente de validation" };
 
 /// Ce que Claude relit de la conversation : les textes, et le sort de
@@ -24,6 +26,7 @@ const LIBELLE_ETAT: Partial<Record<EtatProposition, string>> = { validee: "valid
 function historique(entrees: Entree[]) {
   return entrees.map((e) => ({
     role: e.role,
+    ...(e.fichiers?.length ? { fichiers: e.fichiers } : {}),
     content: [e.content, ...(e.propositions ?? []).map((p) => `[Proposition « ${p.titre} » : ${LIBELLE_ETAT[p.etat] ?? p.etat}${p.retour ? ` — ${p.retour}` : ""}]`)].join("\n"),
   }));
 }
@@ -37,7 +40,36 @@ export function Assistant() {
   const [saisie, setSaisie] = useState("");
   const [attente, setAttente] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [joints, setJoints] = useState<Fichier[]>([]);
+  const [depot, setDepot] = useState(false);
   const fil = useRef<HTMLDivElement>(null);
+  const champFichier = useRef<HTMLInputElement>(null);
+
+  /// PDF déposé sur le serveur avant l'envoi du message : seule sa
+  /// référence voyage ensuite dans la conversation.
+  async function joindre(liste: FileList | null) {
+    if (!liste?.length) return;
+    setDepot(true);
+    setErreur(null);
+    try {
+      for (const fichier of Array.from(liste).slice(0, 5)) {
+        const donnees = new FormData();
+        donnees.set("fichier", fichier);
+        const r = await fetch("/api/assistant/fichier", { method: "POST", body: donnees });
+        const retour = await r.json().catch(() => ({ erreur: "Réponse illisible du serveur." }));
+        if (!r.ok || retour.erreur) {
+          setErreur(`${fichier.name} : ${retour.erreur ?? "dépôt impossible."}`);
+          continue;
+        }
+        setJoints((l) => [...l, { id: retour.id, nom: retour.nom }].slice(0, 5));
+      }
+    } catch {
+      setErreur("Connexion impossible avec le serveur.");
+    } finally {
+      setDepot(false);
+      if (champFichier.current) champFichier.current.value = "";
+    }
+  }
 
   // La conversation survit au rechargement de l'onglet (pas au-delà).
   useEffect(() => {
@@ -55,11 +87,13 @@ export function Assistant() {
   }, [entrees, attente]);
 
   async function envoyer(texte: string) {
-    const question = texte.trim();
-    if (!question || attente) return;
-    const suite: Entree[] = [...entrees, { role: "user", content: question }];
+    const fichiers = joints;
+    const question = texte.trim() || (fichiers.length ? DEMANDE_PROGRAMME : "");
+    if (!question || attente || depot) return;
+    const suite: Entree[] = [...entrees, { role: "user", content: question, ...(fichiers.length ? { fichiers } : {}) }];
     setEntrees(suite);
     setSaisie("");
+    setJoints([]);
     setErreur(null);
     setAttente(true);
     try {
@@ -72,7 +106,8 @@ export function Assistant() {
       if (!r.ok || donnees.erreur) {
         setErreur(donnees.erreur ?? "L'assistant ne répond pas.");
         setEntrees(entrees);
-        setSaisie(question);
+        setSaisie(texte);
+        setJoints(fichiers);
         return;
       }
       setEntrees([
@@ -86,7 +121,8 @@ export function Assistant() {
     } catch {
       setErreur("Connexion impossible avec le serveur.");
       setEntrees(entrees);
-      setSaisie(question);
+      setSaisie(texte);
+      setJoints(fichiers);
     } finally {
       setAttente(false);
     }
@@ -145,7 +181,7 @@ export function Assistant() {
           <div ref={fil} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-[13px]">
             {entrees.length === 0 && (
               <div className="space-y-3 text-texte-doux">
-                <p>Posez une question sur vos apprenants, sessions, factures… ou demandez-moi de préparer une action (créer un apprenant, l&apos;inscrire, signaler une absence). Rien ne se fait sans votre validation.</p>
+                <p>Posez une question sur vos apprenants, sessions, factures… ou demandez-moi de préparer une action (créer un apprenant, l&apos;inscrire, signaler une absence). Joignez un programme en PDF avec le trombone : je le mets au format de l&apos;application. Rien ne se fait sans votre validation.</p>
                 <div className="space-y-1.5">
                   {EXEMPLES.map((e) => (
                     <button key={e} type="button" onClick={() => envoyer(e)} className="block w-full rounded-xl border border-bordure px-3 py-2 text-left text-texte hover:bg-surface-creuse">
@@ -159,6 +195,12 @@ export function Assistant() {
             {entrees.map((e, i) =>
               e.role === "user" ? (
                 <div key={i} className="ml-8 whitespace-pre-wrap rounded-2xl rounded-br-md bg-barre px-3.5 py-2.5 text-white">
+                  {e.fichiers?.map((f) => (
+                    <div key={f.id} className="mb-1.5 flex items-center gap-1.5 text-[12px] text-white/85">
+                      <IconFileTypePdf className="size-4 shrink-0" stroke={1.75} aria-hidden="true" />
+                      <span className="truncate">{f.nom}</span>
+                    </div>
+                  ))}
                   {e.content}
                 </div>
               ) : (
@@ -225,8 +267,37 @@ export function Assistant() {
               ev.preventDefault();
               envoyer(saisie);
             }}
-            className="flex shrink-0 items-end gap-2 border-t border-bordure-douce p-3"
+            className="flex shrink-0 flex-wrap items-end gap-2 border-t border-bordure-douce p-3"
           >
+            {(joints.length > 0 || depot) && (
+              <div className="flex w-full flex-wrap gap-1.5">
+                {joints.map((f) => (
+                  <span key={f.id} className="flex max-w-full items-center gap-1 rounded-full bg-surface-creuse py-1 pl-2.5 pr-1 text-[11.5px]">
+                    <IconFileTypePdf className="size-3.5 shrink-0 text-danger" stroke={1.75} aria-hidden="true" />
+                    <span className="truncate">{f.nom}</span>
+                    <button type="button" aria-label={`Retirer ${f.nom}`} onClick={() => setJoints((l) => l.filter((x) => x.id !== f.id))} className="flex size-5 items-center justify-center rounded-full hover:bg-bordure">
+                      <IconX className="size-3" stroke={2} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+                {depot && (
+                  <span className="flex items-center gap-1 text-[11.5px] text-texte-tenu">
+                    <IconLoader2 className="size-3.5 animate-spin" aria-hidden="true" /> Envoi du PDF…
+                  </span>
+                )}
+              </div>
+            )}
+            <input ref={champFichier} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(ev) => joindre(ev.target.files)} />
+            <button
+              type="button"
+              onClick={() => champFichier.current?.click()}
+              disabled={depot || attente}
+              aria-label="Joindre un programme en PDF"
+              title="Joindre un programme en PDF"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-texte-doux hover:bg-surface-creuse disabled:opacity-50"
+            >
+              <IconPaperclip className="size-5" stroke={1.75} aria-hidden="true" />
+            </button>
             <textarea
               value={saisie}
               onChange={(ev) => setSaisie(ev.target.value)}
@@ -237,13 +308,13 @@ export function Assistant() {
                 }
               }}
               rows={2}
-              placeholder="Votre question ou votre demande…"
+              placeholder={joints.length ? "Précisez le formateur, ou envoyez tel quel…" : "Votre question ou votre demande…"}
               aria-label="Message à l'assistant"
               className="min-h-[2.75rem] flex-1 resize-none rounded-xl border border-bordure bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent"
             />
             <button
               type="submit"
-              disabled={attente || !saisie.trim()}
+              disabled={attente || depot || (!saisie.trim() && joints.length === 0)}
               aria-label="Envoyer"
               className="flex size-10 shrink-0 items-center justify-center rounded-full bg-barre-logo text-white disabled:opacity-50"
             >

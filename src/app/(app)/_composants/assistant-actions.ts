@@ -1,16 +1,23 @@
 "use server";
 
+import { createHash, randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 
 import { enregistrerPresence } from "@/app/(app)/emargements/actions";
 import { changerStatutSession, inscrireApprenant, piloterDeroulementSession } from "@/app/(app)/sessions/actions";
 import { creerFicheApprenant, schemaApprenant } from "@/lib/apprenants-creation";
 import { emailDepuisModele } from "@/lib/assistant/emails";
+import { lireFichierAssistant } from "@/lib/assistant/fichiers";
 import { schemaProposition } from "@/lib/assistant/propositions";
+import { cheminStockage } from "@/lib/documents-depot";
 import { envoyerEmail } from "@/lib/emails/envoi";
+import { assainirChampsRiches, referenceDejaPrise, schemaFormation } from "@/lib/formations-creation";
 import { journaliser } from "@/lib/journal";
+import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { creerSessionBrouillon, schemaSession } from "@/lib/sessions-creation";
+import { stockage } from "@/lib/stockage";
 
 export type ResultatProposition = { erreur?: string; succes?: string; lien?: string };
 
@@ -92,6 +99,81 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
       const lien = `/apprenants/${e.apprenant.id}`;
       if (email.statut === "ECHEC") return { erreur: `L'email n'est pas parti : ${email.erreur}`, lien };
       return { succes: email.statut === "SIMULE" ? "Email enregistré (simulation : l'envoi réel n'est pas activé)." : "Email envoyé.", lien };
+    }
+    case "PROGRAMME": {
+      if (p.trainerId && !(await prisma.trainer.findFirst({ where: { id: p.trainerId, deletedAt: null } }))) {
+        return { erreur: "Ce formateur n'existe plus." };
+      }
+      const typeProgramme = await prisma.documentType.findUnique({ where: { code: "PROGRAMME" } });
+      if (!typeProgramme) return { erreur: "Le type de document « Programme » manque." };
+      let octets: Uint8Array;
+      try {
+        octets = await lireFichierAssistant(p.fichierId);
+      } catch {
+        return { erreur: "Le PDF n'est plus disponible : joignez-le de nouveau à l'assistant." };
+      }
+
+      // La fiche formation : celle qui existe, ou une nouvelle en brouillon,
+      // avec les contrôles du formulaire (référence unique, nombres…).
+      let formation = p.formationId ? await prisma.formation.findFirst({ where: { id: p.formationId, deletedAt: null } }) : null;
+      if (p.formationId && !formation) return { erreur: "Cette formation n'existe plus." };
+      if (!formation) {
+        if (!p.formation) return { erreur: "Aucune fiche formation à créer." };
+        const f = schemaFormation.safeParse({ ...p.formation, statut: "BROUILLON", categoryId: "" });
+        if (!f.success) return { erreur: f.error.issues[0]?.message ?? "Fiche formation invalide." };
+        const doublon = await referenceDejaPrise(f.data.reference);
+        if (doublon) return { erreur: `La référence ${f.data.reference} est déjà utilisée par « ${doublon.titre} » : demandez une autre référence à l'assistant.` };
+        const { categoryId, ...reste } = assainirChampsRiches(f.data);
+        formation = await prisma.formation.create({ data: { ...reste, categoryId: categoryId ?? null, createdById: utilisateur.id } });
+        await journaliser({
+          action: "formation.created",
+          summary: `Formation ajoutée au catalogue : ${formation.titre} (${formation.reference})`,
+          entityType: "Formation",
+          entityId: formation.id,
+          userId: utilisateur.id,
+        });
+      }
+
+      // Le PDF devient le programme du formateur (proposé sur ses sessions).
+      const documentId = randomUUID();
+      const chemin = cheminStockage(documentId, 1, "pdf");
+      await stockage().deposer(chemin, octets, "application/pdf");
+      try {
+        await prisma.document.create({
+          data: {
+            id: documentId,
+            nom: p.nom,
+            typeId: typeProgramme.id,
+            categorie: typeProgramme.categorie,
+            formationId: formation.id,
+            trainerId: p.trainerId ?? null,
+            createdById: utilisateur.id,
+            versions: {
+              create: {
+                numero: 1,
+                cheminStockage: chemin,
+                nomFichier: p.nomFichier,
+                typeMime: "application/pdf",
+                taille: octets.byteLength,
+                empreinte: createHash("sha256").update(octets).digest("hex"),
+                createdById: utilisateur.id,
+              },
+            },
+          },
+        });
+      } catch (erreur) {
+        await stockage().supprimer([chemin]).catch(() => undefined);
+        throw erreur;
+      }
+      await stockage().supprimer([`assistant/${p.fichierId}.pdf`]).catch(() => undefined);
+
+      revalidatePath("/formations");
+      if (p.trainerId) revalidatePath(`/formateurs/${p.trainerId}`);
+      await tracer(`programme « ${p.nom} » rangé (formation ${formation.reference})`);
+      return {
+        succes: p.formationId ? `Programme « ${p.nom} » rangé.` : `Fiche « ${formation.titre} » créée en brouillon et programme rangé.`,
+        lien: `/formations/${formation.id}`,
+      };
     }
     case "DEROULEMENT": {
       const lien = `/sessions/${p.sessionId}`;
