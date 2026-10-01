@@ -36,7 +36,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { GroupeMenu } from "@/lib/navigation";
 
@@ -146,6 +146,25 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
   const groupeActif = groupes.find((g) => g.entrees.some((e) => e.chemin && e.chemin === entreeActive))?.titre ?? null;
   const plat = groupes.length === 1;
   const groupeDeplie = groupes.find((g) => g.titre === deplie) ?? null;
+  // Milieu vertical de la rubrique cliquée : le panneau se cale pour que son
+  // premier sous-menu soit en face (Formations ↔ Catalogue).
+  const [ancre, setAncre] = useState<number | null>(null);
+  const [haut, setHaut] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const p = panneau.current;
+    const premier = p?.querySelector("[data-entree]");
+    if (!p || !premier || ancre === null || !window.matchMedia("(min-width: 1024px)").matches) {
+      setHaut(null);
+      return;
+    }
+    const cadre = p.getBoundingClientRect();
+    const e = premier.getBoundingClientRect();
+    const decalage = e.top + e.height / 2 - (haut ?? cadre.top);
+    const voulu = ancre - decalage;
+    const maxi = window.innerHeight - 12 - cadre.height;
+    setHaut(Math.max(12, Math.min(voulu, maxi)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deplie, ancre]);
 
   // Le panneau se referme à chaque changement de page, d'un clic ailleurs ou avec Échap.
   const [cheminVu, setCheminVu] = useState(cheminActuel);
@@ -230,7 +249,11 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
                     type="button"
                     aria-expanded={ouvert}
                     aria-controls="sous-menu"
-                    onClick={() => setDeplie(ouvert ? null : groupe.titre)}
+                    onClick={(ev) => {
+                      const r = ev.currentTarget.getBoundingClientRect();
+                      setAncre(r.top + r.height / 2);
+                      setDeplie(ouvert ? null : groupe.titre);
+                    }}
                     className={`mb-0.5 flex w-full items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13.5px] transition ${FOCUS} ${
                       ouvert || (surPage && !deplie) ? PASTILLE_ACTIVE : PASTILLE_SURVOL
                     }`}
@@ -251,6 +274,7 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
         <div
           ref={panneau}
           id="sous-menu"
+          style={haut !== null ? { top: haut } : undefined}
           className="fixed inset-y-3 left-3 z-40 flex w-64 flex-col rounded-2xl bg-barre shadow-2xl lg:bottom-auto lg:left-[17.25rem] lg:max-h-[calc(100vh-1.5rem)] lg:w-60"
         >
           <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-5">
@@ -266,8 +290,10 @@ export function BarreLaterale({ groupes, ouverte, onFermer }: Props) {
           </div>
           <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label={groupeDeplie.titre}>
             <div className={BANDEAU}>
-              {groupeDeplie.entrees.map((entree) => (
-                <LienEntree key={entree.libelle} entree={entree} actif={entree.chemin === entreeActive} onChoisir={choisir} />
+              {groupeDeplie.entrees.map((entree, i) => (
+                <div key={entree.libelle} data-entree={i === 0 ? "" : undefined}>
+                  <LienEntree entree={entree} actif={entree.chemin === entreeActive} onChoisir={choisir} />
+                </div>
               ))}
             </div>
           </nav>
