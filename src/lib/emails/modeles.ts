@@ -7,6 +7,8 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "organisme.nom": "Nom de l'organisme",
   "apprenant.prenom": "Prénom de l'apprenant",
   "apprenant.nom": "Nom de l'apprenant",
+  "apprenant.email": "Adresse email de l'apprenant (identifiant de la plateforme en ligne)",
+  "apprenant.motDePasse": "Mot de passe de première connexion à la plateforme : initiales suivies de 12345 (ex. CE12345)",
   "formateur.prenom": "Prénom du formateur destinataire",
   "formateur.nom": "Nom du formateur destinataire",
   "session.numero": "Numéro de la session",
@@ -45,6 +47,14 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "questionnaire.lienFinanceur": "Lien personnel vers le questionnaire financeur",
   "questionnaire.lienSatisfactionFormateur": "Lien personnel vers le questionnaire annuel de satisfaction formateur",
 };
+
+/// Mot de passe de première connexion à la plateforme en ligne, selon la
+/// règle de l'organisme (client, 01/10/2026) : initiales du prénom et du nom,
+/// en majuscules et sans accent, suivies de 12345 — Camille Exemple → CE12345.
+export function motDePasseInitial(prenom: string, nom: string): string {
+  const initiale = (mot: string) => mot.trim().normalize("NFD").replace(/[^A-Za-z]/g, "").charAt(0).toUpperCase();
+  return `${initiale(prenom)}${initiale(nom)}12345`;
+}
 
 export type Contexte = Partial<Record<keyof typeof VARIABLES_DISPONIBLES | string, string | null | undefined>>;
 

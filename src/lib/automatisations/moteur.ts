@@ -120,6 +120,9 @@ export type ActionAutomatisation = z.infer<typeof schemaAction>;
 const schemaConditions = z.object({
   /// Ne traiter que les apprenants ayant l'un de ces financements
   financement: z.array(z.enum(["ENTREPRISE", "OPCO", "CPF", "FRANCE_TRAVAIL", "PERSONNEL", "AUTRE"])).optional(),
+  /// Ne traiter que les sessions de l'une de ces modalités (accès à la
+  /// plateforme : e-learning et hybride seulement).
+  modalite: z.array(z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"])).optional(),
 });
 
 const schemaParametres = z.object({
@@ -833,6 +836,14 @@ async function envoyerAuPayeur(p: { cas: Cas; modele: ModeleEmail; joindre?: str
 /// trace d'exécution, dont la clé est unique en base : si deux exécutions
 /// concurrentes visent le même cas, la seconde échoue à l'insertion et s'arrête.
 async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | "deja"> {
+  // Session hors des modalités visées : le cas ne la concerne pas, rien n'est
+  // réservé (un changement de modalité ne serait pas bloqué par une trace).
+  const { modalite } = lireRegle(automation).conditions;
+  if (modalite && cas.sessionId) {
+    const session = await prisma.trainingSession.findUnique({ where: { id: cas.sessionId }, select: { modalite: true } });
+    if (!session || !modalite.includes(session.modalite)) return "deja";
+  }
+
   let executionId: string;
   try {
     const execution = await prisma.automationRun.create({
@@ -1036,9 +1047,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
             sujet: rendre(modele.sujet, contexte).resultat,
             corps: rendre(modele.corps, contexte).resultat,
             corpsJournal:
-              lienQuestionnaire || lienPositionnement || lienFroid || lienSignature
+              lienQuestionnaire || lienPositionnement || lienFroid || lienSignature || modele.corps.includes("apprenant.motDePasse")
                 ? rendre(modele.corps, {
                     ...contexte,
+                    "apprenant.motDePasse": "[mot de passe masqué]",
                     "questionnaire.lien": lienQuestionnaire && "[lien personnel masqué]",
                     "questionnaire.lienPositionnement": lienPositionnement && "[lien personnel masqué]",
                     "questionnaire.lienFroid": lienFroid && "[lien personnel masqué]",

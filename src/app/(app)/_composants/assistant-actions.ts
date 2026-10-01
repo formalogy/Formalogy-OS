@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { enregistrerPresence } from "@/app/(app)/emargements/actions";
 import { changerStatutSession, inscrireApprenant, piloterDeroulementSession } from "@/app/(app)/sessions/actions";
 import { creerFicheApprenant, schemaApprenant } from "@/lib/apprenants-creation";
+import { emailDepuisModele } from "@/lib/assistant/emails";
 import { schemaProposition } from "@/lib/assistant/propositions";
+import { envoyerEmail } from "@/lib/emails/envoi";
 import { journaliser } from "@/lib/journal";
 import { exigerRole } from "@/lib/session";
 import { creerSessionBrouillon, schemaSession } from "@/lib/sessions-creation";
@@ -66,6 +68,30 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
       if (e.erreur) return { erreur: e.erreur };
       await tracer("absence signalée");
       return { succes: "Absence enregistrée.", lien: `/sessions/${p.sessionId}` };
+    }
+    case "EMAIL": {
+      let e;
+      try {
+        e = await emailDepuisModele(p);
+      } catch (erreur) {
+        return { erreur: erreur instanceof Error ? erreur.message : "Email impossible à préparer." };
+      }
+      const email = await envoyerEmail({
+        destinataire: e.destinataire,
+        sujet: e.sujet,
+        corps: e.corps,
+        corpsJournal: e.corpsJournal,
+        templateId: e.modele.id,
+        learnerId: e.apprenant.id,
+        companyId: e.apprenant.companyId ?? undefined,
+        sessionId: p.sessionId,
+        createdById: utilisateur.id,
+      });
+      await tracer(`email « ${e.modele.nom} » à ${e.apprenant.prenom} ${e.apprenant.nom} (${email.statut === "SIMULE" ? "simulé" : email.statut === "ECHEC" ? "en échec" : "envoyé"})`);
+      revalidatePath(`/apprenants/${e.apprenant.id}`);
+      const lien = `/apprenants/${e.apprenant.id}`;
+      if (email.statut === "ECHEC") return { erreur: `L'email n'est pas parti : ${email.erreur}`, lien };
+      return { succes: email.statut === "SIMULE" ? "Email enregistré (simulation : l'envoi réel n'est pas activé)." : "Email envoyé.", lien };
     }
     case "DEROULEMENT": {
       const lien = `/sessions/${p.sessionId}`;

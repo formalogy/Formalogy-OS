@@ -8,7 +8,7 @@ import { exigerRole } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function PageModelesEmails() {
-  await exigerRole("ADMIN", "GESTIONNAIRE");
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
 
   const modeles = await prisma.emailTemplate.findMany({
     orderBy: { nom: "asc" },
@@ -24,9 +24,16 @@ export default async function PageModelesEmails() {
             Les textes utilisés par les automatisations et les envois depuis les fiches.
           </p>
         </div>
-        <Link href="/emails" className="rounded-lg border border-bordure bg-surface px-4 py-2 text-[13px] font-semibold">
-          Historique des envois
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/emails" className="rounded-lg border border-bordure bg-surface px-4 py-2 text-[13px] font-semibold">
+            Historique des envois
+          </Link>
+          {utilisateur.role === "ADMIN" && (
+            <Link href="/parametres/modeles-emails/nouveau" className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:bg-accent-fort">
+              Nouveau modèle
+            </Link>
+          )}
+        </div>
       </header>
 
       <BandeauModeEnvoi reel={envoiReelActif()} />

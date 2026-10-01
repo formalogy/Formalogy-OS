@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { executerPlanifiees, lireRegle, relancerExecution } from "@/lib/automatisations/moteur";
@@ -19,7 +20,8 @@ export type EtatFormulaire = { erreur?: string; succes?: string; valeurs?: Recor
 // ---------------------------------------------------------------------------
 
 const schemaModele = z.object({
-  id: z.string().min(1),
+  /// Vide pour un nouveau modèle.
+  id: z.string().optional(),
   nom: z.string().trim().min(1, "Le nom est obligatoire."),
   description: z.string().trim().optional(),
   sujet: z.string().trim().min(1, "Le sujet est obligatoire.").max(200, "Le sujet est trop long (200 caractères maximum)."),
@@ -44,27 +46,46 @@ export async function modifierModele(_precedent: EtatFormulaire, donnees: FormDa
     };
   }
 
-  const modele = await prisma.emailTemplate.update({
-    where: { id: r.data.id },
-    data: {
-      nom: r.data.nom,
-      description: r.data.description || null,
-      sujet: r.data.sujet,
-      corps: r.data.corps,
-      actif: r.data.actif === "on",
-    },
-  });
+  const contenu = {
+    nom: r.data.nom,
+    description: r.data.description || null,
+    sujet: r.data.sujet,
+    corps: r.data.corps,
+    actif: r.data.actif === "on",
+  };
+  const nouveau = !r.data.id;
+  const modele = nouveau
+    ? await prisma.emailTemplate.create({ data: { ...contenu, code: await codeLibre(r.data.nom) } })
+    : await prisma.emailTemplate.update({ where: { id: r.data.id }, data: contenu });
 
   await journaliser({
-    action: "email_template.updated",
-    summary: `Modèle d'email modifié : ${modele.nom}`,
+    action: nouveau ? "email_template.created" : "email_template.updated",
+    summary: `Modèle d'email ${nouveau ? "créé" : "modifié"} : ${modele.nom}`,
     entityType: "EmailTemplate",
     entityId: modele.id,
     userId: utilisateur.id,
   });
 
   revalidatePath("/parametres/modeles-emails");
+  if (nouveau) redirect(`/parametres/modeles-emails/${modele.id}`);
   return { succes: "Modèle enregistré." };
+}
+
+/// Code d'un nouveau modèle, tiré de son nom (« Relance dossier CPF » →
+/// RELANCE_DOSSIER_CPF), rendu unique au besoin.
+async function codeLibre(nom: string): Promise<string> {
+  const base =
+    nom
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "MODELE";
+  for (let n = 1; ; n++) {
+    const code = n === 1 ? base : `${base}_${n}`;
+    if (!(await prisma.emailTemplate.findUnique({ where: { code } }))) return code;
+  }
 }
 
 // ---------------------------------------------------------------------------

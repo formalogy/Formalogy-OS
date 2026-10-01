@@ -11,6 +11,8 @@ const EXEMPLE: Record<string, string> = {
   "organisme.nom": "Formalogy",
   "apprenant.prenom": "Camille",
   "apprenant.nom": "Exemple",
+  "apprenant.email": "camille.exemple@exemple.fr",
+  "apprenant.motDePasse": "CE12345",
   "session.numero": "S-2026-0000",
   "session.formation": "Excel — niveau intermédiaire",
   "session.dates": "12–13 oct. 2026",
@@ -30,6 +32,7 @@ const CHAMP =
 
 type Props = {
   lectureSeule: boolean;
+  /// id vide : création d'un nouveau modèle.
   initial: { id: string; nom: string; description: string; sujet: string; corps: string; actif: boolean };
 };
 
@@ -55,7 +58,10 @@ export function EditeurModele({ lectureSeule, initial }: Props) {
             <input name="nom" defaultValue={etat.valeurs?.nom ?? initial.nom} className={CHAMP} />
           </label>
           <label className="block text-[12.5px] font-semibold">
-            Description <span className="font-normal text-texte-tenu">(facultatif)</span>
+            Quand l&apos;utiliser
+            <span className="block text-[11.5px] font-normal text-texte-tenu">
+              La situation à laquelle il correspond : l&apos;assistant s&apos;en sert pour choisir le bon modèle.
+            </span>
             <input name="description" defaultValue={etat.valeurs?.description ?? initial.description} className={CHAMP} />
           </label>
           <label className="block text-[12.5px] font-semibold">
@@ -79,7 +85,7 @@ export function EditeurModele({ lectureSeule, initial }: Props) {
 
           {!lectureSeule && (
             <div className="flex flex-wrap items-center gap-3">
-              <BoutonEnvoyer libelle="Enregistrer" />
+              <BoutonEnvoyer libelle={initial.id ? "Enregistrer" : "Créer le modèle"} />
               <MessageErreur message={etat.erreur} />
               {etat.succes && <span className="text-[12.5px] font-semibold text-succes">{etat.succes}</span>}
             </div>

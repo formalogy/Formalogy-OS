@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Contexte } from "@/lib/emails/modeles";
+import { motDePasseInitial, type Contexte } from "@/lib/emails/modeles";
 import { formaterMontant } from "@/lib/factures";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { lireOrganisme } from "@/lib/organisme";
@@ -71,6 +71,8 @@ export async function construireContexte(ids: {
     "organisme.nom": organisme.raisonSociale,
     "apprenant.prenom": apprenant?.prenom,
     "apprenant.nom": apprenant?.nom,
+    "apprenant.email": apprenant?.email,
+    "apprenant.motDePasse": apprenant ? motDePasseInitial(apprenant.prenom, apprenant.nom) : undefined,
     "formateur.prenom": formateurDestinataire?.prenom,
     "formateur.nom": formateurDestinataire?.nom,
     "session.numero": session?.numero,

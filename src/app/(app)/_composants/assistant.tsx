@@ -169,7 +169,7 @@ export function Assistant() {
                       <div className="text-[12.5px] font-semibold">{p.titre}</div>
                       <ul className="mt-1 space-y-0.5 text-[12.5px] text-texte-doux">
                         {p.lignes.map((l, j) => (
-                          <li key={j}>{l}</li>
+                          <li key={j} className="whitespace-pre-line">{l}</li>
                         ))}
                       </ul>
                       {p.etat === "attente" || p.etat === "encours" ? (

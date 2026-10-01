@@ -72,14 +72,25 @@ et que le projet peut migrer ailleurs en quelques heures.
   l'apprenant est joint, l'email part sans lui s'il manque. Tous les
   documents envoyés sont des PDF.
 - Inngest a été écarté au profit d'un moteur interne, jugé suffisant pour le
-  volume. Règle DÉCLENCHEUR → CONDITION → ACTION ; chaque cas est réservé par
+  volume. Règle DÉCLENCHEUR → CONDITION → ACTION (conditions : financement
+  de l'apprenant, modalité de la session) ; chaque cas est réservé par
   une ligne `automation_runs` à clé unique, ce qui interdit tout double envoi.
 - Activation : décision du client, qui a demandé que **toutes** les
-  automatisations soient actives. Au 29/09/2026 : 20 actives sur 21 ; seule
+  automatisations soient actives. Au 01/10/2026 : 21 actives sur 22 ; seule
   « Convocation à l'inscription » est éteinte (même modèle d'email que la
   convocation de J-7 mais sans le PDF : active, elle partait la première et
   bloquait l'envoi de la vraie convocation). Une automatisation nouvelle est
   livrée active.
+- **Accès à la plateforme en ligne** (01/10/2026) : à l'inscription à une
+  session e-learning ou hybride (condition `modalite`), l'apprenant reçoit le
+  modèle `CONNEXION_PLATEFORME` : identifiant = son email, mot de passe de
+  première connexion = initiales du prénom et du nom en majuscules, sans
+  accent, suivies de 12345 (`motDePasseInitial`, variable
+  `{{apprenant.motDePasse}}`, masquée dans l'historique). L'adresse de la
+  plateforme est à compléter dans le modèle.
+- **Modèles d'emails** : Paramètres → Modèles d'emails ; un administrateur
+  peut en créer (« Nouveau modèle », code tiré du nom). La rubrique « Quand
+  l'utiliser » (`description`) guide l'assistant IA dans son choix.
 - Destinataires d'une action EMAIL : `APPRENANT`, `APPRENANTS_SESSION`,
   `FORMATEUR_SESSION` (le formateur de la session ; un seul envoi du même
   modèle par session, un par jour pour `SESSION_JOUR`), `PAYEUR` (payeur de
@@ -652,7 +663,10 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   « Valider », qui passe par les mêmes fonctions et contrôles que les
   formulaires (`executerProposition`), et laisse une trace au journal
   (`assistant.validated`). Le détail affiché est relu en base, pas repris de
-  l'IA. Ni email, ni facture, ni suppression.
+  l'IA. Ni facture, ni suppression.
+- **Emails** : l'assistant n'en rédige aucun ; il choisit un modèle actif
+  d'après sa rubrique « Quand l'utiliser » et propose l'envoi à un apprenant
+  (aperçu rempli, `lib/assistant/emails.ts`), sous le verrou d'envoi habituel.
 - Données d'apprenants transmises à Anthropic pour répondre : à mentionner au
   registre RGPD (sous-traitant).
 

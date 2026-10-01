@@ -65,6 +65,14 @@ export const schemaProposition = z.discriminatedUnion("type", [
     justifiee: z.boolean().default(false),
   }),
   z.object({
+    /// Email à un apprenant, d'après un modèle choisi selon la situation.
+    type: z.literal("EMAIL"),
+    learnerId: z.string().min(1),
+    modeleCode: z.string().min(1),
+    /// Session concernée, pour les variables de session du modèle.
+    sessionId: texte,
+  }),
+  z.object({
     type: z.literal("DEROULEMENT"),
     sessionId: z.string().min(1),
     operation: z.enum(["suspendre", "reprendre", "annuler"]),
