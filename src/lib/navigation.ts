@@ -93,6 +93,7 @@ export const MENU: GroupeMenu[] = [
     icone: "statistiques",
     entrees: [
       { libelle: "Statistiques", chemin: "/statistiques", icone: "statistiques" },
+      { libelle: "BPF", chemin: "/bpf", icone: "document" },
       { libelle: "Activité", chemin: "/activite", icone: "activite" },
     ],
   },

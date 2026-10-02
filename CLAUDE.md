@@ -813,6 +813,21 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   Phase 17 : le numéro qui lui était réservé avait servi entre-temps à la
   facturation automatique Henrri (Phase 16), à la demande du client.
 
+## BPF (02/10/2026)
+
+- Rapports → BPF (`/bpf`, `lib/bpf.ts`) : bilan pédagogique et financier
+  (Cerfa 10443) d'un exercice civil, calculé à la demande, rien de stocké ;
+  l'exercice précédent par défaut. C : factures émises (numéro Henrri)
+  classées par payeur (entreprise 1, CPF 2e, OPCO 2h — à répartir à la main
+  si apprentissage ou professionnalisation —, France Travail 7, apprenant 9,
+  autre 11). F-1 : stagiaires dont la formation s'est achevée dans
+  l'exercice (fin de parcours en ligne, sinon fin de session), type d'après
+  le payeur (CPF sans entreprise → « autres », signalé) ; heures = durée
+  moins les absences (en ligne : durée complète). F-3 d'après le champ
+  « certification » (RNCP, RS/TOSA, CQP). F-4 par catégorie (codes NSF à
+  saisir). E : formateurs salariés / extérieurs. B, D, sous-traitance, G et
+  l'activité antérieure à l'application sont à compléter à la main.
+
 ## Méthode de travail
 
 Développement **phase par phase** (18 phases). Priorités, dans cet ordre :
