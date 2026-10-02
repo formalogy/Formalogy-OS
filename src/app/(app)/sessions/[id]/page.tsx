@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
+import { FriseSession } from "@/app/(app)/sessions/[id]/frise";
 import { LancementSession } from "@/app/(app)/sessions/[id]/lancement";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
 import { SelecteurStatutSession } from "@/app/(app)/sessions/[id]/selecteur-statut";
@@ -17,6 +18,7 @@ import { formaterEuros } from "@/lib/crm-libelles";
 import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
+import { friseSession } from "@/lib/session-frise";
 import {
   aujourdhuiUTC,
   formaterPeriode,
@@ -95,13 +97,14 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
 
   const idsInscrits = session.inscriptions.map((i) => i.learner.id);
   // On propose en priorité les apprenants de l'entreprise cliente.
-  const [candidats, financeurs] = await Promise.all([
+  const [candidats, financeurs, frise] = await Promise.all([
     prisma.learner.findMany({
       where: { deletedAt: null, id: { notIn: idsInscrits }, statut: { not: "ABANDONNE" } },
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],
       select: { id: true, prenom: true, nom: true, financement: true, companyId: true, company: { select: { raisonSociale: true } } },
     }),
     financeursConnus(),
+    friseSession(session.id),
   ]);
   const candidatsTries = [
     ...candidats.filter((c) => session.companyId && c.companyId === session.companyId),
@@ -359,42 +362,45 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        <section className="self-start rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-          <div className="mb-1 flex items-baseline justify-between">
-            <h2 className="text-[14.5px] font-bold">Liste de contrôle</h2>
-            <span className="font-mono text-[12px] tabular-nums text-texte-tenu">
-              {faits} / {controle.length}
-            </span>
-          </div>
-          <p className="mb-3 text-[12px] text-texte-tenu">
-            Calculée à partir des données réelles de la session.
-          </p>
-          <ul>
-            {controle.map((element) => (
-              <li
-                key={element.libelle}
-                className="flex items-center gap-3 border-t border-bordure-douce py-2 first:border-t-0"
-              >
-                <span
-                  aria-hidden="true"
-                  className={`flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold ${
-                    element.fait ? "border-succes bg-succes text-white" : "border-bordure bg-surface"
-                  }`}
+        <div className="flex flex-col gap-4 self-start">
+          <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+            <div className="mb-1 flex items-baseline justify-between">
+              <h2 className="text-[14.5px] font-bold">Liste de contrôle</h2>
+              <span className="font-mono text-[12px] tabular-nums text-texte-tenu">
+                {faits} / {controle.length}
+              </span>
+            </div>
+            <p className="mb-3 text-[12px] text-texte-tenu">
+              Calculée à partir des données réelles de la session.
+            </p>
+            <ul>
+              {controle.map((element) => (
+                <li
+                  key={element.libelle}
+                  className="flex items-center gap-3 border-t border-bordure-douce py-2 first:border-t-0"
                 >
-                  {element.fait ? "✓" : ""}
-                </span>
-                <span className={`text-[13px] ${element.fait ? "font-semibold" : "text-texte-doux"}`}>
-                  {element.libelle}
-                </span>
-                {element.phase && !element.fait && (
-                  <span className="ml-auto rounded-full bg-bordure-douce px-1.5 py-px text-[10px] text-texte-tenu">
-                    P{element.phase}
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold ${
+                      element.fait ? "border-succes bg-succes text-white" : "border-bordure bg-surface"
+                    }`}
+                  >
+                    {element.fait ? "✓" : ""}
                   </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
+                  <span className={`text-[13px] ${element.fait ? "font-semibold" : "text-texte-doux"}`}>
+                    {element.libelle}
+                  </span>
+                  {element.phase && !element.fait && (
+                    <span className="ml-auto rounded-full bg-bordure-douce px-1.5 py-px text-[10px] text-texte-tenu">
+                      P{element.phase}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+          {frise && <FriseSession phases={frise.phases} />}
+        </div>
       </div>
     </>
   );

@@ -196,6 +196,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   déclencheurs « après la fin » contient une empreinte des évaluations, si
   bien que chaque évaluation reçue rouvre le cas, et un email dont
   l'attestation ou le certificat manque n'est pas envoyé (il attend).
+- **Frise « Déroulement de la session »** (02/10/2026, d'après Qualiobee) :
+  sur la fiche session, sous la liste de contrôle (`lib/session-frise.ts`) —
+  les automatisations actives qui concernent la session, rangées avant /
+  pendant / fin / après, avec leur date et leur état lu dans
+  `automation_runs` (fait, échec, prévu, « à partir » si la date est passée
+  sans exécution, en attente si brouillon ou suspendue). Les envois
+  quotidiens tiennent sur une ligne avec leur progression.
 - **Alerte du client** : bouton « Suspendre le déroulement » sur la fiche
   session (`sessions.deroulementSuspenduAt`) ; tant qu'il est posé, aucun
   déclencheur ne regarde la session (ni envoi, ni statut, ni facture). La
