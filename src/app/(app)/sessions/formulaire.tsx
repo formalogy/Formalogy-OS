@@ -1,6 +1,9 @@
 "use client";
 
+import type { TypeFinancement } from "@prisma/client";
 import { useActionState, useState } from "react";
+
+import { ChampsFacturation } from "@/app/(app)/_composants/champs-facturation";
 
 import {
   BoutonEnvoyer,
@@ -15,20 +18,23 @@ import {
   type EtatFormulaire,
 } from "@/app/(app)/sessions/actions";
 import { adresseEntreprise } from "@/lib/entreprises-adresse";
+import { payeurParDefaut } from "@/lib/inscriptions-facturation";
 import { LIBELLE_MODALITE, LIBELLE_PLATEFORME, MODALITES } from "@/lib/formations-libelles";
 import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = {
-  formations: { id: string; titre: string; reference: string; modalite: string }[];
+  formations: { id: string; titre: string; reference: string; modalite: string; prixHT?: string | null }[];
   entreprises: { id: string; raisonSociale: string; adresse: string | null; codePostal: string | null; ville: string | null }[];
   formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[]; modalite: string | null; lieu: string | null; lieuEntreprise: boolean }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
   initiales?: Record<string, string> & { id: string };
   /// Pré-remplissage d'une création (depuis une fiche formation ou entreprise)
   valeursDeDepart?: Record<string, string>;
+  /// Stagiaire inscrit dès la création (session créée depuis sa fiche)
+  apprenant?: { id: string; prenom: string; nom: string; financement: TypeFinancement; companyId: string | null; financeursConnus: string[] };
 };
 
-export function FormulaireSession({ formations, entreprises, formateurs, initiales, valeursDeDepart }: Props) {
+export function FormulaireSession({ formations, entreprises, formateurs, initiales, valeursDeDepart, apprenant }: Props) {
   const modification = Boolean(initiales);
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(
     modification ? modifierSession : creerSession,
@@ -38,6 +44,9 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
   const [modalite, setModalite] = useState(v("modalite") ?? "PRESENTIEL");
   const [attribution, setAttribution] = useState(v("attribution") ?? "FORMATEUR");
   const [formateurId, setFormateurId] = useState(v("trainerId") ?? "");
+  const [formationId, setFormationId] = useState(v("formationId") ?? "");
+  const [entrepriseId, setEntrepriseId] = useState(v("companyId") ?? "");
+  const prixFormation = formations.find((f) => f.id === formationId)?.prixHT ?? null;
   const programmes = formateurs.find((f) => f.id === formateurId)?.programmes ?? [];
 
   /// Lieu de la session d'après le formateur : son adresse de formation, ou
@@ -65,6 +74,8 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         const champ = e.target as unknown as HTMLSelectElement;
         if (champ.name === "modalite") setModalite(champ.value);
         if (champ.name === "attribution") setAttribution(champ.value);
+        if (champ.name === "formationId") setFormationId(champ.value);
+        if (champ.name === "companyId") setEntrepriseId(champ.value);
         if (champ.name === "trainerId") {
           setFormateurId(champ.value);
           // Sa façon habituelle de travailler devient la modalité proposée
@@ -198,6 +209,31 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         </div>
       </div>
 
+      {apprenant && !modification && (
+        <div className="mt-5 border-t border-bordure-douce pt-4">
+          <input type="hidden" name="learnerId" value={apprenant.id} />
+          <h2 className="mb-2 text-[13px] font-bold">
+            Inscription de {apprenant.prenom} {apprenant.nom}
+          </h2>
+          <ChampsFacturation
+            // Recréé quand la formation ou l'entreprise change : tarif et payeur proposés suivent.
+            key={`${formationId}-${entrepriseId}`}
+            payeur={payeurParDefaut(apprenant.financement, Boolean(apprenant.companyId || entrepriseId))}
+            prix={prixFormation}
+            financeursConnus={apprenant.financeursConnus}
+          />
+          <label className="mt-4 flex items-start gap-2 text-[12.5px] font-semibold">
+            <input type="checkbox" name="lancer" defaultChecked className="mt-0.5" />
+            <span>
+              Lancer le déroulement automatique dès la création
+              <span className="block text-[11.5px] font-normal text-texte-tenu">
+                Ce qui est déjà dû part aussitôt (questionnaire, convention, convocation selon la date de début).
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
       {!modification && (
         <p className="mt-4 text-[11.5px] text-texte-tenu">
           Le prix HT de la formation est recopié dans la session au moment de sa création.
@@ -205,7 +241,7 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <BoutonEnvoyer libelle={modification ? "Enregistrer les modifications" : "Créer la session"} />
+        <BoutonEnvoyer libelle={modification ? "Enregistrer les modifications" : apprenant ? "Créer la session et inscrire" : "Créer la session"} />
         <MessageErreur message={etat.erreur} />
       </div>
     </form>

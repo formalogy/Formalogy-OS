@@ -547,6 +547,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   sont proposés à la saisie (`lib/inscriptions-facturation.ts`). Payeur et
   tarif se corrigent dans la liste des inscrits tant que l'inscription n'est
   pas facturée.
+- **Stagiaire → session → lancement d'un trait** (02/10/2026) : après la
+  création d'un apprenant, « Inscrire à une session » propose « Créer une
+  session pour … » (`/sessions/nouvelle?apprenant=`) : formulaire de session
+  avec sa facturation (payeur, tarif proposé d'après la formation) et la case
+  « Lancer le déroulement dès la création » (cochée). L'inscription est
+  vérifiée avant la création ; ensuite `inscrireApprenant` puis
+  `lancerDeroulementSession`.
 - Tableau de bord : « Entrées / Sorties de formation aujourd'hui » listent
   chaque apprenant inscrit avec sa session, quel que soit le statut (sauf
   session annulée).

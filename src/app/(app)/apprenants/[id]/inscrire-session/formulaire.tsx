@@ -1,7 +1,6 @@
 "use client";
 
 import type { TypeFinancement } from "@prisma/client";
-import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { ChampsFacturation } from "@/app/(app)/_composants/champs-facturation";
@@ -31,9 +30,7 @@ export function FormulaireInscriptionApprenant({ learnerId, financement, aUneEnt
     return (
       <p className="text-[13px] text-texte-doux">
         Aucune session en cours ou à venir pour le moment.{" "}
-        <Link href="/sessions/nouvelle" className="font-semibold text-accent-fort hover:underline">
-          Programmer une session
-        </Link>
+        Créez-en une ci-dessous.
       </p>
     );
   }

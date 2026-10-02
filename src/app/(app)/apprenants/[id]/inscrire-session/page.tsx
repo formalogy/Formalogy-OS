@@ -79,6 +79,20 @@ export default async function PageInscrireSession({
         />
       </section>
 
+      <section className="mt-4 max-w-xl rounded-xl border border-accent bg-accent-pale/40 p-5 shadow-sm">
+        <h2 className="text-[14px] font-bold">Pas encore de session ?</h2>
+        <p className="mb-3 mt-1 text-[12.5px] text-texte-doux">
+          Créez-la pour {apprenant.prenom} {apprenant.nom} : il y sera inscrit, et vous pourrez lancer son déroulement
+          automatique en même temps.
+        </p>
+        <Link
+          href={`/sessions/nouvelle?apprenant=${apprenant.id}`}
+          className="inline-block rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+        >
+          Créer une session pour {apprenant.prenom}
+        </Link>
+      </section>
+
       <p className="mt-4 text-[12.5px]">
         <Link href={`/apprenants/${apprenant.id}`} className="font-semibold text-texte-doux hover:text-accent-fort">
           Plus tard — revenir à la fiche

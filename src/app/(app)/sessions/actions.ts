@@ -44,11 +44,35 @@ export async function creerSession(
   }
   const d = resultat.data;
 
+  // Session créée pour un stagiaire (depuis sa fiche) : son inscription est
+  // vérifiée avant toute création, pour ne rien laisser à moitié fait.
+  const learnerId = String(donnees.get("learnerId") ?? "");
+  if (learnerId) {
+    const avant = schemaInscription.safeParse({ ...Object.fromEntries(donnees), sessionId: "avant-creation" });
+    if (!avant.success) return { erreur: avant.error.issues[0]?.message ?? "Inscription invalide.", valeurs: saisie(donnees) };
+    if (!(await prisma.learner.findFirst({ where: { id: learnerId, deletedAt: null } }))) {
+      return { erreur: "Ce stagiaire n'existe plus.", valeurs: saisie(donnees) };
+    }
+  }
+
   const cree = await creerSessionBrouillon(d, utilisateur.id);
   if ("erreur" in cree) return { erreur: cree.erreur, valeurs: saisie(donnees) };
   const { session } = cree;
-
   revalidatePath("/sessions");
+
+  if (learnerId) {
+    const inscription = new FormData();
+    for (const [cle, valeur] of donnees.entries()) if (typeof valeur === "string") inscription.set(cle, valeur);
+    inscription.set("sessionId", session.id);
+    const i = await inscrireApprenant({}, inscription);
+    // La session existe : en cas d'échec, l'inscription se refait depuis sa fiche.
+    if (!i.erreur && donnees.get("lancer") === "on") {
+      const lancement = new FormData();
+      lancement.set("id", session.id);
+      await lancerDeroulementSession({}, lancement);
+    }
+  }
+
   redirect(`/sessions/${session.id}`);
 }
 
