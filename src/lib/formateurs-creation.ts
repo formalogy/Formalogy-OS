@@ -24,6 +24,9 @@ export const schemaFormateur = z.object({
     .enum(["PRESENTIEL", "DISTANCIEL", ""])
     .optional()
     .transform((v) => v || null),
+  lieu: texteFacultatif,
+  /// « ENTREPRISE » : au sein de l'entreprise cliente ; « ADRESSE » : lieu précis.
+  typeLieu: z.enum(["ADRESSE", "ENTREPRISE"]).optional(),
   siret: texteFacultatif.refine(
     (v) => v === undefined || /^\d{14}$/.test(v.replace(/\s/g, "")),
     "Le SIRET doit comporter 14 chiffres.",
@@ -45,6 +48,10 @@ export function donneesFormateur(d: z.infer<typeof schemaFormateur>) {
     telephone: d.telephone ?? null,
     statut: d.statut,
     modalite: d.modalite,
+    // Le lieu n'a de sens qu'en présentiel : une adresse précise, ou
+    // l'entreprise cliente de chaque session.
+    lieuEntreprise: d.modalite === "PRESENTIEL" && d.typeLieu === "ENTREPRISE",
+    lieu: d.modalite === "PRESENTIEL" && d.typeLieu !== "ENTREPRISE" ? (d.lieu ?? null) : null,
     siret: d.siret?.replace(/\s/g, "") ?? null,
     numeroDeclaration: d.numeroDeclaration ?? null,
     specialites: d.specialites ?? null,

@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { adresseEntreprise } from "@/lib/entreprises-adresse";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { formaterPeriode, jourDepuisSaisie, STATUTS_SESSION } from "@/lib/sessions-libelles";
@@ -84,6 +85,19 @@ export async function programmeInvalide(trainerId: string, programmeId: string |
   return programmes.length > 0 ? "Choisissez le programme de formation du formateur." : null;
 }
 
+/// Lieu laissé vide : celui du formateur — son adresse de formation, ou
+/// l'adresse de l'entreprise cliente s'il forme sur place.
+export async function lieuParDefaut(lieu: string | undefined, trainerId: string, companyId: string | undefined, modalite: string) {
+  if (lieu || modalite !== "PRESENTIEL") return lieu ?? null;
+  const formateur = await prisma.trainer.findUnique({ where: { id: trainerId }, select: { lieu: true, lieuEntreprise: true, modalite: true } });
+  if (!formateur || formateur.modalite !== "PRESENTIEL") return null;
+  if (!formateur.lieuEntreprise) return formateur.lieu;
+  const entreprise = companyId
+    ? await prisma.company.findUnique({ where: { id: companyId }, select: { raisonSociale: true, adresse: true, codePostal: true, ville: true } })
+    : null;
+  return entreprise ? adresseEntreprise(entreprise) : null;
+}
+
 /// Un formateur ne peut être affecté que s'il existe et est actif.
 export async function formateurValide(trainerId: string) {
   return Boolean(await prisma.trainer.findFirst({ where: { id: trainerId, deletedAt: null, actif: true } }));
@@ -134,6 +148,7 @@ export async function creerSessionBrouillon(
   const erreurProgramme = await programmeInvalide(d.trainerId, d.programmeId);
   if (erreurProgramme) return { erreur: erreurProgramme };
 
+  const lieu = await lieuParDefaut(d.lieu, d.trainerId, d.companyId, d.modalite);
   const session = await creerAvecNumero(d.dateDebut.getUTCFullYear(), (numero) =>
     prisma.trainingSession.create({
       data: {
@@ -143,7 +158,7 @@ export async function creerSessionBrouillon(
         dateDebut: d.dateDebut,
         dateFin: d.dateFin,
         horaires: d.horaires,
-        lieu: d.lieu,
+        lieu,
         modalite: d.modalite,
         interne: d.interne,
         plateforme: d.plateforme,

@@ -691,7 +691,12 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 - **Formateurs** : proposition `FORMATEUR` (fiche, mêmes contrôles que le
   formulaire, `lib/formateurs-creation.ts`, homonyme signalé) ; modalité
   habituelle du formateur (`trainers.modalite`, présentiel/distanciel),
-  pré-sélectionnée sur la session quand on le choisit (hors session Formalogy) ; un programme
+  pré-sélectionnée sur la session quand on le choisit (hors session Formalogy) ;
+  en présentiel, son lieu de formation : une adresse précise (`trainers.lieu`)
+  ou « au sein de l'entreprise cliente » (`trainers.lieuEntreprise`, le lieu
+  de la session devient l'adresse de la fiche de l'entreprise) — repris sur
+  la session quand on le choisit, et à l'enregistrement si le lieu est vide
+  (`lieuParDefaut`) ; un programme
   PDF peut créer son formateur en même temps (`nouveauFormateur`). Pièces
   du dossier (CV, NDA, pièce d'identité, contrat ; types `NDA_FORMATEUR`,
   `PIECE_IDENTITE_FORMATEUR` ajoutés le 02/10/2026) rangées sur la fiche du

@@ -232,6 +232,8 @@ const OUTILS: Anthropic.Tool[] = [
             telephone: { type: "string" },
             statut: { type: "string", enum: ["INDEPENDANT", "SALARIE", "SOUS_TRAITANT"] },
             modalite: { type: "string", enum: ["PRESENTIEL", "DISTANCIEL"], description: "Façon habituelle de travailler, d'après le programme ou l'utilisateur." },
+            lieu: { type: "string", description: "En présentiel : adresse précise où se déroulent ses formations, s'il est indiqué." },
+            typeLieu: { type: "string", enum: ["ADRESSE", "ENTREPRISE"], description: "ENTREPRISE s'il forme au sein de l'entreprise cliente (pas de lieu fixe)." },
             siret: { type: "string", description: "14 chiffres" },
             numeroDeclaration: { type: "string", description: "Numéro de déclaration d'activité" },
             specialites: { type: "string", description: "Domaines enseignés, ex. « Excel, Word »" },

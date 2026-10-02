@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   BoutonEnvoyer,
@@ -31,9 +31,18 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
     {},
   );
   const v = (nom: string) => etat.valeurs?.[nom] ?? initiales?.[nom];
+  const [modalite, setModalite] = useState(v("modalite") ?? "");
+  const [typeLieu, setTypeLieu] = useState(v("typeLieu") ?? "ADRESSE");
 
   return (
-    <form action={envoyer} className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm">
+    <form
+      action={envoyer}
+      onChange={(e) => {
+        const champ = e.target as unknown as HTMLSelectElement;
+        if (champ.name === "modalite") setModalite(champ.value);
+        if (champ.name === "typeLieu") setTypeLieu(champ.value);
+      }}
+      className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm">
       {initiales && <input type="hidden" name="id" value={initiales.id} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -58,6 +67,27 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
           ]}
           valeurParDefaut={v("modalite") ?? ""}
         />
+        {modalite === "PRESENTIEL" && (
+          <ChampListe
+            nom="typeLieu"
+            libelle="Lieu de formation"
+            options={[
+              { valeur: "ADRESSE", libelle: "Une adresse précise" },
+              { valeur: "ENTREPRISE", libelle: "Au sein de l'entreprise cliente" },
+            ]}
+            valeurParDefaut={v("typeLieu") ?? "ADRESSE"}
+          />
+        )}
+        {modalite === "PRESENTIEL" && typeLieu === "ADRESSE" && (
+          <div className="sm:col-span-2">
+            <Champ nom="lieu" libelle="Adresse de formation" placeholder="Adresse où se déroulent ses formations" valeurParDefaut={v("lieu")} />
+          </div>
+        )}
+        {modalite === "PRESENTIEL" && typeLieu === "ENTREPRISE" && (
+          <p className="self-end text-[11.5px] text-texte-tenu">
+            Le lieu de ses sessions sera l&apos;adresse de la fiche de l&apos;entreprise cliente.
+          </p>
+        )}
         <Champ nom="siret" libelle="SIRET" placeholder="14 chiffres" valeurParDefaut={v("siret")} />
         <Champ
           nom="numeroDeclaration"

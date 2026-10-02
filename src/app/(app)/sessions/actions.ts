@@ -9,7 +9,7 @@ import { z } from "zod";
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { lireMontant } from "@/lib/factures";
-import { creerSessionBrouillon, formateurValide, programmeInvalide, schemaSession } from "@/lib/sessions-creation";
+import { creerSessionBrouillon, formateurValide, lieuParDefaut, programmeInvalide, schemaSession } from "@/lib/sessions-creation";
 import { decrirePayeur, estFinanceurTiers, PAYEURS_INSCRIPTION } from "@/lib/inscriptions-facturation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -105,7 +105,7 @@ export async function modifierSession(
       dateDebut: d.dateDebut,
       dateFin: d.dateFin,
       horaires: d.horaires ?? null,
-      lieu: d.lieu ?? null,
+      lieu: await lieuParDefaut(d.lieu, d.trainerId, d.companyId, d.modalite),
       modalite: d.modalite,
       interne: d.interne,
       plateforme: d.plateforme,

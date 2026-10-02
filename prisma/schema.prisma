@@ -1053,6 +1053,11 @@ model Trainer {
   /// Façon habituelle de travailler (présentiel ou distanciel) : proposée
   /// d'office sur ses sessions. Vide = non précisée.
   modalite ModaliteFormation?
+  /// Lieu où il forme en présentiel : repris d'office sur ses sessions.
+  lieu String?
+  /// En présentiel, il forme au sein de l'entreprise cliente : le lieu de
+  /// ses sessions est l'adresse de la fiche de l'entreprise.
+  lieuEntreprise Boolean @default(false)
   siret  String?
   /// Numéro de déclaration d'activité (NDA), pour un formateur indépendant ou
   /// sous-traitant lui-même organisme de formation déclaré.

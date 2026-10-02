@@ -14,13 +14,14 @@ import {
   modifierSession,
   type EtatFormulaire,
 } from "@/app/(app)/sessions/actions";
+import { adresseEntreprise } from "@/lib/entreprises-adresse";
 import { LIBELLE_MODALITE, LIBELLE_PLATEFORME, MODALITES } from "@/lib/formations-libelles";
 import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = {
   formations: { id: string; titre: string; reference: string; modalite: string }[];
-  entreprises: { id: string; raisonSociale: string }[];
-  formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[]; modalite: string | null }[];
+  entreprises: { id: string; raisonSociale: string; adresse: string | null; codePostal: string | null; ville: string | null }[];
+  formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[]; modalite: string | null; lieu: string | null; lieuEntreprise: boolean }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
   initiales?: Record<string, string> & { id: string };
   /// Pré-remplissage d'une création (depuis une fiche formation ou entreprise)
@@ -39,6 +40,24 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
   const [formateurId, setFormateurId] = useState(v("trainerId") ?? "");
   const programmes = formateurs.find((f) => f.id === formateurId)?.programmes ?? [];
 
+  /// Lieu de la session d'après le formateur : son adresse de formation, ou
+  /// l'adresse de l'entreprise cliente quand il forme sur place. Un lieu déjà
+  /// saisi n'est remplacé qu'au changement d'entreprise (formateur « sur place »).
+  function remplirLieu(form: HTMLFormElement | null, formateur: (typeof formateurs)[number] | undefined, changementEntreprise = false) {
+    if (!form || !formateur || attribution === "FORMALOGY" || formateur.modalite !== "PRESENTIEL") return;
+    const lieu = form.elements.namedItem("lieu") as HTMLInputElement | null;
+    if (!lieu) return;
+    if (formateur.lieuEntreprise) {
+      const id = (form.elements.namedItem("companyId") as HTMLSelectElement | null)?.value;
+      const entreprise = entreprises.find((e) => e.id === id);
+      const adresse = entreprise ? adresseEntreprise(entreprise) : null;
+      if (adresse && (changementEntreprise || !lieu.value.trim())) lieu.value = adresse;
+      else if (!adresse && !lieu.value.trim()) lieu.value = "Au sein de l'entreprise";
+    } else if (formateur.lieu && !changementEntreprise && !lieu.value.trim()) {
+      lieu.value = formateur.lieu;
+    }
+  }
+
   return (
     <form
       action={envoyer}
@@ -50,13 +69,17 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
           setFormateurId(champ.value);
           // Sa façon habituelle de travailler devient la modalité proposée
           // (une session Formalogy reste en ligne).
-          const habituelle = formateurs.find((f) => f.id === champ.value)?.modalite;
+          const choisi = formateurs.find((f) => f.id === champ.value);
           const liste = champ.form?.elements.namedItem("modalite") as HTMLSelectElement | null;
-          if (habituelle && attribution !== "FORMALOGY" && liste) {
-            liste.value = habituelle;
-            setModalite(habituelle);
+          if (choisi?.modalite && attribution !== "FORMALOGY" && liste) {
+            liste.value = choisi.modalite;
+            setModalite(choisi.modalite);
           }
+          remplirLieu(champ.form, choisi);
         }
+        // Formateur qui forme au sein de l'entreprise : le lieu suit
+        // l'entreprise cliente choisie.
+        if (champ.name === "companyId") remplirLieu(champ.form, formateurs.find((f) => f.id === formateurId), true);
       }}
       className="max-w-3xl rounded-xl border border-bordure bg-surface p-5 shadow-sm"
     >

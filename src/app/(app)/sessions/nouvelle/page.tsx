@@ -24,7 +24,7 @@ export default async function PageNouvelleSession({
     prisma.company.findMany({
       where: { deletedAt: null },
       orderBy: { raisonSociale: "asc" },
-      select: { id: true, raisonSociale: true },
+      select: { id: true, raisonSociale: true, adresse: true, codePostal: true, ville: true },
     }),
     optionsFormateurs(),
   ]);
