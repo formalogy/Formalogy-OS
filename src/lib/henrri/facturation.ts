@@ -412,7 +412,10 @@ async function emettreFacture(
   // La facture est datée du jour où elle est émise ; l'échéance, gardée ici
   // seulement, est la date où le payeur règle d'habitude (lib/paiements-attendus.ts).
   const emission = aujourdhuiUTC();
-  const echeance = echeanceFacture(g.type, session.dateFin, emission);
+  // En ligne, la sortie de formation est la fin du parcours de chacun.
+  const sorties = g.inscriptions.map((i) => i.parcoursTermineLe).filter((d): d is Date => Boolean(d));
+  const finFormation = sorties.length ? new Date(Math.max(...sorties.map((d) => d.getTime()))) : session.dateFin;
+  const echeance = echeanceFacture(g.type, finFormation, emission);
 
   const document = await henrriFetch<{ id: number }>("/v1/documents", {
     method: "POST",

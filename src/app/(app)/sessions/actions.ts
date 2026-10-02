@@ -15,7 +15,10 @@ import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { appliquerStatutSession } from "@/lib/sessions-statut";
-import { formaterPeriode, STATUTS_SESSION } from "@/lib/sessions-libelles";
+import { genererDocumentsFinDeFormation } from "@/lib/fin-de-formation";
+import { envoyerDocumentsFinStagiaire } from "@/lib/fin-de-parcours";
+import { modaliteEnLigne } from "@/lib/formations-libelles";
+import { aujourdhuiUTC, formaterPeriode, STATUTS_SESSION } from "@/lib/sessions-libelles";
 
 export type EtatConventions = { erreur?: string; succes?: string; manquants?: string[] };
 
@@ -597,4 +600,66 @@ export async function modifierFacturationInscription(_precedent: EtatFormulaire,
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/financements");
   return {};
+}
+
+export type EtatFinParcours = { erreur?: string; succes?: string };
+
+/// Session en ligne : le stagiaire a terminé son parcours (100 % sur la
+/// plateforme). Sa formation est finie à cette date : évaluation des acquis,
+/// attestation et certificat envoyés aussitôt ; la facture suit dès que tous
+/// les inscrits ont terminé (preuve de réalisation).
+export async function validerFinParcours(_precedent: EtatFinParcours, donnees: FormData): Promise<EtatFinParcours> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const r = z
+    .object({
+      sessionId: z.string().min(1),
+      learnerId: z.string().min(1),
+      resultat: z.enum(["ACQUIS", "PARTIELLEMENT_ACQUIS", "NON_ACQUIS"], { message: "Choisissez l'évaluation des acquis." }),
+    })
+    .safeParse(Object.fromEntries(donnees));
+  if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide." };
+  const { sessionId, learnerId, resultat } = r.data;
+
+  const inscription = await prisma.sessionLearner.findUnique({
+    where: { sessionId_learnerId: { sessionId, learnerId } },
+    include: { session: { select: { numero: true, modalite: true, statut: true, deletedAt: true } }, learner: { select: { prenom: true, nom: true } } },
+  });
+  if (!inscription || inscription.session.deletedAt) return { erreur: "Inscription introuvable." };
+  if (!modaliteEnLigne(inscription.session.modalite)) return { erreur: "Réservé aux sessions en ligne (e-learning ou hybride)." };
+  if (inscription.session.statut === "ANNULEE") return { erreur: "Cette session est annulée." };
+  if (inscription.parcoursTermineLe) return { erreur: "Ce parcours est déjà validé." };
+
+  const aujourdhui = aujourdhuiUTC();
+  await prisma.$transaction([
+    prisma.sessionLearner.update({ where: { id: inscription.id }, data: { parcoursTermineLe: aujourdhui } }),
+    prisma.evaluationAcquis.upsert({
+      where: { sessionId_learnerId: { sessionId, learnerId } },
+      create: { sessionId, learnerId, resultat, saisieParId: utilisateur.id },
+      update: { resultat, saisieParId: utilisateur.id },
+    }),
+    prisma.learner.update({ where: { id: learnerId }, data: { statut: "TERMINE" } }),
+  ]);
+  const nom = `${inscription.learner.prenom} ${inscription.learner.nom}`;
+  await journaliser({
+    action: "session.parcours_completed",
+    summary: `Parcours en ligne terminé (100 %) : ${nom} — session ${inscription.session.numero}`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+    userId: utilisateur.id,
+  });
+
+  // Attestation et certificat tout de suite, puis l'email qui les porte.
+  const docs = await genererDocumentsFinDeFormation(sessionId, utilisateur.id);
+  let suite: string;
+  if ("erreur" in docs) suite = ` Documents en attente : ${docs.erreur}`;
+  else {
+    const echec = await envoyerDocumentsFinStagiaire(sessionId, learnerId, utilisateur.id);
+    suite = echec ? ` Documents générés, mais non envoyés : ${echec}.` : " Attestation et certificat envoyés.";
+  }
+  // La facture part si tous les inscrits ont terminé.
+  after(() => executerPlanifiees());
+
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath(`/apprenants/${learnerId}`);
+  return { succes: `Parcours de ${nom} validé.${suite}` };
 }

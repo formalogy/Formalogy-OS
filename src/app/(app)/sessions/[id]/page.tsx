@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { GenerationConventions } from "@/app/(app)/sessions/[id]/conventions";
+import { FinParcours } from "@/app/(app)/sessions/[id]/fin-parcours";
 import { FriseSession } from "@/app/(app)/sessions/[id]/frise";
 import { LancementSession } from "@/app/(app)/sessions/[id]/lancement";
 import { FormulaireInscription } from "@/app/(app)/sessions/[id]/formulaire-inscription";
@@ -15,7 +16,7 @@ import { financeursConnus } from "@/lib/financeurs-connus";
 import { decrirePayeur, type PayeurInscription } from "@/lib/inscriptions-facturation";
 import { paiementAttendu, textePaiementAttendu } from "@/lib/paiements-attendus";
 import { formaterEuros } from "@/lib/crm-libelles";
-import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
+import { LIBELLE_MODALITE, modaliteEnLigne } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { friseSession } from "@/lib/session-frise";
@@ -138,8 +139,10 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
   const faits = controle.filter((c) => c.fait).length;
   const complete = session.placesMax !== null && session.inscriptions.length >= session.placesMax;
   // Quand chaque payeur règle d'habitude, compté depuis la sortie de formation.
-  const attenduPour = (payeur: Parameters<typeof paiementAttendu>[0]) => {
-    const attendu = paiementAttendu(payeur, session.dateFin);
+  const enLigne = modaliteEnLigne(session.modalite);
+  // En ligne, la sortie de formation est la fin du parcours du stagiaire.
+  const attenduPour = (payeur: Parameters<typeof paiementAttendu>[0], parcoursTermineLe: Date | null) => {
+    const attendu = paiementAttendu(payeur, parcoursTermineLe ?? session.dateFin);
     return attendu ? textePaiementAttendu(attendu) : undefined;
   };
 
@@ -282,7 +285,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
               <p className="mb-4 text-[12.8px] text-texte-doux">Aucun apprenant inscrit pour le moment.</p>
             ) : (
               <ul className="mb-4">
-                {session.inscriptions.map(({ learner, prixHT, facturerA, dossierFinancement, factureId }) => (
+                {session.inscriptions.map(({ learner, prixHT, facturerA, dossierFinancement, factureId, parcoursTermineLe }) => (
                   <li
                     key={learner.id}
                     className="flex items-center justify-between gap-3 border-t border-bordure-douce py-2 first:border-t-0"
@@ -313,8 +316,11 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
                         }}
                         financeursConnus={financeurs}
                         modifiable={!factureId}
-                        paiementAttendu={attenduPour(facturerA)}
+                        paiementAttendu={attenduPour(facturerA, parcoursTermineLe)}
                       />
+                      {enLigne && session.statut !== "ANNULEE" && (
+                        <FinParcours sessionId={session.id} learnerId={learner.id} termineLe={parcoursTermineLe?.toISOString() ?? null} />
+                      )}
                     </div>
                     <form action={desinscrireApprenant}>
                       <input type="hidden" name="sessionId" value={session.id} />

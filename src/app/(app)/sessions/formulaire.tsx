@@ -72,7 +72,22 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
       action={envoyer}
       onChange={(e) => {
         const champ = e.target as unknown as HTMLSelectElement;
-        if (champ.name === "modalite") setModalite(champ.value);
+        if (champ.name === "modalite") {
+          setModalite(champ.value);
+          // Parcours en ligne : début dans deux semaines, trois mois pour le
+          // terminer (habitude du client) — seulement si les dates sont vides.
+          const debut = champ.form?.elements.namedItem("dateDebut") as HTMLInputElement | null;
+          const fin = champ.form?.elements.namedItem("dateFin") as HTMLInputElement | null;
+          if ((champ.value === "E_LEARNING" || champ.value === "HYBRIDE") && debut && fin && !debut.value && !fin.value) {
+            const d = new Date();
+            d.setDate(d.getDate() + 14);
+            const f = new Date(d);
+            f.setMonth(f.getMonth() + 3);
+            const saisie = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+            debut.value = saisie(d);
+            fin.value = saisie(f);
+          }
+        }
         if (champ.name === "attribution") setAttribution(champ.value);
         if (champ.name === "formationId") setFormationId(champ.value);
         if (champ.name === "companyId") setEntrepriseId(champ.value);

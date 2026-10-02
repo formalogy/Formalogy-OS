@@ -72,6 +72,7 @@ export async function paiementsPrevus(horizonJours = 60): Promise<PaiementPrevu[
     select: {
       prixHT: true,
       facturerA: true,
+      parcoursTermineLe: true,
       dossierFinancement: { select: { financeurNom: true } },
       session: { select: { id: true, numero: true, dateFin: true } },
     },
@@ -79,7 +80,7 @@ export async function paiementsPrevus(horizonJours = 60): Promise<PaiementPrevu[
   const groupes = new Map<string, PaiementPrevu>();
   const apprenants = new Map<string, number>();
   for (const i of inscriptions) {
-    const periode = paiementAttendu(i.facturerA, i.session.dateFin);
+    const periode = paiementAttendu(i.facturerA, i.parcoursTermineLe ?? i.session.dateFin);
     if (!periode || !dansLaPeriode(periode)) continue;
     const payeur = i.facturerA === "OPCO" ? (i.dossierFinancement?.financeurNom ?? "OPCO") : LIBELLE_PAYEUR[i.facturerA];
     const cle = `session:${i.session.id}:${i.facturerA}:${payeur}`;

@@ -644,6 +644,11 @@ model SessionLearner {
   /// Tarif HT de cet apprenant pour cette session, indiqué à l'inscription
   /// (pré-rempli avec le prix de la session) : le montant de sa ligne de
   /// facture, quel que soit le payeur.
+  /// Session en ligne : parcours terminé sur la plateforme (100 %), validé
+  /// à la main en attendant l'API d'E-forma. Vaut fin de formation pour ce
+  /// stagiaire (attestation, certificat, puis facture).
+  parcoursTermineLe DateTime?
+
   prixHT Decimal? @db.Decimal(10, 2)
 
   /// À qui facturer cette inscription, choisi à l'inscription : l'entreprise

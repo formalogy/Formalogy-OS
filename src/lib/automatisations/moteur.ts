@@ -468,9 +468,10 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
 
   const session = await prisma.trainingSession.findUnique({
     where: { id: cas.sessionId },
-    select: { id: true, dateDebut: true, dateFin: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
+    select: { id: true, modalite: true, dateDebut: true, dateFin: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
   });
-  if (!session) return;
+  // E-learning : pas d'émargement, rien à relancer.
+  if (!session || session.modalite === "E_LEARNING") return;
   // Une journée dont toutes les signatures électroniques sont arrivées a sa
   // feuille : rangée ici au besoin, elle n'est pas relancée.
   await rangerFeuillesNumeriques(session.id);
@@ -1524,7 +1525,10 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
       where: {
         ...SESSIONS_EN_ROUTE,
         statut: { notIn: ["ANNULEE", "BROUILLON"] },
-        dateFin: { lte: aujourdhui, ...(depuis ? { gte: depuis } : {}) },
+        // Session en ligne : la facture peut partir avant la date de fin,
+        // dès que tous les parcours sont terminés (`manquesRealisation`).
+        OR: [{ dateFin: { lte: aujourdhui } }, { modalite: { in: ["E_LEARNING", "HYBRIDE"] } }],
+        ...(depuis ? { dateFin: { gte: depuis } } : {}),
         inscriptions: { some: { factureId: null } },
       },
       select: { id: true, companyId: true },
@@ -1551,6 +1555,8 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     const sessions = await prisma.trainingSession.findMany({
       where: {
         ...SESSIONS_EN_ROUTE,
+        // Une session entièrement en e-learning n'a pas d'émargement.
+        modalite: { not: "E_LEARNING" },
         statut: { notIn: ["ANNULEE", "CLOTUREE", "BROUILLON"] },
         dateDebut: { lte: aujourdhui },
         dateFin: { gte: aujourdhui },
@@ -1579,6 +1585,8 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     const sessions = await prisma.trainingSession.findMany({
       where: {
         ...SESSIONS_EN_ROUTE,
+        // Une session entièrement en e-learning n'a pas d'émargement.
+        modalite: { not: "E_LEARNING" },
         statut: { notIn: ["ANNULEE", "CLOTUREE", "BROUILLON"] },
         dateDebut: { lte: aujourdhui },
         dateFin: { gte: aujourdhui },

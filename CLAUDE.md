@@ -351,6 +351,21 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   les envoie en pièces jointes (modèle `DOCUMENTS_FIN`) ; un apprenant pas
   encore évalué les reçoit dès que l'évaluation du formateur arrive.
 
+- **Sessions en ligne (e-learning, hybride)** (02/10/2026) : le client crée
+  une session de 3 mois (début à J+14, pré-rempli quand on choisit la
+  modalité) et **sort chaque stagiaire dès qu'il atteint 100 %** sur la
+  plateforme : bouton « Parcours terminé (100 %) » sur chaque inscrit
+  (`validerFinParcours`, `session_learners.parcoursTermineLe`), avec
+  l'évaluation des acquis. Cette date est sa fin de formation : attestation
+  et certificat générés et envoyés aussitôt (`lib/fin-de-parcours.ts` ; la
+  J+1 ne le resert pas), heures = durée complète, date d'établissement =
+  fin de parcours, délai de paiement compté depuis elle. Preuve de
+  réalisation = parcours terminé de chaque inscrit (pas d'émargement) : la
+  facture peut partir avant la date de fin de session. E-learning : ni
+  émargement, ni QR codes, ni relances (hybride : inchangé). À remplacer
+  par la lecture automatique d'E-forma quand son API sera ouverte (aucune
+  API ni export de la progression au 02/10/2026 — demande faite au support).
+
 ## Factures et paiements
 
 - Le numéro légal d'une facture vient toujours de Henrri : Formalogy OS ne

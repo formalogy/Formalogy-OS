@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { genererAttestation, genererCertificatRealisation, type DonneesAttestation } from "@/lib/attestations-pdf";
 import { CRENEAUX, clePresence, joursDeSession } from "@/lib/emargement";
-import { LIBELLE_MODALITE } from "@/lib/formations-libelles";
+import { LIBELLE_MODALITE, modaliteEnLigne } from "@/lib/formations-libelles";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme, manquesOrganisme } from "@/lib/organisme";
 import { lireLogoOrganisme, lireSignatureOrganisme } from "@/lib/organisme-signature";
@@ -36,7 +36,10 @@ export async function chargerFinDeFormation(sessionId: string) {
       inscriptions: {
         where: { learner: { deletedAt: null } },
         orderBy: [{ learner: { nom: "asc" } }, { learner: { prenom: "asc" } }],
-        select: { learner: { select: { id: true, prenom: true, nom: true, companyId: true, company: { select: { raisonSociale: true } } } } },
+        select: {
+          parcoursTermineLe: true,
+          learner: { select: { id: true, prenom: true, nom: true, companyId: true, company: { select: { raisonSociale: true } } } },
+        },
       },
       presences: { select: { learnerId: true, jour: true, creneau: true, statut: true } },
       evaluations: { select: { learnerId: true, resultat: true, commentaire: true } },
@@ -62,6 +65,8 @@ export type EtatApprenant = {
   evaluation: Session["evaluations"][number] | null;
   attestationId: string | null;
   certificatId: string | null;
+  /// Session en ligne : fin de son parcours (sa date de fin de formation)
+  parcoursTermineLe: Date | null;
   /// Ce qui empêche de générer ses documents
   blocages: string[];
 };
@@ -80,16 +85,19 @@ export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
   const presences = new Map(session.presences.map((p) => [clePresence(p.learnerId, p.jour, p.creneau), p.statut]));
   const heuresPrevues = session.formation.dureeHeures ? Number(session.formation.dureeHeures) : null;
 
+  // Session en ligne : chaque stagiaire finit à son rythme ; c'est la fin de
+  // son parcours (100 %), pas la date de fin de session, qui compte.
+  const enLigne = modaliteEnLigne(session.modalite);
   const blocagesSession: string[] = [];
-  if (session.dateFin > aujourdhuiUTC()) blocagesSession.push("la session n'est pas terminée");
+  if (!enLigne && session.dateFin > aujourdhuiUTC()) blocagesSession.push("la session n'est pas terminée");
   if (session.statut === "ANNULEE") blocagesSession.push("la session est annulée");
   if (heuresPrevues === null) blocagesSession.push("la durée en heures de la formation n'est pas renseignée");
   if (manquesOrga.length) blocagesSession.push(`informations de l'organisme à compléter (${manquesOrga.join(", ")})`);
 
-  const apprenants: EtatApprenant[] = session.inscriptions.map(({ learner }) => {
+  const apprenants: EtatApprenant[] = session.inscriptions.map(({ learner, parcoursTermineLe }) => {
     let present = 0;
     let presumees = 0;
-    for (const jour of jours)
+    if (!enLigne) for (const jour of jours)
       for (const creneau of CRENEAUX) {
         const statut = presences.get(clePresence(learner.id, jour, creneau));
         if (!statut) {
@@ -100,6 +108,7 @@ export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
     const evaluation = session.evaluations.find((e) => e.learnerId === learner.id) ?? null;
     const doc = (code: string) => session.documents.find((d) => d.learnerId === learner.id && d.type?.code === code)?.id ?? null;
     const blocages: string[] = [];
+    if (enLigne && !parcoursTermineLe) blocages.push("parcours en ligne pas encore terminé (100 %)");
     if (!evaluation) blocages.push("évaluation des acquis pas encore transmise par le formateur");
     return {
       learnerId: learner.id,
@@ -107,10 +116,12 @@ export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
       entreprise: learner.company?.raisonSociale ?? null,
       demiJourneesPresent: present,
       presencesPresumees: presumees,
-      heures: heuresPrevues === null ? null : heuresSuivies(heuresPrevues, total, present),
+      // En ligne : parcours terminé = durée complète de la formation.
+      heures: heuresPrevues === null ? null : enLigne ? heuresPrevues : heuresSuivies(heuresPrevues, total, present),
       evaluation,
       attestationId: doc("ATTESTATION"),
       certificatId: doc("CERTIFICAT"),
+      parcoursTermineLe,
       blocages,
     };
   });
@@ -223,7 +234,7 @@ export async function genererDocumentsFinDeFormation(sessionId: string, userId?:
       heuresRealisees: a.heures,
       resultat: a.evaluation.resultat,
       commentaire: a.evaluation.commentaire,
-      etabliLe: session.dateFin,
+      etabliLe: a.parcoursTermineLe ?? session.dateFin,
       signature,
       logo,
     };

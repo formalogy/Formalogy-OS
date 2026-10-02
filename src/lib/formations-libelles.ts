@@ -46,3 +46,11 @@ export const LIBELLE_PLATEFORME = {
   MON_PARCOURS_EN_LIGNE: "Mon Parcours En Ligne",
 } as const;
 
+
+/// Sessions suivies sur une plateforme en ligne : pas d'émargement par QR
+/// code ; la fin de formation de chaque stagiaire est la fin de son parcours
+/// (100 %), validée sur la session.
+export const MODALITES_EN_LIGNE = ["E_LEARNING", "HYBRIDE"] as const;
+export function modaliteEnLigne(modalite: string): boolean {
+  return (MODALITES_EN_LIGNE as readonly string[]).includes(modalite);
+}

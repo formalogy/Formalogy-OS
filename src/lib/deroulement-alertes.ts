@@ -1,6 +1,7 @@
 import "server-only";
 
 import { joursDeSession } from "@/lib/emargement";
+import { modaliteEnLigne } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { manquesRealisation } from "@/lib/realisation";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
@@ -36,6 +37,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       id: true,
       numero: true,
       statut: true,
+      modalite: true,
       dateFin: true,
       deroulementSuspenduAt: true,
       dateDebut: true,
@@ -46,6 +48,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
         select: {
           facturerA: true,
           factureId: true,
+          parcoursTermineLe: true,
           learner: { select: { id: true, prenom: true, nom: true, email: true, numeroDossierCpf: true } },
         },
       },
@@ -97,7 +100,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
     // monde a signé). Le formateur est relancé chaque soir ; passé le
     // lendemain de la fin, c'est à régler (preuve de présence exigée par
     // Qualiopi et les financeurs) : absence à signaler ou feuille papier.
-    const manquantes = joursDeSession(s.dateDebut, s.dateFin).filter(
+    const manquantes = (s.modalite === "E_LEARNING" ? [] : joursDeSession(s.dateDebut, s.dateFin)).filter(
       (j) => j < aujourdhui && !s.feuillesSignees.some((f) => f.jour.getTime() === j.getTime()),
     );
     if (manquantes.length > 0) {
@@ -108,9 +111,23 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       });
     }
 
+    // En ligne : passé la date de fin, un parcours non validé retient
+    // l'attestation et la facture.
+    if (achevee && modaliteEnLigne(s.modalite)) {
+      const enCours = s.inscriptions.filter((i) => !i.parcoursTermineLe);
+      if (enCours.length > 0) {
+        alertes.push({
+          niveau: "attente",
+          texte: `${s.numero} : fin du parcours en ligne à valider pour ${enCours.map((i) => `${i.learner.prenom} ${i.learner.nom}`).join(", ")} (100 % sur la plateforme).`,
+          lien: `/sessions/${s.id}`,
+        });
+      }
+    }
+
     if (achevee) {
+      // En ligne, l'évaluation se saisit avec la fin du parcours (ci-dessus).
       const evalues = new Set(s.evaluations.map((e) => e.learnerId));
-      const attendues = s.inscriptions.filter((i) => !evalues.has(i.learner.id)).length;
+      const attendues = modaliteEnLigne(s.modalite) ? 0 : s.inscriptions.filter((i) => !evalues.has(i.learner.id)).length;
       if (attendues > 0) {
         // Un jour de battement après la fin : le formateur répond souvent le soir même.
         const enRetard = s.dateFin < ajouterJours(aujourdhui, -2);

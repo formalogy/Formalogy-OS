@@ -35,6 +35,11 @@ type Run = { automationId: string; statut: "REUSSIE" | "IGNOREE" | "ECHEC"; deta
 /// ne correspondent pas à cette session ne la concerne pas.
 function concerne(a: Automation, s: { modalite: string; plateforme: string | null }) {
   const { modalite, avecPlateforme } = lireRegle(a).conditions;
+  // E-learning : ni émargement, ni relance d'émargement.
+  if (s.modalite === "E_LEARNING") {
+    if (a.declencheur === "SESSION_JOUR" || a.declencheur === "FIN_DEMI_JOURNEE") return false;
+    if (lireRegle(a).actions.some((x) => x.type === "RELANCE_EMARGEMENT")) return false;
+  }
   if (modalite && !modalite.includes(s.modalite as never)) return false;
   if (avecPlateforme && (!s.plateforme || s.plateforme === "FORMATEUR")) return false;
   return true;
