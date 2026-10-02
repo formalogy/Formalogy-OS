@@ -11,7 +11,7 @@ import { formaterPeriode } from "@/lib/sessions-libelles";
 
 export const dynamic = "force-dynamic";
 
-const TYPES: TypeQuestionnaire[] = ["POSITIONNEMENT", "FROID", "CHAUD_FORMATEUR", "FINANCEUR", "SATISFACTION_FORMATEUR"];
+const TYPES: TypeQuestionnaire[] = ["POSITIONNEMENT", "FROID", "CHAUD_FORMATEUR", "CLIENT", "FINANCEUR", "SATISFACTION_FORMATEUR"];
 
 const jour = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" });
 
@@ -29,6 +29,7 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
         learner: { select: { id: true, prenom: true, nom: true } },
         trainer: { select: { id: true, prenom: true, nom: true } },
         dossier: { select: { id: true, financeurNom: true, reference: true } },
+        company: { select: { id: true, raisonSociale: true } },
         session: { select: { id: true, numero: true, formation: { select: { titre: true } } } },
       },
     }),
@@ -106,7 +107,7 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
               ? `${q.learner.prenom} ${q.learner.nom}`
               : q.trainer
                 ? `${q.trainer.prenom} ${q.trainer.nom}`
-                : (q.dossier?.financeurNom ?? "—");
+                : (q.dossier?.financeurNom ?? q.company?.raisonSociale ?? "—");
             const expire = !q.reponduAt && q.expireAt < new Date();
 
             return (

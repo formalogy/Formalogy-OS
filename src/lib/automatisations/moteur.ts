@@ -30,7 +30,7 @@ import { genererFacturesHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme } from "@/lib/organisme";
 import { manquesRealisation } from "@/lib/realisation";
-import { preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
+import { adresseClient, preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
 import { ajouterJours, aujourdhuiUTC } from "@/lib/sessions-libelles";
@@ -55,7 +55,7 @@ const schemaAction = z.discriminatedUnion("type", [
     /// les destinataires des campagnes annuelles, sans lien avec une session.
     /// ADMINISTRATEURS : les comptes administrateurs actifs (rappel avant
     /// l'audit Qualiopi).
-    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEUR_SESSION", "PAYEUR", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE", "ADMINISTRATEURS"]),
+    destinataires: z.enum(["APPRENANT", "APPRENANTS_SESSION", "FORMATEUR_SESSION", "PAYEUR", "ENTREPRISE_SESSION", "FORMATEURS_ACTIFS", "FINANCEURS_ANNEE", "ADMINISTRATEURS"]),
     /// Documents joints à l'email. CONVENTION fabrique la convention de
     /// l'apprenant à partir du modèle déposé, la range dans les documents de
     /// la session et l'attache. CONVOCATION produit le document de
@@ -835,6 +835,62 @@ async function envoyerAuPayeur(p: { cas: Cas; modele: ModeleEmail; joindre?: str
   else comptes.emails++;
 }
 
+/// Entreprises clientes d'une session (questionnaire CLIENT à J+7) : celle de
+/// la session et celles des inscrits, chacune avec son lien personnel. Rien
+/// pour une session sans entreprise ; rien à une entreprise qui a répondu.
+async function envoyerAuxEntreprises(p: { cas: Cas; modele: ModeleEmail; executionId: string; comptes: Comptes }) {
+  const { cas, modele, executionId, comptes } = p;
+  if (!cas.sessionId) return;
+  const session = await prisma.trainingSession.findUnique({
+    where: { id: cas.sessionId },
+    select: { companyId: true, inscriptions: { select: { learner: { select: { companyId: true, deletedAt: true } } } } },
+  });
+  if (!session) return;
+  const entreprises = [
+    ...new Set([session.companyId, ...session.inscriptions.filter((i) => !i.learner.deletedAt).map((i) => i.learner.companyId)].filter((id): id is string => Boolean(id))),
+  ];
+  if (entreprises.length === 0) {
+    comptes.ignores++;
+    return;
+  }
+
+  for (const companyId of entreprises) {
+    const { email: adresse } = await adresseClient(companyId);
+    if (!adresse) {
+      comptes.sansAdresse++;
+      continue;
+    }
+    const deja = await prisma.email.count({
+      where: { templateId: modele.id, sessionId: cas.sessionId, companyId, statut: { not: "ECHEC" }, automationRunId: { not: null } },
+    });
+    if (deja > 0) {
+      comptes.dejaServis++;
+      continue;
+    }
+    const lienClient = `${modele.sujet}${modele.corps}`.includes("{{questionnaire.lienClient}}")
+      ? await preparerLienQuestionnaireQualite({ type: "CLIENT", sessionId: cas.sessionId, companyId })
+      : undefined;
+    if (lienClient === null) {
+      comptes.dejaServis++;
+      continue;
+    }
+    const contexte = await construireContexte({ sessionId: cas.sessionId, companyId, lienClient });
+    const email = await envoyerEmail({
+      destinataire: adresse,
+      sujet: rendre(modele.sujet, contexte).resultat,
+      corps: rendre(modele.corps, contexte).resultat,
+      corpsJournal: rendre(modele.corps, { ...contexte, "questionnaire.lienClient": lienClient && "[lien personnel masqué]" }).resultat,
+      templateId: modele.id,
+      sessionId: cas.sessionId,
+      companyId,
+      automationRunId: executionId,
+    });
+    if (email.statut === "SIMULE") comptes.simules++;
+    else if (email.statut === "ECHEC") throw new Error(`Email à l'entreprise (${adresse}) : ${email.erreur}`);
+    else comptes.emails++;
+  }
+}
+
 /// Traite un cas une seule fois. La réservation se fait par l'insertion de la
 /// trace d'exécution, dont la clé est unique en base : si deux exécutions
 /// concurrentes visent le même cas, la seconde échoue à l'insertion et s'arrête.
@@ -911,6 +967,10 @@ async function traiterCas(automation: Automation, cas: Cas): Promise<"traite" | 
         }
         if (action.destinataires === "FORMATEUR_SESSION") {
           await envoyerAuFormateur({ automation, cas, modele, joindre: action.joindre, executionId, comptes });
+          continue;
+        }
+        if (action.destinataires === "ENTREPRISE_SESSION") {
+          await envoyerAuxEntreprises({ cas, modele, executionId, comptes });
           continue;
         }
         if (action.destinataires === "PAYEUR") {

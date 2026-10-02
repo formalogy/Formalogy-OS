@@ -17,6 +17,7 @@ function nomDestinataire(q: NonNullable<Awaited<ReturnType<typeof questionnaireQ
   if (q.learner) return q.learner.prenom;
   if (q.trainer) return q.trainer.prenom;
   if (q.dossier) return q.dossier.financeurNom;
+  if (q.company) return q.company.raisonSociale;
   return "";
 }
 

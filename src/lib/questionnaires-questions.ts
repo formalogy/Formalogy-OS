@@ -10,6 +10,7 @@ export const CODES_QUESTIONNAIRE: CodeQuestionnaire[] = [
   "POSITIONNEMENT",
   "SATISFACTION",
   "CHAUD_FORMATEUR",
+  "CLIENT",
   "FROID",
   "SATISFACTION_FORMATEUR",
   "FINANCEUR",
@@ -99,6 +100,7 @@ export const LIBELLE_TYPE_QUESTIONNAIRE: Record<TypeQuestionnaire, string> = {
   FROID: "À froid — apprenant (60 jours après)",
   FINANCEUR: "Financeur (campagne annuelle)",
   SATISFACTION_FORMATEUR: "Satisfaction formateur (campagne annuelle)",
+  CLIENT: "Satisfaction de l'entreprise cliente (7 jours après)",
 };
 
 export const LIBELLE_QUESTIONNAIRE: Record<CodeQuestionnaire, string> = {
@@ -109,7 +111,7 @@ export const LIBELLE_QUESTIONNAIRE: Record<CodeQuestionnaire, string> = {
 /// Un questionnaire est « lié à une session » si son destinataire dépend
 /// d'une session précise (apprenant ou formateur d'une formation donnée),
 /// par opposition aux campagnes annuelles (financeur, satisfaction formateur).
-export const TYPES_LIES_A_UNE_SESSION: TypeQuestionnaire[] = ["POSITIONNEMENT", "CHAUD_FORMATEUR", "FROID"];
+export const TYPES_LIES_A_UNE_SESSION: TypeQuestionnaire[] = ["POSITIONNEMENT", "CHAUD_FORMATEUR", "FROID", "CLIENT"];
 
 const OUI_NON = ["Oui", "Non"];
 
@@ -207,6 +209,19 @@ export const QUESTIONNAIRES_ORIGINE: Record<CodeQuestionnaire, ContenuQuestionna
       { id: "recommanderait", type: "CHOIX_UNIQUE", libelle: "Recommanderiez-vous de collaborer avec notre organisme ?", options: OUI_NON, obligatoire: true },
       { id: "points_forts", type: "TEXTE", libelle: "Ce qui fonctionne bien" },
       { id: "ameliorations", type: "TEXTE", libelle: "Ce qui pourrait être amélioré" },
+    ],
+  },
+  CLIENT: {
+    titre: "Votre avis sur la formation de vos collaborateurs",
+    introduction: "Merci de prendre deux minutes pour nous dire comment s'est passée la formation suivie par vos salariés.",
+    questions: [
+      { id: "satisfaction_generale", type: "NOTE", libelle: "Dans l'ensemble, êtes-vous satisfait(e) de la formation ?", obligatoire: true },
+      { id: "besoins_repondus", type: "NOTE", libelle: "La formation a-t-elle répondu aux besoins de votre entreprise ?", obligatoire: true },
+      { id: "organisation", type: "NOTE", libelle: "L'organisation (devis, convention, convocations, échanges) a-t-elle été satisfaisante ?", obligatoire: true },
+      { id: "competences_constatees", type: "NOTE", libelle: "Constatez-vous déjà une progression de vos collaborateurs ?", obligatoire: true },
+      { id: "recommanderait", type: "CHOIX_UNIQUE", libelle: "Recommanderiez-vous notre organisme ?", options: OUI_NON, obligatoire: true },
+      { id: "besoins_futurs", type: "TEXTE", libelle: "Avez-vous d'autres besoins de formation à venir ?" },
+      { id: "remarques", type: "TEXTE", libelle: "Remarques ou suggestions" },
     ],
   },
   FINANCEUR: {

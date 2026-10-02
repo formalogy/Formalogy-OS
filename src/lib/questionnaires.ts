@@ -21,7 +21,8 @@ export type DestinataireQuestionnaire =
   | { type: "FROID"; sessionId: string; learnerId: string }
   | { type: "CHAUD_FORMATEUR"; sessionId: string; trainerId: string }
   | { type: "FINANCEUR"; dossierFinancementId: string }
-  | { type: "SATISFACTION_FORMATEUR"; trainerId: string };
+  | { type: "SATISFACTION_FORMATEUR"; trainerId: string }
+  | { type: "CLIENT"; sessionId: string; companyId: string };
 
 function filtreDestinataire(dest: DestinataireQuestionnaire) {
   if (dest.type === "POSITIONNEMENT" || dest.type === "FROID") {
@@ -33,7 +34,21 @@ function filtreDestinataire(dest: DestinataireQuestionnaire) {
   if (dest.type === "FINANCEUR") {
     return { type: dest.type, dossierFinancementId: dest.dossierFinancementId };
   }
+  if (dest.type === "CLIENT") {
+    return { type: dest.type, sessionId: dest.sessionId, companyId: dest.companyId };
+  }
   return { type: dest.type, trainerId: dest.trainerId, sessionId: null };
+}
+
+/// Adresse de l'entreprise cliente pour son questionnaire : celle de sa
+/// fiche, à défaut celle de son premier contact qui en a une.
+export async function adresseClient(companyId: string): Promise<{ email: string | null; nom: string }> {
+  const e = await prisma.company.findFirst({
+    where: { id: companyId, deletedAt: null },
+    select: { raisonSociale: true, email: true, contacts: { where: { deletedAt: null, email: { not: null } }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } } },
+  });
+  if (!e) return { email: null, nom: "Entreprise introuvable" };
+  return { email: e.email ?? e.contacts[0]?.email ?? null, nom: e.raisonSociale };
 }
 
 /// Prépare le lien personnel d'un questionnaire qualité. Un nouveau jeton est
@@ -61,6 +76,7 @@ export async function preparerLienQuestionnaireQualite(dest: DestinataireQuestio
         learnerId: "learnerId" in dest ? dest.learnerId : null,
         trainerId: "trainerId" in dest ? dest.trainerId : null,
         dossierFinancementId: "dossierFinancementId" in dest ? dest.dossierFinancementId : null,
+        companyId: "companyId" in dest ? dest.companyId : null,
         ...donnees,
       },
     });
@@ -77,11 +93,12 @@ export async function questionnaireQualiteParJeton(jeton: string) {
       learner: { select: { prenom: true, nom: true, deletedAt: true } },
       trainer: { select: { prenom: true, nom: true, deletedAt: true } },
       dossier: { select: { financeurNom: true } },
+      company: { select: { raisonSociale: true, deletedAt: true } },
       session: { select: { numero: true, dateDebut: true, dateFin: true, deletedAt: true, formation: { select: { titre: true } } } },
     },
   });
   if (!q) return null;
-  if (q.learner?.deletedAt || q.trainer?.deletedAt || q.session?.deletedAt) return null;
+  if (q.learner?.deletedAt || q.trainer?.deletedAt || q.company?.deletedAt || q.session?.deletedAt) return null;
   return q;
 }
 
@@ -133,6 +150,7 @@ const CONTEXTE_LIEN: Record<TypeQuestionnaire, `lien${string}` & keyof Parameter
   FROID: "lienFroid",
   FINANCEUR: "lienFinanceur",
   SATISFACTION_FORMATEUR: "lienSatisfactionFormateur",
+  CLIENT: "lienClient",
 };
 
 /// Envoi manuel (hors automatisation) d'un questionnaire qualité à un
@@ -180,6 +198,10 @@ async function resoudreDestinataire(
     const apprenant = await prisma.learner.findFirst({ where: { id: dest.learnerId, deletedAt: null } });
     if (!apprenant) return [null, "Apprenant introuvable", undefined, undefined];
     return [apprenant.email, `${apprenant.prenom} ${apprenant.nom}`, apprenant.id, undefined];
+  }
+  if (dest.type === "CLIENT") {
+    const e = await adresseClient(dest.companyId);
+    return [e.email, e.nom, undefined, undefined];
   }
   if (dest.type === "FINANCEUR") {
     const dossier = await prisma.dossierFinancement.findUnique({ where: { id: dest.dossierFinancementId } });

@@ -54,6 +54,7 @@ export async function construireContexte(ids: {
   lienFroid?: string;
   lienChaudFormateur?: string;
   lienFinanceur?: string;
+  lienClient?: string;
   lienSatisfactionFormateur?: string;
   /// Relance de devis
   devisId?: string;
@@ -119,6 +120,7 @@ export async function construireContexte(ids: {
     "questionnaire.lienFroid": ids.lienFroid,
     "questionnaire.lienChaudFormateur": ids.lienChaudFormateur,
     "questionnaire.lienFinanceur": ids.lienFinanceur,
+    "questionnaire.lienClient": ids.lienClient,
     "questionnaire.lienSatisfactionFormateur": ids.lienSatisfactionFormateur,
     "devis.numero": devis?.numero,
     "devis.date": devis ? dateDevis.format(devis.date) : undefined,

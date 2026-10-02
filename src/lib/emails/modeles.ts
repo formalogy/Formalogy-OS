@@ -50,6 +50,7 @@ export const VARIABLES_DISPONIBLES: Record<string, string> = {
   "questionnaire.lienFroid": "Lien personnel vers le questionnaire à froid (60 jours après la formation)",
   "questionnaire.lienChaudFormateur": "Lien personnel vers le questionnaire à chaud du formateur",
   "questionnaire.lienFinanceur": "Lien personnel vers le questionnaire financeur",
+  "questionnaire.lienClient": "Lien personnel du questionnaire de satisfaction de l'entreprise cliente",
   "questionnaire.lienSatisfactionFormateur": "Lien personnel vers le questionnaire annuel de satisfaction formateur",
 };
 

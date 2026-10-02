@@ -625,7 +625,7 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
 
 ## Questionnaires qualité
 
-- Cinq types (`TypeQuestionnaire`) à côté du questionnaire de satisfaction
+- Six types (`TypeQuestionnaire`, dont `CLIENT` depuis le 02/10/2026) à côté du questionnaire de satisfaction
   apprenant, inchangé : `POSITIONNEMENT` (attentes et positionnement, avant
   la formation), `FROID` (à 60 jours), `CHAUD_FORMATEUR`,
   `SATISFACTION_FORMATEUR`, `FINANCEUR`. Même mécanique de lien à usage
@@ -666,6 +666,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   réponses, évaluation de chaque apprenant) et le range dans la session,
   type `QUESTIONNAIRE_CHAUD_FORMATEUR` renommé « Bilan de session —
   formateur ».
+- **Satisfaction à J+7** (02/10/2026) : questionnaire `CLIENT` à chaque
+  entreprise cliente de la session (celle de la session et celles des
+  inscrits ; adresse de la fiche, à défaut celle d'un contact ; destinataire
+  `ENTREPRISE_SESSION`, modèle `CLIENT`, réponses sur la fiche entreprise)
+  et relance des stagiaires qui n'ont pas répondu à la satisfaction à chaud
+  (modèle `SATISFACTION_RELANCE`, nouveau lien : l'ancien ne vaut plus).
+  Deux automatisations `SESSION_APRES_FIN` 7 jours, 10 h.
 - Envoi : POSITIONNEMENT à J-15 (avec la convention), satisfaction à chaud
   le dernier jour à 16 h (lien dans le mail de fin de formation),
   CHAUD_FORMATEUR le dernier jour à 16 h (avec l'évaluation des acquis),

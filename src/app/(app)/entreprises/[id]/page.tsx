@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ReponsesQuestionnaires, SELECTION_REPONSES } from "@/app/(app)/_composants/reponses-questionnaires";
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
 import { FormulaireContact } from "@/app/(app)/entreprises/[id]/formulaire-contact";
@@ -43,6 +44,7 @@ export default async function PageEntreprise({
       },
       createdBy: { select: { name: true } },
       documents: SELECTION_DOCUMENT_RESUME,
+      questionnaires: SELECTION_REPONSES,
     },
   });
 
@@ -190,6 +192,10 @@ export default async function PageEntreprise({
 
       <div className="mt-4">
         <ListeDocuments documents={entreprise.documents} lienAjout={`entreprise=${entreprise.id}`} />
+      </div>
+
+      <div className="mt-4 empty:mt-0">
+        <ReponsesQuestionnaires questionnaires={entreprise.questionnaires} />
       </div>
 
       <section className="mt-4 rounded-xl border border-dashed border-bordure bg-surface/50 p-5">

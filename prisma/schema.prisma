@@ -257,6 +257,7 @@ model Company {
   createdBy   User?   @relation("CompanyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   contacts  Contact[]
+  questionnaires Questionnaire[]
   prospects Prospect[]
   learners  Learner[]
   sessions  TrainingSession[]
@@ -1372,6 +1373,8 @@ enum TypeQuestionnaire {
   FINANCEUR
   /// Campagne annuelle auprès des formateurs
   SATISFACTION_FORMATEUR
+  /// Satisfaction de l'entreprise cliente, 7 jours après la fin de session
+  CLIENT
 }
 
 model Questionnaire {
@@ -1388,6 +1391,9 @@ model Questionnaire {
   trainerId String?
   trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   /// Destinataire financeur (FINANCEUR)
+  /// Entreprise cliente interrogée (questionnaire CLIENT)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   dossierFinancementId String?
   dossier               DossierFinancement? @relation(fields: [dossierFinancementId], references: [id], onDelete: Cascade)
 
