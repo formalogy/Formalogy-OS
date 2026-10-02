@@ -28,6 +28,68 @@ function formulaire(valeurs: Record<string, string | undefined>): FormData {
   return f;
 }
 
+/// Range un PDF joint à l'assistant comme document de l'application, puis
+/// retire la copie temporaire.
+async function rangerPdf(d: {
+  fichierId: string;
+  nomFichier: string;
+  nom: string;
+  typeCode: string | null;
+  trainerId: string | null;
+  formationId?: string | null;
+  userId: string;
+}) {
+  const octets = await lireFichierAssistant(d.fichierId);
+  const type = d.typeCode ? await prisma.documentType.findUnique({ where: { code: d.typeCode } }) : null;
+  const documentId = randomUUID();
+  const chemin = cheminStockage(documentId, 1, "pdf");
+  await stockage().deposer(chemin, octets, "application/pdf");
+  try {
+    await prisma.document.create({
+      data: {
+        id: documentId,
+        nom: d.nom,
+        typeId: type?.id ?? null,
+        categorie: type?.categorie ?? "FORMATEUR",
+        formationId: d.formationId ?? null,
+        trainerId: d.trainerId,
+        createdById: d.userId,
+        versions: {
+          create: {
+            numero: 1,
+            cheminStockage: chemin,
+            nomFichier: d.nomFichier,
+            typeMime: "application/pdf",
+            taille: octets.byteLength,
+            empreinte: createHash("sha256").update(octets).digest("hex"),
+            createdById: d.userId,
+          },
+        },
+      },
+    });
+  } catch (erreur) {
+    await stockage().supprimer([chemin]).catch(() => undefined);
+    throw erreur;
+  }
+  await stockage().supprimer([`assistant/${d.fichierId}.pdf`]).catch(() => undefined);
+}
+
+/// Pièces du dossier formateur (CV, NDA…) ; renvoie celles qui n'ont pas pu
+/// être rangées.
+async function rangerPieces(pieces: { fichierId: string; nomFichier: string; nom: string; typeCode: string }[] | undefined, trainerId: string, userId: string) {
+  const echecs: string[] = [];
+  for (const piece of pieces ?? []) {
+    try {
+      await rangerPdf({ ...piece, typeCode: piece.typeCode === "AUTRE" ? null : piece.typeCode, trainerId, userId });
+    } catch {
+      echecs.push(piece.nomFichier);
+    }
+  }
+  return echecs;
+}
+
+const suiteEchecs = (echecs: string[]) => (echecs.length ? ` Non rangé (à joindre de nouveau) : ${echecs.join(", ")}.` : "");
+
 /// Fiche formateur proposée par l'assistant, avec les contrôles du formulaire.
 async function creerFormateurPropose(brut: unknown, userId: string): Promise<{ erreur: string } | { id: string; nom: string }> {
   const r = schemaFormateur.safeParse(brut);
@@ -120,8 +182,17 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
     case "FORMATEUR": {
       const f = await creerFormateurPropose(p.formateur, utilisateur.id);
       if ("erreur" in f) return { erreur: f.erreur };
+      const echecs = await rangerPieces(p.pieces, f.id, utilisateur.id);
       await tracer(`fiche formateur créée pour ${f.nom}`);
-      return { succes: `Fiche de ${f.nom} créée.`, lien: `/formateurs/${f.id}` };
+      return { succes: `Fiche de ${f.nom} créée${p.pieces?.length ? " avec ses documents" : ""}.${suiteEchecs(echecs)}`, lien: `/formateurs/${f.id}` };
+    }
+    case "PIECES_FORMATEUR": {
+      if (!(await prisma.trainer.findFirst({ where: { id: p.trainerId, deletedAt: null } }))) return { erreur: "Ce formateur n'existe plus." };
+      const echecs = await rangerPieces(p.pieces, p.trainerId, utilisateur.id);
+      revalidatePath(`/formateurs/${p.trainerId}`);
+      await tracer(`${p.pieces.length - echecs.length} document(s) rangé(s) sur une fiche formateur`);
+      if (echecs.length === p.pieces.length) return { erreur: `Aucun document rangé : joignez-les de nouveau.` };
+      return { succes: `Documents rangés.${suiteEchecs(echecs)}`, lien: `/formateurs/${p.trainerId}` };
     }
     case "PROGRAMME": {
       if (p.trainerId && !(await prisma.trainer.findFirst({ where: { id: p.trainerId, deletedAt: null } }))) {
@@ -133,9 +204,9 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
       }
       const typeProgramme = await prisma.documentType.findUnique({ where: { code: "PROGRAMME" } });
       if (!typeProgramme) return { erreur: "Le type de document « Programme » manque." };
-      let octets: Uint8Array;
+      // Le PDF doit être encore là avant de créer quoi que ce soit.
       try {
-        octets = await lireFichierAssistant(p.fichierId);
+        await lireFichierAssistant(p.fichierId);
       } catch {
         return { erreur: "Le PDF n'est plus disponible : joignez-le de nouveau à l'assistant." };
       }
@@ -169,44 +240,16 @@ export async function executerProposition(brute: unknown): Promise<ResultatPropo
         trainerId = f.id;
       }
 
-      // Le PDF devient le programme du formateur (proposé sur ses sessions).
-      const documentId = randomUUID();
-      const chemin = cheminStockage(documentId, 1, "pdf");
-      await stockage().deposer(chemin, octets, "application/pdf");
-      try {
-        await prisma.document.create({
-          data: {
-            id: documentId,
-            nom: p.nom,
-            typeId: typeProgramme.id,
-            categorie: typeProgramme.categorie,
-            formationId: formation.id,
-            trainerId: trainerId ?? null,
-            createdById: utilisateur.id,
-            versions: {
-              create: {
-                numero: 1,
-                cheminStockage: chemin,
-                nomFichier: p.nomFichier,
-                typeMime: "application/pdf",
-                taille: octets.byteLength,
-                empreinte: createHash("sha256").update(octets).digest("hex"),
-                createdById: utilisateur.id,
-              },
-            },
-          },
-        });
-      } catch (erreur) {
-        await stockage().supprimer([chemin]).catch(() => undefined);
-        throw erreur;
-      }
-      await stockage().supprimer([`assistant/${p.fichierId}.pdf`]).catch(() => undefined);
+      // Le PDF devient le programme du formateur (proposé sur ses sessions),
+      // et ses autres pièces vont sur sa fiche.
+      await rangerPdf({ fichierId: p.fichierId, nomFichier: p.nomFichier, nom: p.nom, typeCode: "PROGRAMME", trainerId: trainerId ?? null, formationId: formation.id, userId: utilisateur.id });
+      const echecs = trainerId ? await rangerPieces(p.pieces, trainerId, utilisateur.id) : (p.pieces ?? []).map((x) => x.nomFichier);
 
       revalidatePath("/formations");
       if (trainerId) revalidatePath(`/formateurs/${trainerId}`);
       await tracer(`programme « ${p.nom} » rangé (formation ${formation.reference})`);
       return {
-        succes: p.formationId ? `Programme « ${p.nom} » rangé.` : `Fiche « ${formation.titre} » créée en brouillon et programme rangé.`,
+        succes: `${p.formationId ? `Programme « ${p.nom} » rangé.` : `Fiche « ${formation.titre} » créée en brouillon et programme rangé.`}${suiteEchecs(echecs)}`,
         lien: `/formations/${formation.id}`,
       };
     }

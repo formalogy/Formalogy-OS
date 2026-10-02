@@ -30,10 +30,30 @@ export const schemaFormateurPropose = z.object({
   notes: texte,
 });
 
+/// Types de pièces que l'assistant peut ranger sur la fiche d'un formateur.
+export const TYPES_PIECES_FORMATEUR = ["CV_FORMATEUR", "NDA_FORMATEUR", "PIECE_IDENTITE_FORMATEUR", "CONTRAT_FORMATEUR", "AUTRE"] as const;
+
+/// PDF joint à l'assistant, à ranger sur la fiche du formateur.
+export const schemaPieceFormateur = z.object({
+  fichierId: z.uuid(),
+  nomFichier: z.string().trim().min(1).max(200),
+  nom: z.string().trim().min(1).max(200),
+  typeCode: z.enum(TYPES_PIECES_FORMATEUR),
+});
+const pieces = z.array(schemaPieceFormateur).max(5).optional();
+
 export const schemaProposition = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("FORMATEUR"),
     formateur: schemaFormateurPropose,
+    /// CV, NDA… rangés sur la nouvelle fiche
+    pieces,
+  }),
+  z.object({
+    /// CV, NDA… rangés sur la fiche d'un formateur existant
+    type: z.literal("PIECES_FORMATEUR"),
+    trainerId: z.string().min(1),
+    pieces: z.array(schemaPieceFormateur).min(1).max(5),
   }),
   z.object({
     type: z.literal("APPRENANT"),
@@ -100,6 +120,8 @@ export const schemaProposition = z.discriminatedUnion("type", [
     trainerId: texte,
     /// Formateur à créer en même temps, quand il n'a pas encore de fiche.
     nouveauFormateur: schemaFormateurPropose.optional(),
+    /// CV, NDA… rangés sur la fiche du formateur (existant ou nouveau)
+    pieces,
     /// Formation existante à laquelle rattacher le programme ; sinon,
     /// `formation` décrit la fiche à créer.
     formationId: texte,

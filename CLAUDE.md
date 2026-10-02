@@ -692,7 +692,11 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   formulaire, `lib/formateurs-creation.ts`, homonyme signalé) ; modalité
   habituelle du formateur (`trainers.modalite`, présentiel/distanciel),
   pré-sélectionnée sur la session quand on le choisit (hors session Formalogy) ; un programme
-  PDF peut créer son formateur en même temps (`nouveauFormateur`).
+  PDF peut créer son formateur en même temps (`nouveauFormateur`). Pièces
+  du dossier (CV, NDA, pièce d'identité, contrat ; types `NDA_FORMATEUR`,
+  `PIECE_IDENTITE_FORMATEUR` ajoutés le 02/10/2026) rangées sur la fiche du
+  formateur (`pieces`, ou proposition `PIECES_FORMATEUR` pour un formateur
+  existant) ; elles servent aussi à remplir sa fiche.
 - **Programmes PDF** (01/10/2026) : trombone de la fenêtre → PDF déposé
   (`POST /api/assistant/fichier`, stockage `assistant/<uuid>.pdf`, seule la
   référence voyage dans la conversation et le serveur relit le PDF à chaque
