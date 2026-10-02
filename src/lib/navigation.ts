@@ -107,6 +107,7 @@ export const MENU: GroupeMenu[] = [
       { libelle: "Modèles d'emails", chemin: "/parametres/modeles-emails", icone: "enveloppe" },
       { libelle: "Automatisations", chemin: "/parametres/automatisations", icone: "robot" },
       { libelle: "Intégrations", chemin: "/parametres/integrations", icone: "prise", roles: ADMIN_SEUL },
+      { libelle: "Connexions externes (Make)", chemin: "/parametres/connexions", icone: "prise", roles: ADMIN_SEUL },
       { libelle: "API", chemin: "/parametres/api", icone: "code", roles: ADMIN_SEUL },
       { libelle: "Paramètres généraux", chemin: "/parametres/general", icone: "engrenage", roles: ADMIN_SEUL },
     ],

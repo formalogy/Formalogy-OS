@@ -1413,6 +1413,7 @@ model Questionnaire {
 
   @@index([type])
   @@index([sessionId])
+  @@index([companyId])
   @@index([reponduAt])
   @@map("questionnaires")
 }
@@ -1866,4 +1867,46 @@ model Devis {
   @@index([companyId])
   @@index([prospectId])
   @@map("devis")
+}
+
+// ===========================================================================
+// Connexions externes (02/10/2026) : envoi d'événements vers Make (webhooks)
+// ===========================================================================
+
+/// Adresse « webhook » d'un scénario Make (ou autre outil) à prévenir quand
+/// un événement se produit — par exemple pour ajouter une ligne dans Excel.
+model Webhook {
+  id         String   @id @default(uuid(7))
+  nom        String
+  url        String
+  /// Événements envoyés (codes de `EVENEMENTS_WEBHOOK`)
+  evenements String[]
+  actif      Boolean  @default(true)
+
+  envois WebhookEnvoi[]
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("webhooks")
+}
+
+/// Trace de chaque envoi ; la clé unique interdit d'envoyer deux fois le même
+/// événement au même webhook (une session reprise ne refait pas sa ligne).
+model WebhookEnvoi {
+  id        String  @id @default(uuid(7))
+  webhookId String
+  webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  cle       String
+  evenement String
+  resume    String
+  ok        Boolean
+  erreur    String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([webhookId, cle])
+  @@index([webhookId, createdAt])
+  @@map("webhook_envois")
 }

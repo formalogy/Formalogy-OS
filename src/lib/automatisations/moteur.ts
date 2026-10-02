@@ -30,6 +30,7 @@ import { genererFacturesHenrriPourSession } from "@/lib/henrri/facturation";
 import { journaliser } from "@/lib/journal";
 import { lireOrganisme } from "@/lib/organisme";
 import { manquesRealisation } from "@/lib/realisation";
+import { publierEvenement } from "@/lib/webhooks";
 import { adresseClient, preparerLienQuestionnaireQualite } from "@/lib/questionnaires";
 import { prisma } from "@/lib/prisma";
 import { preparerLienQuestionnaire } from "@/lib/satisfaction";
@@ -1312,6 +1313,9 @@ type Evenement =
 /// automatisation en échec est tracée, mais n'annule pas l'action qui l'a
 /// déclenchée.
 export async function declencher(evenement: Evenement): Promise<void> {
+  // Connexions externes (Make) : l'événement leur est transmis même si la
+  // session est suspendue — c'est une donnée, pas un envoi au stagiaire.
+  await publierEvenement(evenement);
   try {
     if ("sessionId" in evenement) {
       const session = await prisma.trainingSession.findUnique({

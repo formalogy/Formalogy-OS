@@ -772,6 +772,15 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   externe (Gmail, Supabase, BoldSign, Henrri, réveil quotidien), lecture seule
   à partir des variables d'environnement — aucune clé ne se modifie depuis
   l'application.
+- **Connexions externes** (`/parametres/connexions`, admin, 02/10/2026) :
+  envoi d'événements vers Make (webhooks) pour remplir un tableur Excel —
+  stagiaire créé, inscription, session terminée, facture émise
+  (`lib/webhooks.ts`, `publierEvenement`, appelé par `declencher` et à
+  l'émission d'une facture, auto ou manuelle). Une ligne à plat par
+  événement, une seule fois par webhook (`webhook_envois`, clé unique),
+  échecs tracés et renvoyables, ligne d'essai pour que Make découvre les
+  colonnes. Envoi seulement : aucune donnée n'entre par ce chemin. Adresse
+  https vers un service public uniquement. Make : sous-traitant RGPD.
 - **API** (`/parametres/api`) : Formalogy OS n'expose pas d'API pour des
   tiers ; cette page documente uniquement le réveil `POST
   /api/automatisations/executer`, à l'usage de qui configurera le

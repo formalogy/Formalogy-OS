@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -14,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 import { aujourdhuiUTC, jourDepuisSaisie } from "@/lib/sessions-libelles";
 import { stockage, StockageNonConfigure } from "@/lib/stockage";
+import { publierEvenement } from "@/lib/webhooks";
 
 export type EtatFormulaire = { erreur?: string; succes?: string; valeurs?: Record<string, string> };
 
@@ -192,6 +194,8 @@ export async function emettreFacture(_precedent: EtatFormulaire, donnees: FormDa
     }
     throw erreur;
   }
+
+  after(() => publierEvenement({ type: "FACTURE_EMISE", factureId: id }));
 
   await journaliser({
     action: "invoice.issued",

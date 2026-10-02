@@ -11,6 +11,7 @@ import { henrriFetch, henrriTelecharger, HenrriError } from "@/lib/henrri/client
 import { journaliser } from "@/lib/journal";
 import { echeanceFacture } from "@/lib/paiements-attendus";
 import { prisma } from "@/lib/prisma";
+import { publierEvenement } from "@/lib/webhooks";
 import { aujourdhuiUTC, formaterPeriode } from "@/lib/sessions-libelles";
 import { stockage } from "@/lib/stockage";
 
@@ -518,6 +519,7 @@ async function emettreFacture(
   await prisma.sessionLearner.updateMany({ where: { id: { in: g.inscriptions.map((i) => i.id) } }, data: { factureId: facture.id } });
   const dossiers = g.inscriptions.map((i) => i.dossierFinancementId).filter((id): id is string => Boolean(id));
   if (dossiers.length > 0) await prisma.dossierFinancement.updateMany({ where: { id: { in: dossiers } }, data: { factureId: facture.id } });
+  await publierEvenement({ type: "FACTURE_EMISE", factureId: facture.id });
 
   // Le PDF est un à-côté : s'il échoue, la facture existe déjà et reste
   // valide (numéro et montants corrects) — seul le PDF manquera, récupérable
