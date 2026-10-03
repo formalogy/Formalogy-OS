@@ -108,7 +108,8 @@ export function FormulaireFormation({ categories, initiales }: Props) {
         <Champ
           nom="certification"
           libelle="Certification"
-          placeholder="TOSA, RS…"
+          placeholder="TOSA (RS), titre professionnel (RNCP)…"
+          aide="Indiquez RS, RNCP ou CQP : c'est ce qui classe la formation dans le BPF."
           valeurParDefaut={v("certification")}
         />
       </div>
