@@ -24,6 +24,7 @@ export default async function PageModifierApprenant({ params }: { params: Promis
 
   const initiales = {
     id: apprenant.id,
+    civilite: apprenant.civilite ?? "",
     prenom: apprenant.prenom,
     nom: apprenant.nom,
     dateNaissance: apprenant.dateNaissance ? jourVersSaisie(apprenant.dateNaissance) : "",

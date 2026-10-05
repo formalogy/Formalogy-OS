@@ -56,6 +56,17 @@ export function FormulaireApprenant({ entreprises, initiales }: Props) {
         Identité
       </h2>
       <div className="grid gap-4 sm:grid-cols-2">
+        <ChampListe
+          nom="civilite"
+          libelle="Civilité"
+          options={[
+            { valeur: "", libelle: "Non précisée" },
+            { valeur: "MADAME", libelle: "Madame" },
+            { valeur: "MONSIEUR", libelle: "Monsieur" },
+          ]}
+          valeurParDefaut={v("civilite") ?? ""}
+        />
+        <div className="hidden sm:block" />
         <Champ nom="prenom" libelle="Prénom" obligatoire valeurParDefaut={v("prenom")} />
         <Champ nom="nom" libelle="Nom" obligatoire valeurParDefaut={v("nom")} />
         <Champ nom="dateNaissance" libelle="Date de naissance" type="date" valeurParDefaut={v("dateNaissance")} />

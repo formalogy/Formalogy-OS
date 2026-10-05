@@ -3,7 +3,9 @@ import "server-only";
 import type { PDFFont } from "pdf-lib";
 
 /// Lettres sans décomposition Unicode, remplacées par leur plus proche équivalent.
-const LETTRES_PROCHES: Record<string, string> = { ł: "l", Ł: "L", đ: "d", Đ: "D", ı: "i", ß: "ss", "’": "'", "‘": "'", "“": '"', "”": '"' };
+/// L'espace fine insécable (U+202F) que met le format français des montants
+/// (« 1 500,00 € ») n'existe pas dans ces polices : espace insécable ordinaire.
+const LETTRES_PROCHES: Record<string, string> = { "\u202f": "\u00a0", ł: "l", Ł: "L", đ: "d", Đ: "D", ı: "i", ß: "ss", "’": "'", "‘": "'", "“": '"', "”": '"' };
 
 /// Les polices standard des PDF ne couvrent que l'alphabet latin occidental :
 /// un caractère non représentable est remplacé plutôt que de faire échouer

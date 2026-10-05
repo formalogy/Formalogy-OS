@@ -361,6 +361,12 @@ enum TypeFinancement {
 }
 
 /// Où en est l'apprenant dans son parcours.
+/// Civilité du stagiaire, reprise dans la convention (client, 05/10/2026).
+enum Civilite {
+  MONSIEUR
+  MADAME
+}
+
 enum StatutApprenant {
   PROSPECT
   INSCRIT
@@ -381,6 +387,7 @@ enum StatutApprenant {
 model Learner {
   id String @id @default(uuid(7))
 
+  civilite      Civilite?
   prenom        String
   nom           String
   dateNaissance DateTime?

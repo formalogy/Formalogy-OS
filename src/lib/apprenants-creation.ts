@@ -20,6 +20,11 @@ export const STATUTS_APPRENANT = ["PROSPECT", "INSCRIT", "EN_FORMATION", "TERMIN
 const TYPES = ["ENTREPRISE", "OPCO", "CPF", "FRANCE_TRAVAIL", "PERSONNEL", "AUTRE"] as const;
 
 export const schemaApprenant = z.object({
+  /// Monsieur / Madame, repris dans la convention ; vide = non précisée.
+  civilite: z
+    .enum(["MONSIEUR", "MADAME", ""])
+    .optional()
+    .transform((v) => v || null),
   prenom: z.string().trim().min(1, "Le prénom est obligatoire."),
   nom: z.string().trim().min(1, "Le nom est obligatoire."),
   dateNaissance: texteFacultatif,

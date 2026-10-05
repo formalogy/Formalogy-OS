@@ -46,7 +46,9 @@ export type ResultatRemplissage = {
 };
 
 /// Remplit un modèle .docx en remplaçant chaque «MARQUEUR» par sa valeur.
-export function remplirModeleDocx(modele: Uint8Array, valeurs: Record<string, string | undefined>): ResultatRemplissage {
+/// `null` : marqueur volontairement effacé (rien à écrire, ce n'est pas un
+/// oubli) ; `undefined` ou "" : valeur manquante, le marqueur reste visible.
+export function remplirModeleDocx(modele: Uint8Array, valeurs: Record<string, string | null | undefined>): ResultatRemplissage {
   const fichiers = unzipSync(modele);
   const nonRemplis = new Set<string>();
   const decodeur = new TextDecoder();
@@ -58,6 +60,7 @@ export function remplirModeleDocx(modele: Uint8Array, valeurs: Record<string, st
     const rempli = xml.replace(MARQUEUR, (marqueur, cle: string) => {
       if (MARQUEURS_MISE_EN_PAGE.has(cle)) return marqueur;
       const valeur = valeurs[cle];
+      if (valeur === null) return "";
       if (valeur === undefined || valeur === "") {
         nonRemplis.add(cle);
         return marqueur;
