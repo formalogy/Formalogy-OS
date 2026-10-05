@@ -24,7 +24,7 @@ import { LIBELLE_MODALITE, LIBELLE_PLATEFORME, MODALITES } from "@/lib/formation
 import { LIBELLE_STATUT_SESSION, STATUTS_PROPOSES } from "@/lib/sessions-libelles";
 
 type Props = {
-  formations: { id: string; titre: string; reference: string; modalite: string; prixHT?: string | null }[];
+  formations: { id: string; titre: string; reference: string; modalite: string; prixHT?: string | null; dureeHeures?: number | null }[];
   entreprises: { id: string; raisonSociale: string; adresse: string | null; codePostal: string | null; ville: string | null }[];
   formateurs: { id: string; libelle: string; programmes: { id: string; nom: string }[]; modalite: string | null; lieu: string | null; lieuEntreprise: boolean }[];
   /// Valeurs enregistrées : leur présence met le formulaire en mode modification
@@ -48,6 +48,7 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
   const [formationId, setFormationId] = useState(v("formationId") ?? "");
   const [entrepriseId, setEntrepriseId] = useState(v("companyId") ?? "");
   const prixFormation = formations.find((f) => f.id === formationId)?.prixHT ?? null;
+  const [dates, setDates] = useState({ debut: v("dateDebut") ?? "", fin: v("dateFin") ?? "" });
   const programmes = formateurs.find((f) => f.id === formateurId)?.programmes ?? [];
 
   /// Lieu de la session d'après le formateur : son adresse de formation, ou
@@ -91,6 +92,13 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         }
         if (champ.name === "attribution") setAttribution(champ.value);
         if (champ.name === "formationId") setFormationId(champ.value);
+        if (champ.name === "dateDebut" || champ.name === "dateFin" || champ.name === "modalite") {
+          const f = champ.form;
+          setDates({
+            debut: (f?.elements.namedItem("dateDebut") as HTMLInputElement | null)?.value ?? "",
+            fin: (f?.elements.namedItem("dateFin") as HTMLInputElement | null)?.value ?? "",
+          });
+        }
         if (champ.name === "companyId") setEntrepriseId(champ.value);
         if (champ.name === "trainerId") {
           setFormateurId(champ.value);
@@ -144,7 +152,13 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         </div>
         <Champ nom="dateDebut" libelle="Date de début" type="date" obligatoire valeurParDefaut={v("dateDebut")} />
         <Champ nom="dateFin" libelle="Date de fin" type="date" obligatoire valeurParDefaut={v("dateFin")} />
-        <ChampHoraires valeurParDefaut={v("horaires")} />
+        <ChampHoraires
+          valeurParDefaut={v("horaires")}
+          dateDebut={dates.debut}
+          dateFin={dates.fin}
+          dureeFormation={formations.find((f) => f.id === formationId)?.dureeHeures ?? null}
+          enLigne={modalite === "E_LEARNING"}
+        />
         <Champ nom="lieu" libelle="Lieu" placeholder="Adresse ou lien de visio" valeurParDefaut={v("lieu")} />
         <ChampListe
           nom="modalite"

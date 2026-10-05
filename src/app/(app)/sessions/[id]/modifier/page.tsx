@@ -15,7 +15,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
 
   const session = await prisma.trainingSession.findFirst({
     where: { id, deletedAt: null },
-    include: { formation: { select: { id: true, titre: true, reference: true, modalite: true } } },
+    include: { formation: { select: { id: true, titre: true, reference: true, modalite: true, dureeHeures: true } } },
   });
   if (!session) notFound();
 
@@ -23,7 +23,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
     prisma.formation.findMany({
       where: { deletedAt: null, statut: "ACTIVE" },
       orderBy: { titre: "asc" },
-      select: { id: true, titre: true, reference: true, modalite: true },
+      select: { id: true, titre: true, reference: true, modalite: true, dureeHeures: true },
     }),
     prisma.company.findMany({
       where: { deletedAt: null },
@@ -65,7 +65,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Modifier la session</h1>
       </header>
 
-      <FormulaireSession formations={formations} entreprises={entreprises} formateurs={formateurs} initiales={initiales} />
+      <FormulaireSession formations={formations.map((f) => ({ ...f, dureeHeures: f.dureeHeures === null ? null : Number(f.dureeHeures) }))} entreprises={entreprises} formateurs={formateurs} initiales={initiales} />
     </>
   );
 }

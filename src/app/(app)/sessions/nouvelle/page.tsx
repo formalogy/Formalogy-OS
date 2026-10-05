@@ -20,7 +20,7 @@ export default async function PageNouvelleSession({
     prisma.formation.findMany({
       where: { deletedAt: null, statut: "ACTIVE" },
       orderBy: { titre: "asc" },
-      select: { id: true, titre: true, reference: true, modalite: true, prixHT: true },
+      select: { id: true, titre: true, reference: true, modalite: true, prixHT: true, dureeHeures: true },
     }),
     prisma.company.findMany({
       where: { deletedAt: null },
@@ -68,7 +68,7 @@ export default async function PageNouvelleSession({
       </header>
 
       <FormulaireSession
-        formations={formations.map((f) => ({ ...f, prixHT: f.prixHT === null ? null : String(f.prixHT) }))}
+        formations={formations.map((f) => ({ ...f, prixHT: f.prixHT === null ? null : String(f.prixHT), dureeHeures: f.dureeHeures === null ? null : Number(f.dureeHeures) }))}
         entreprises={entreprises}
         formateurs={formateurs}
         valeursDeDepart={valeursDeDepart}
