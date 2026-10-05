@@ -634,6 +634,19 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   session, ou jointe au questionnaire de positionnement à J-15. Un modèle
   Word s'affiche en aperçu PDF dans l'application
   (`/api/documents/versions/[id]?apercu`).
+- **Modèles nettoyés le 05/10/2026** (version 4 des deux modèles) : plus de
+  consignes ni d'« (ex. : … ) ». Marqueurs calculés (`valeursConvention`) :
+  `CIVILITE` (fiche stagiaire, rien si vide), `FINANCEMENT` et
+  `CONDITIONS_REGLEMENT` d'après le payeur de l'inscription (CPF, OPCO,
+  France Travail : prise en charge intégrale ; personnel : règlement après
+  rétractation), `RETRACTATION` / `RETRACTATION_VERSEMENT` (article VIII
+  complet seulement en financement personnel, sinon « Sans objet »),
+  `DUREE`, `ENGAGEMENT_PARTICIPATION(S)`, `MOYENS_PEDAGOGIQUES`,
+  `MOYENS_SUIVI`, lieu et horaires adaptés à l'e-learning, `DETAIL_PRIX`,
+  `TITRE_PROGRAMME`. TVA citée : 261-4-4° du CGI. Une valeur `null` efface
+  volontairement un marqueur. Le PDF du programme (celui de la session, à
+  défaut celui de la formation) est joint en annexe (`joindreProgramme`).
+  Seul `NOM_REPRESENTANT` (entreprise) reste sans source.
 - **Convocation** : PDF construit par `lib/convocation-pdf.ts` sur le modèle
   fourni par le client (en-tête avec logo, tableau des séances par
   demi-journée, lieu, formateur, référents), rangé comme document de type
