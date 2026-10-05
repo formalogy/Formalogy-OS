@@ -4,6 +4,7 @@ import type { TypeFinancement } from "@prisma/client";
 import { useActionState, useState } from "react";
 
 import { ChampsFacturation } from "@/app/(app)/_composants/champs-facturation";
+import { ChampHoraires } from "@/app/(app)/sessions/champ-horaires";
 
 import {
   BoutonEnvoyer,
@@ -143,12 +144,7 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         </div>
         <Champ nom="dateDebut" libelle="Date de début" type="date" obligatoire valeurParDefaut={v("dateDebut")} />
         <Champ nom="dateFin" libelle="Date de fin" type="date" obligatoire valeurParDefaut={v("dateFin")} />
-        <Champ
-          nom="horaires"
-          libelle="Horaires"
-          placeholder="9h00–12h30 / 13h30–17h00"
-          valeurParDefaut={v("horaires")}
-        />
+        <ChampHoraires valeurParDefaut={v("horaires")} />
         <Champ nom="lieu" libelle="Lieu" placeholder="Adresse ou lien de visio" valeurParDefaut={v("lieu")} />
         <ChampListe
           nom="modalite"
