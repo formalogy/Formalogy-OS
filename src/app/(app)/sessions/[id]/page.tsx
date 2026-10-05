@@ -46,11 +46,11 @@ export default async function PageSession({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ onglet?: string }>;
+  searchParams: Promise<{ onglet?: string; stagiaire?: string }>;
 }) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
   const { id } = await params;
-  const demande = (await searchParams).onglet;
+  const { onglet: demande, stagiaire } = await searchParams;
 
   const session = await prisma.trainingSession.findFirst({
     where: { id, deletedAt: null },
@@ -130,7 +130,7 @@ export default async function PageSession({
 
   const idsInscrits = session.inscriptions.map((i) => i.learner.id);
   // On propose en priorité les apprenants de l'entreprise cliente.
-  const [candidats, financeurs, frise, docsAccueil] = await Promise.all([
+  const [candidats, financeurs, frise, docsAccueil, dernierTarif] = await Promise.all([
     prisma.learner.findMany({
       where: { deletedAt: null, id: { notIn: idsInscrits }, statut: { not: "ABANDONNE" } },
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],
@@ -142,6 +142,12 @@ export default async function PageSession({
     prisma.document.findMany({
       where: { deletedAt: null, sessionId: null, learnerId: null, trainerId: null, type: { code: { in: ["LIVRET_ACCUEIL", "REGLEMENT_INTERIEUR"] } } },
       select: { type: { select: { code: true } } },
+    }),
+    // Tarif proposé : le dernier pratiqué pour cette formation.
+    prisma.sessionLearner.findFirst({
+      where: { prixHT: { not: null }, session: { formationId: session.formationId, deletedAt: null } },
+      orderBy: { createdAt: "desc" },
+      select: { prixHT: true },
     }),
   ]);
   const candidatsTries = [
@@ -420,7 +426,8 @@ export default async function PageSession({
             {!complete && session.statut !== "ANNULEE" && session.statut !== "CLOTUREE" && (
               <FormulaireInscription
                 sessionId={session.id}
-                prixParDefaut={session.prixHT === null ? null : String(session.prixHT)}
+                prixParDefaut={dernierTarif?.prixHT != null ? String(dernierTarif.prixHT) : session.prixHT === null ? null : String(session.prixHT)}
+                preselection={stagiaire}
                 entrepriseSession={Boolean(session.companyId)}
                 financeursConnus={financeurs}
                 candidats={candidatsTries.map((c) => ({

@@ -35,11 +35,13 @@ export function CatalogueSessions({
   rechercheInitiale,
   formateur,
   entreprise,
+  apprenant,
 }: {
   formations: Formation[];
   rechercheInitiale: string;
   formateur: string;
   entreprise: string;
+  apprenant: string;
 }) {
   const [recherche, setRecherche] = useState(rechercheInitiale);
   const mots = simplifier(recherche).split(/\s+/).filter(Boolean);
@@ -79,6 +81,7 @@ export function CatalogueSessions({
                 <input type="hidden" name="formationId" value={f.id} />
                 {formateur && <input type="hidden" name="formateur" value={formateur} />}
                 {entreprise && <input type="hidden" name="entreprise" value={entreprise} />}
+                {apprenant && <input type="hidden" name="apprenant" value={apprenant} />}
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-semibold">{f.titre}</div>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-texte-tenu">

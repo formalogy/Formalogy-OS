@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { CatalogueSessions } from "@/app/(app)/sessions/nouvelle/catalogue";
 import { formaterDuree, LIBELLE_MODALITE } from "@/lib/formations-libelles";
@@ -17,8 +16,10 @@ export default async function PageNouvelleSession({
 }) {
   await exigerRole("ADMIN", "GESTIONNAIRE");
   const p = await searchParams;
-  // Session pour un stagiaire précis : le formulaire détaillé gère son inscription.
-  if (p.apprenant) redirect(`/sessions/nouvelle/detaillee?apprenant=${encodeURIComponent(p.apprenant)}`);
+  // Session pour un stagiaire précis : il sera proposé à l'inscription.
+  const apprenant = p.apprenant
+    ? await prisma.learner.findFirst({ where: { id: p.apprenant, deletedAt: null }, select: { id: true, prenom: true, nom: true } })
+    : null;
 
   const formations = await prisma.formation.findMany({
     where: { deletedAt: null, statut: "ACTIVE" },
@@ -45,7 +46,9 @@ export default async function PageNouvelleSession({
           <Link href="/sessions" className="text-[12.5px] font-semibold text-accent-fort hover:underline">
             ← Sessions
           </Link>
-          <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Créer une session</h1>
+          <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">
+            {apprenant ? `Créer une session pour ${apprenant.prenom} ${apprenant.nom}` : "Créer une session"}
+          </h1>
           <p className="mt-1 text-[12.8px] text-texte-doux">
             Choisissez la formation : la session reprend tout ce que le catalogue en sait. Vous compléterez ensuite les
             séances, le formateur et les participants.
@@ -62,6 +65,7 @@ export default async function PageNouvelleSession({
         rechercheInitiale={choisie?.titre ?? ""}
         formateur={p.formateur ?? ""}
         entreprise={p.entreprise ?? ""}
+        apprenant={apprenant?.id ?? ""}
         formations={formations.map((f) => ({
           id: f.id,
           titre: f.titre,

@@ -589,6 +589,13 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   (émargement, attestations, conventions), Questionnaires (envoyés /
   répondus), Déroulement (frise + liste de contrôle), Paramètres (réglages,
   suspendre / reprendre).
+- **Participants** (05/10/2026) : l'onglet ajoute un stagiaire existant
+  (recherche) ou nouveau (fiche courte : civilité, identité, coordonnées,
+  financement, n° CPF ; `inscrireNouvelApprenant`, inscription vérifiée
+  avant la création, doublon d'email refusé), avec payeur et tarif. Tarif
+  proposé = dernier tarif pratiqué pour la formation. « Créer une session
+  pour [stagiaire] » passe par le catalogue puis ouvre l'onglet
+  Participants avec le stagiaire présélectionné (`?stagiaire=`).
 - Une session se crée en brouillon, sans choix de statut. Le bouton « Lancer
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans

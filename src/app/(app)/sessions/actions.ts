@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { creerFicheApprenant, schemaApprenant } from "@/lib/apprenants-creation";
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { lireMontant } from "@/lib/factures";
@@ -683,5 +684,31 @@ export async function creerSessionCatalogue(donnees: FormData): Promise<void> {
   );
   if ("erreur" in r) redirect(`/sessions/nouvelle?erreur=${encodeURIComponent(r.erreur)}`);
   revalidatePath("/sessions");
-  redirect(`/sessions/${r.session.id}`);
+  // Session créée pour un stagiaire : on l'inscrit depuis l'onglet Participants.
+  const stagiaire = String(donnees.get("apprenant") ?? "");
+  redirect(stagiaire ? `/sessions/${r.session.id}?onglet=participants&stagiaire=${encodeURIComponent(stagiaire)}` : `/sessions/${r.session.id}`);
+}
+
+/// Onglet Participants : nouveau stagiaire créé et inscrit d'un coup (fiche
+/// courte, complétable ensuite). L'inscription est vérifiée avant toute
+/// création : rien n'est fait à moitié.
+export async function inscrireNouvelApprenant(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const sessionId = String(donnees.get("sessionId") ?? "");
+  const session = await prisma.trainingSession.findFirst({ where: { id: sessionId, deletedAt: null }, select: { companyId: true } });
+  if (!session) return { erreur: "Session introuvable." };
+
+  const champs = Object.fromEntries([...donnees.entries()].filter(([, v]) => typeof v === "string")) as Record<string, string>;
+  const fiche = schemaApprenant.safeParse({ ...champs, statut: "INSCRIT", companyId: champs.companyId || session.companyId || "" });
+  if (!fiche.success) return { erreur: fiche.error.issues[0]?.message ?? "Fiche incomplète.", valeurs: champs };
+  const avant = schemaInscription.safeParse({ ...champs, learnerId: "avant-creation" });
+  if (!avant.success) return { erreur: avant.error.issues[0]?.message ?? "Inscription invalide.", valeurs: champs };
+  if (fiche.data.email) {
+    const existant = await prisma.learner.findFirst({ where: { deletedAt: null, email: { equals: fiche.data.email, mode: "insensitive" } }, select: { prenom: true, nom: true } });
+    if (existant) return { erreur: `${existant.prenom} ${existant.nom} a déjà cette adresse email : choisissez-le parmi les stagiaires existants.`, valeurs: champs };
+  }
+
+  const apprenant = await creerFicheApprenant(fiche.data, utilisateur.id);
+  revalidatePath("/apprenants");
+  return inscrire(sessionId, apprenant.id, avant.data, utilisateur);
 }
