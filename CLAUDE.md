@@ -579,6 +579,16 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   l'inscription ; entreprise : somme de ses salariés). L'ancien formulaire
   complet reste en « Formulaire détaillé » (`/sessions/nouvelle/detaillee`,
   aussi utilisé pour créer une session depuis un stagiaire).
+- **Fiche session en onglets** (05/10/2026, d'après Qualiobee ;
+  `?onglet=`, `sessions/[id]/onglets.tsx`) : Actions à traiter (par défaut :
+  formateur, participants, séances, tarifs, plateforme, durée, programme,
+  description/objectifs, livret et règlement — bouton « Ajouter » vers où
+  compléter, puis le bloc de lancement), Informations (blocs repliables
+  repris du catalogue), Participants (inscrits, payeur et tarif, fin de
+  parcours en ligne, financement, facture), Formateurs, Documents
+  (émargement, attestations, conventions), Questionnaires (envoyés /
+  répondus), Déroulement (frise + liste de contrôle), Paramètres (réglages,
+  suspendre / reprendre).
 - Une session se crée en brouillon, sans choix de statut. Le bouton « Lancer
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans
