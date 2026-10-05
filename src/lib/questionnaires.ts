@@ -94,7 +94,7 @@ export async function questionnaireQualiteParJeton(jeton: string) {
       trainer: { select: { prenom: true, nom: true, deletedAt: true } },
       dossier: { select: { financeurNom: true } },
       company: { select: { raisonSociale: true, deletedAt: true } },
-      session: { select: { numero: true, dateDebut: true, dateFin: true, deletedAt: true, formation: { select: { titre: true } } } },
+      session: { select: { numero: true, dateDebut: true, dateFin: true, jours: true, deletedAt: true, formation: { select: { titre: true } } } },
     },
   });
   if (!q) return null;

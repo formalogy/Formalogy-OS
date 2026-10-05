@@ -4,6 +4,7 @@ import type { TypeFinancement } from "@prisma/client";
 import { useActionState, useState } from "react";
 
 import { ChampsFacturation } from "@/app/(app)/_composants/champs-facturation";
+import { ChampCalendrier } from "@/app/(app)/sessions/champ-calendrier";
 import { ChampHoraires } from "@/app/(app)/sessions/champ-horaires";
 
 import {
@@ -35,6 +36,23 @@ type Props = {
   apprenant?: { id: string; prenom: string; nom: string; financement: TypeFinancement; companyId: string | null; financeursConnus: string[] };
 };
 
+/// Jours de formation entre deux dates (« AAAA-MM-JJ ») : les samedis et
+/// dimanches au milieu ne comptent pas, comme pour l'émargement.
+function joursDeFormation(debut: string, fin: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(debut) || !/^\d{4}-\d{2}-\d{2}$/.test(fin) || fin < debut) return 0;
+  let n = 0;
+  for (let d = new Date(`${debut}T00:00:00Z`), f = new Date(`${fin}T00:00:00Z`); d <= f && n < 400; d.setUTCDate(d.getUTCDate() + 1)) {
+    const extremite = d.toISOString().slice(0, 10) === debut || d.toISOString().slice(0, 10) === fin;
+    if (extremite || (d.getUTCDay() !== 0 && d.getUTCDay() !== 6)) n++;
+  }
+  return n;
+}
+
+const saisieDate = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+
+const CHAMP_DATE =
+  "mt-1 w-full rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-normal outline-none focus:border-accent focus:ring-2 focus:ring-accent-pale";
+
 export function FormulaireSession({ formations, entreprises, formateurs, initiales, valeursDeDepart, apprenant }: Props) {
   const modification = Boolean(initiales);
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(
@@ -49,6 +67,8 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
   const [entrepriseId, setEntrepriseId] = useState(v("companyId") ?? "");
   const prixFormation = formations.find((f) => f.id === formationId)?.prixHT ?? null;
   const [dates, setDates] = useState({ debut: v("dateDebut") ?? "", fin: v("dateFin") ?? "" });
+  const [joursChoisis, setJoursChoisis] = useState<string[]>(() => (v("jours") ?? "").split(",").filter(Boolean));
+  const enLigneSession = modalite === "E_LEARNING" || modalite === "HYBRIDE";
   const programmes = formateurs.find((f) => f.id === formateurId)?.programmes ?? [];
 
   /// Lieu de la session d'après le formateur : son adresse de formation, ou
@@ -77,28 +97,17 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
         if (champ.name === "modalite") {
           setModalite(champ.value);
           // Parcours en ligne : début dans deux semaines, trois mois pour le
-          // terminer (habitude du client) — seulement si les dates sont vides.
-          const debut = champ.form?.elements.namedItem("dateDebut") as HTMLInputElement | null;
-          const fin = champ.form?.elements.namedItem("dateFin") as HTMLInputElement | null;
-          if ((champ.value === "E_LEARNING" || champ.value === "HYBRIDE") && debut && fin && !debut.value && !fin.value) {
+          // terminer (habitude du client) — seulement si la période est vide.
+          if ((champ.value === "E_LEARNING" || champ.value === "HYBRIDE") && !dates.debut && !dates.fin) {
             const d = new Date();
             d.setDate(d.getDate() + 14);
             const f = new Date(d);
             f.setMonth(f.getMonth() + 3);
-            const saisie = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-            debut.value = saisie(d);
-            fin.value = saisie(f);
+            setDates({ debut: saisieDate(d), fin: saisieDate(f) });
           }
         }
         if (champ.name === "attribution") setAttribution(champ.value);
         if (champ.name === "formationId") setFormationId(champ.value);
-        if (champ.name === "dateDebut" || champ.name === "dateFin" || champ.name === "modalite") {
-          const f = champ.form;
-          setDates({
-            debut: (f?.elements.namedItem("dateDebut") as HTMLInputElement | null)?.value ?? "",
-            fin: (f?.elements.namedItem("dateFin") as HTMLInputElement | null)?.value ?? "",
-          });
-        }
         if (champ.name === "companyId") setEntrepriseId(champ.value);
         if (champ.name === "trainerId") {
           setFormateurId(champ.value);
@@ -150,21 +159,32 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
             valeurParDefaut={v("companyId") ?? ""}
           />
         </div>
-        <Champ nom="dateDebut" libelle="Date de début" type="date" obligatoire valeurParDefaut={v("dateDebut")} />
-        <Champ nom="dateFin" libelle="Date de fin" type="date" obligatoire valeurParDefaut={v("dateFin")} />
-        <ChampHoraires
-          valeurParDefaut={v("horaires")}
-          dateDebut={dates.debut}
-          dateFin={dates.fin}
-          dureeFormation={formations.find((f) => f.id === formationId)?.dureeHeures ?? null}
-          enLigne={modalite === "E_LEARNING"}
-        />
-        <Champ nom="lieu" libelle="Lieu" placeholder="Adresse ou lien de visio" valeurParDefaut={v("lieu")} />
         <ChampListe
           nom="modalite"
           libelle="Modalité"
           options={MODALITES.map((m) => ({ valeur: m, libelle: LIBELLE_MODALITE[m] }))}
           valeurParDefaut={v("modalite") ?? "PRESENTIEL"}
+        />
+        <Champ nom="lieu" libelle="Lieu" placeholder="Adresse ou lien de visio" valeurParDefaut={v("lieu")} />
+        {enLigneSession ? (
+          <>
+            <label className="text-[12.5px] font-semibold">
+              Début de la période
+              <input type="date" name="dateDebut" value={dates.debut} onChange={(e) => setDates((x) => ({ ...x, debut: e.target.value }))} className={CHAMP_DATE} />
+            </label>
+            <label className="text-[12.5px] font-semibold">
+              Fin de la période
+              <input type="date" name="dateFin" value={dates.fin} onChange={(e) => setDates((x) => ({ ...x, fin: e.target.value }))} className={CHAMP_DATE} />
+            </label>
+          </>
+        ) : (
+          <ChampCalendrier jours={joursChoisis} onChange={setJoursChoisis} />
+        )}
+        <ChampHoraires
+          valeurParDefaut={v("horaires")}
+          nombreJours={enLigneSession ? joursDeFormation(dates.debut, dates.fin) : joursChoisis.length}
+          dureeFormation={formations.find((f) => f.id === formationId)?.dureeHeures ?? null}
+          enLigne={modalite === "E_LEARNING"}
         />
         {attribution === "FORMALOGY" && modalite !== "E_LEARNING" && modalite !== "HYBRIDE" && (
           <p className="text-[11.5px] text-alerte sm:col-span-2">Une session Formalogy est en e-learning ou hybride.</p>
@@ -228,7 +248,6 @@ export function FormulaireSession({ formations, entreprises, formateurs, initial
             valeurParDefaut={v("plateforme") ?? ""}
           />
         )}
-        <Champ nom="placesMax" libelle="Places maximum" placeholder="12" valeurParDefaut={v("placesMax")} />
         <div className="sm:col-span-2">
           <ChampLong nom="notes" libelle="Notes" valeurParDefaut={v("notes")} />
         </div>

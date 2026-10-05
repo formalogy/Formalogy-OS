@@ -52,7 +52,7 @@ async function colonnesSession(sessionId: string) {
   const s = await prisma.trainingSession.findUnique({
     where: { id: sessionId },
     select: {
-      numero: true, dateDebut: true, dateFin: true, lieu: true, modalite: true, statut: true,
+      numero: true, dateDebut: true, dateFin: true, jours: true, lieu: true, modalite: true, statut: true,
       formation: { select: { titre: true, reference: true, dureeHeures: true } },
       trainer: { select: { prenom: true, nom: true } },
       company: { select: { raisonSociale: true } },

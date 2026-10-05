@@ -40,7 +40,7 @@ export async function paiementsPrevus(horizonJours = 60): Promise<PaiementPrevu[
       payeurType: true,
       montantTTC: true,
       dateEcheance: true,
-      session: { select: { numero: true, dateFin: true } },
+      session: { select: { numero: true, dateFin: true, jours: true } },
       paiements: { select: { montant: true } },
     },
   });
@@ -74,7 +74,7 @@ export async function paiementsPrevus(horizonJours = 60): Promise<PaiementPrevu[
       facturerA: true,
       parcoursTermineLe: true,
       dossierFinancement: { select: { financeurNom: true } },
-      session: { select: { id: true, numero: true, dateFin: true } },
+      session: { select: { id: true, numero: true, dateFin: true, jours: true } },
     },
   });
   const groupes = new Map<string, PaiementPrevu>();

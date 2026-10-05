@@ -50,7 +50,7 @@ export default async function PageDocument({ params }: { params: Promise<{ id: s
           contacts: { where: { deletedAt: null, email: { not: null } }, orderBy: { createdAt: "asc" }, take: 3, select: { prenom: true, nom: true, email: true } },
         },
       },
-      session: { select: { id: true, numero: true, dateDebut: true, dateFin: true } },
+      session: { select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true } },
       formation: { select: { id: true, titre: true } },
       trainer: { select: { id: true, prenom: true, nom: true } },
       indicateur: { select: { numero: true, critere: true } },

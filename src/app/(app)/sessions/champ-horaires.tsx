@@ -51,18 +51,6 @@ function ChoixHeure({ valeur, onChange, libelle }: { valeur: Heure; onChange: (h
   );
 }
 
-/// Jours de formation entre deux dates (« AAAA-MM-JJ ») : les samedis et
-/// dimanches au milieu ne comptent pas, comme pour l'émargement.
-function joursDeFormation(debut: string, fin: string): number {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(debut) || !/^\d{4}-\d{2}-\d{2}$/.test(fin) || fin < debut) return 0;
-  let n = 0;
-  for (let d = new Date(`${debut}T00:00:00Z`), f = new Date(`${fin}T00:00:00Z`); d <= f && n < 400; d.setUTCDate(d.getUTCDate() + 1)) {
-    const extremite = d.toISOString().slice(0, 10) === debut || d.toISOString().slice(0, 10) === fin;
-    if (extremite || (d.getUTCDay() !== 0 && d.getUTCDay() !== 6)) n++;
-  }
-  return n;
-}
-
 const enHeures = (minutes: number) => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -71,15 +59,15 @@ const enHeures = (minutes: number) => {
 
 type Props = {
   valeurParDefaut?: string;
-  dateDebut: string;
-  dateFin: string;
+  /// Nombre de jours de formation (calendrier, ou période)
+  nombreJours: number;
   /// Durée prévue de la formation choisie, pour comparaison
   dureeFormation: number | null;
   /// E-learning : les horaires n'ont pas de sens, pas de calcul
   enLigne: boolean;
 };
 
-export function ChampHoraires({ valeurParDefaut, dateDebut, dateFin, dureeFormation, enLigne }: Props) {
+export function ChampHoraires({ valeurParDefaut, nombreJours, dureeFormation, enLigne }: Props) {
   const [h, setH] = useState<Horaires>(() => lire(valeurParDefaut));
   const maj = (cle: keyof Horaires) => (v: Heure) => setH((x) => ({ ...x, [cle]: v }));
   const minutes = (x: Heure) => Number(x.h) * 60 + Number(x.m);
@@ -107,7 +95,7 @@ export function ChampHoraires({ valeurParDefaut, dateDebut, dateFin, dureeFormat
       {incoherent && <p className="mt-1 text-[11.5px] text-alerte">Vérifiez les horaires : une fin précède son début.</p>}
       {!incoherent && !enLigne && (() => {
         const parJour = minutes(h.matinFin) - minutes(h.matinDebut) + (minutes(h.apresFin) - minutes(h.apresDebut));
-        const jours = joursDeFormation(dateDebut, dateFin);
+        const jours = nombreJours;
         const total = parJour * jours;
         const ecart = dureeFormation !== null && jours > 0 && Math.abs(total - dureeFormation * 60) >= 15;
         return (
@@ -121,7 +109,7 @@ export function ChampHoraires({ valeurParDefaut, dateDebut, dateFin, dureeFormat
                   Total : <strong>{enHeures(total)}</strong> sur {jours} jour{jours > 1 ? "s" : ""}
                 </>
               ) : (
-                <span className="text-texte-tenu">Total : choisissez les dates</span>
+                <span className="text-texte-tenu">Total : choisissez les jours</span>
               )}
             </span>
             {dureeFormation !== null && (

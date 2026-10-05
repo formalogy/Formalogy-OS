@@ -271,7 +271,7 @@ export async function texteSignaturesManquantes(sessionId: string, jours: Date[]
 export async function rangerFeuillesNumeriques(sessionId: string): Promise<number> {
   const session = await prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null },
-    select: { id: true, dateDebut: true, dateFin: true, statut: true },
+    select: { id: true, dateDebut: true, dateFin: true, jours: true, statut: true },
   });
   if (!session || session.statut === "ANNULEE") return 0;
   const jours = await joursSansFeuille(session, aujourdhuiUTC());
@@ -328,7 +328,7 @@ export async function participationParJeton(jeton: string) {
           id: true,
           numero: true,
           dateDebut: true,
-          dateFin: true,
+          dateFin: true, jours: true,
           horaires: true,
           lieu: true,
           statut: true,
@@ -375,13 +375,13 @@ export type EtatSeance =
 
 /// Séances d'une session pour un participant, dans l'ordre, avec leur état.
 export function seancesDuParticipant(
-  session: { dateDebut: Date; dateFin: Date; horaires: string | null },
+  session: { dateDebut: Date; dateFin: Date; jours?: Date[]; horaires: string | null },
   signatures: { jour: Date; creneau: Creneau; signeAt: Date }[],
   absences: { jour: Date; creneau: Creneau }[],
   maintenant = new Date(),
 ): { jour: Date; creneau: Creneau; etat: EtatSeance }[] {
   const meme = (a: { jour: Date; creneau: Creneau }, jour: Date, creneau: Creneau) => a.jour.getTime() === jour.getTime() && a.creneau === creneau;
-  return joursDeSession(session.dateDebut, session.dateFin).flatMap((jour) =>
+  return joursDeSession(session.dateDebut, session.dateFin, session.jours).flatMap((jour) =>
     CRENEAUX.map((creneau) => {
       const signature = signatures.find((s) => meme(s, jour, creneau));
       if (signature) return { jour, creneau, etat: { etat: "signee", signeAt: signature.signeAt } as EtatSeance };
@@ -417,7 +417,7 @@ export async function enregistrerSignature(p: {
     }
   }
 
-  if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === p.jour.getTime())) {
+  if (!joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === p.jour.getTime())) {
     return { erreur: "Cette séance ne fait pas partie de la formation." };
   }
   const ouverture = ouvertureSeance(session.horaires, p.jour, p.creneau);
@@ -470,17 +470,17 @@ export async function enregistrerSignature(p: {
 
 /// Jour de formation dont on montre les QR codes : aujourd'hui si c'en est
 /// un, sinon le prochain (préparation), sinon le dernier.
-export function jourDesQrCodes(session: { dateDebut: Date; dateFin: Date }): Date | null {
-  const jours = joursDeSession(session.dateDebut, session.dateFin);
+export function jourDesQrCodes(session: { dateDebut: Date; dateFin: Date; jours?: Date[] }): Date | null {
+  const jours = joursDeSession(session.dateDebut, session.dateFin, session.jours);
   const aujourdhui = aujourdhuiUTC();
   return jours.find((j) => j.getTime() === aujourdhui.getTime()) ?? jours.find((j) => j > aujourdhui) ?? jours.at(-1) ?? null;
 }
 
 /// Demi-journée dont le QR code s'affiche à l'écran : la dernière ouverte
 /// aujourd'hui, sinon la première du jour ; aucune hors des jours de formation.
-function seanceDuMoment(session: { dateDebut: Date; dateFin: Date; horaires: string | null }): { jour: Date; creneau: Creneau } | null {
+function seanceDuMoment(session: { dateDebut: Date; dateFin: Date; jours?: Date[]; horaires: string | null }): { jour: Date; creneau: Creneau } | null {
   const aujourdhui = aujourdhuiUTC();
-  if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) return null;
+  if (!joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === aujourdhui.getTime())) return null;
   const ouvertes = CRENEAUX.filter((c) => ouvertureSeance(session.horaires, aujourdhui, c).etat === "ouverte");
   return { jour: aujourdhui, creneau: ouvertes.at(-1) ?? "MATIN" };
 }
@@ -496,7 +496,7 @@ export async function genererQrCodesEmargement(sessionId: string, creneauDemande
     select: {
       numero: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       horaires: true,
       formation: { select: { titre: true } },
       inscriptions: {

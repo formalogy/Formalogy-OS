@@ -48,7 +48,7 @@ function concerne(a: Automation, s: { modalite: string; plateforme: string | nul
 export async function friseSession(sessionId: string): Promise<{ phases: Phase[]; lancee: boolean; suspendue: boolean } | null> {
   const session = await prisma.trainingSession.findFirst({
     where: { id: sessionId, deletedAt: null },
-    select: { id: true, dateDebut: true, dateFin: true, modalite: true, plateforme: true, statut: true, deroulementSuspenduAt: true },
+    select: { id: true, dateDebut: true, dateFin: true, jours: true, modalite: true, plateforme: true, statut: true, deroulementSuspenduAt: true },
   });
   if (!session) return null;
 
@@ -78,7 +78,7 @@ export async function friseSession(sessionId: string): Promise<{ phases: Phase[]
   }
 
   const phases: Record<keyof typeof PHASES, Etape[]> = { avant: [], pendant: [], fin: [], apres: [] };
-  const jours = joursDeSession(session.dateDebut, session.dateFin);
+  const jours = joursDeSession(session.dateDebut, session.dateFin, session.jours);
 
   for (const a of automations) {
     if (!concerne(a, session)) continue;

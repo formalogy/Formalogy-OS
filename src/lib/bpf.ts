@@ -89,7 +89,7 @@ export async function calculerBpf(annee: number) {
             id: true,
             modalite: true,
             dateDebut: true,
-            dateFin: true,
+            dateFin: true, jours: true,
             formation: { select: { id: true, titre: true, dureeHeures: true, certification: true, category: { select: { nom: true } } } },
             presences: { select: { learnerId: true, statut: true } },
           },
@@ -117,7 +117,7 @@ export async function calculerBpf(annee: number) {
   const heuresDe = (i: (typeof inscriptions)[number]) => {
     const duree = Number(i.session.formation.dureeHeures ?? 0);
     if (modaliteEnLigne(i.session.modalite)) return duree;
-    const total = joursDeSession(i.session.dateDebut, i.session.dateFin).length * CRENEAUX.length;
+    const total = joursDeSession(i.session.dateDebut, i.session.dateFin, i.session.jours).length * CRENEAUX.length;
     const absences = i.session.presences.filter((p) => p.learnerId === i.learnerId && p.statut !== "PRESENT").length;
     return total ? Math.round(((duree * (total - absences)) / total) * 2) / 2 : duree;
   };

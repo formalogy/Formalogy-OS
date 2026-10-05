@@ -556,6 +556,16 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   brouillon, à préparer, en cours, terminée, clôturée, annulée.
   `DOCUMENTS_EN_ATTENTE` et `PRETE` restent dans l'énumération (données
   existantes) mais ne se choisissent plus.
+- **Jours de formation** (05/10/2026) : en présentiel ou distanciel, les
+  jours se cochent sur un calendrier (`sessions.jours`, samedi compris si
+  besoin) ; `dateDebut` et `dateFin` en sont le premier et le dernier.
+  `joursDeSession(debut, fin, jours)` rend les jours cochés, à défaut la
+  période hors week-ends du milieu (sessions en ligne : période de début et
+  de fin, sans jours ; sessions d'avant le calendrier : jours repris par la
+  migration). Tout passe par elle : émargement, QR codes, relances,
+  convocation, frise, attestation, BPF. Horaires en listes (matin et
+  après-midi, début et fin) ; durée par jour et totale affichées, comparées
+  à la durée de la formation. Le nombre de places n'est plus saisi (client).
 - Une session se crée en brouillon, sans choix de statut. Le bouton « Lancer
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans

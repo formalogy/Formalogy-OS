@@ -22,7 +22,7 @@ export async function manquesRealisation(sessionId: string): Promise<string[] | 
       statut: true,
       modalite: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       feuillesSignees: { select: { jour: true } },
       inscriptions: {
         where: { learner: { deletedAt: null } },
@@ -50,7 +50,7 @@ export async function manquesRealisation(sessionId: string): Promise<string[] | 
   } else {
     if (session.dateFin > aujourdhuiUTC()) return null;
     const signees = new Set(session.feuillesSignees.map((f) => f.jour.getTime()));
-    const jours = joursDeSession(session.dateDebut, session.dateFin).filter((j) => !signees.has(j.getTime()));
+    const jours = joursDeSession(session.dateDebut, session.dateFin, session.jours).filter((j) => !signees.has(j.getTime()));
     if (jours.length > 0) manques.push(`feuille d'émargement signée du ${jours.map(libelleJour).join(", ")}`);
   }
   for (const { learner } of session.inscriptions) {

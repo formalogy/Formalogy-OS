@@ -24,7 +24,7 @@ export default async function PageNouveauDocument({
       where: { deletedAt: null },
       orderBy: { dateDebut: "desc" },
       take: 200,
-      select: { id: true, numero: true, dateDebut: true, dateFin: true, formation: { select: { titre: true } } },
+      select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true, formation: { select: { titre: true } } },
     }),
     prisma.formation.findMany({ where: { deletedAt: null }, orderBy: { titre: "asc" }, select: { id: true, titre: true } }),
     prisma.trainer.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, nom: true, prenom: true } }),

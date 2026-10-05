@@ -80,7 +80,7 @@ export function valeursConvention(d: DonneesConvention): Record<string, string |
   const dossier = session.dossiers[0];
 
   const heures = nombre(session.formation.dureeHeures);
-  const jours = nombre(session.formation.dureeJours) ?? String(joursDeSession(session.dateDebut, session.dateFin));
+  const jours = nombre(session.formation.dureeJours) ?? String(session.jours?.length || joursDeSession(session.dateDebut, session.dateFin));
   const prixHT = session.prixHT ?? session.formation.prixHT;
   // TVA 0 % (article 261-4-4° du CGI) : le TTC est égal au HT.
   const prix = prixHT === null ? undefined : formaterMontant(prixHT);
@@ -153,6 +153,7 @@ export async function genererConvocationApprenant(params: {
       numero: session.numero,
       dateDebut: session.dateDebut,
       dateFin: session.dateFin,
+      jours: session.jours,
       horaires: session.horaires,
       lieu: session.lieu,
       modaliteLibelle: LIBELLE_MODALITE[session.modalite],

@@ -370,7 +370,7 @@ const jourLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numer
 async function nomSession(id: string) {
   const s = await prisma.trainingSession.findFirst({
     where: { id, deletedAt: null },
-    select: { numero: true, dateDebut: true, dateFin: true, formation: { select: { titre: true } } },
+    select: { numero: true, dateDebut: true, dateFin: true, jours: true, formation: { select: { titre: true } } },
   });
   if (!s) throw new Error("session introuvable (identifiant inconnu)");
   return `${s.formation.titre} — ${s.numero}, ${formaterPeriode(s.dateDebut, s.dateFin)}`;

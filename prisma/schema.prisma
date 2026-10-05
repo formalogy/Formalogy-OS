@@ -567,6 +567,11 @@ model TrainingSession {
   dateDebut DateTime
   dateFin   DateTime
   /// Ex. « 9h00–12h30 / 13h30–17h00 »
+  /// Jours de formation cochés sur le calendrier (client, 05/10/2026), samedi
+  /// compris s'il le faut ; dateDebut et dateFin en sont le premier et le
+  /// dernier. Vide : tous les jours de la période hors week-ends du milieu
+  /// (sessions en ligne, et sessions créées avant le calendrier).
+  jours DateTime[] @default([])
   horaires  String?
   lieu      String?
 

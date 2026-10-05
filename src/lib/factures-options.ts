@@ -10,7 +10,7 @@ export async function optionsFacture() {
       where: { deletedAt: null, statut: { not: "ANNULEE" } },
       orderBy: { dateDebut: "desc" },
       take: 200,
-      select: { id: true, numero: true, dateDebut: true, dateFin: true, formation: { select: { titre: true } } },
+      select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true, formation: { select: { titre: true } } },
     }),
     prisma.company.findMany({ where: { deletedAt: null }, orderBy: { raisonSociale: "asc" }, select: { id: true, raisonSociale: true } }),
     prisma.learner.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, nom: true, prenom: true } }),

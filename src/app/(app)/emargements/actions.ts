@@ -36,7 +36,7 @@ async function preparer(donnees: FormData) {
   if (!session) return { erreur: "Session introuvable." } as const;
 
   const jour = jourDepuisSaisie(r.data.jour);
-  if (!jour || !joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === jour.getTime())) {
+  if (!jour || !joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === jour.getTime())) {
     return { erreur: "Ce jour ne fait pas partie de la session." } as const;
   }
   if (jour > aujourdhuiUTC()) {
@@ -123,7 +123,7 @@ export async function deposerFeuilleSignee(_precedent: EtatDepotFeuille, donnees
   if (!session) return { erreur: "Session introuvable." };
 
   const jour = jourDepuisSaisie(String(donnees.get("jour") ?? ""));
-  if (!jour || !joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === jour.getTime())) {
+  if (!jour || !joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === jour.getTime())) {
     return { erreur: "Ce jour ne fait pas partie de la session." };
   }
   if (jour > aujourdhuiUTC()) return { erreur: "La feuille d'un jour à venir ne peut pas encore être signée." };

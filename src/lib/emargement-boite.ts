@@ -89,7 +89,7 @@ export async function rangerReponsesEmargement(client: ImapFlow, depuis: Date): 
     // La réponse à l'email du matin porte la feuille de ce jour-là. Celle à
     // une relance n'est attribuée que si un seul jour manquait : sinon on ne
     // devine pas, la feuille se dépose à la main.
-    const session = await prisma.trainingSession.findUnique({ where: { id: envoi.sessionId! }, select: { id: true, dateDebut: true, dateFin: true } });
+    const session = await prisma.trainingSession.findUnique({ where: { id: envoi.sessionId! }, select: { id: true, dateDebut: true, dateFin: true, jours: true } });
     if (!session) {
       await ignorer("Session supprimée");
       continue;

@@ -42,7 +42,7 @@ export default async function PageQuestionnaires({ searchParams }: { searchParam
         id: true,
         numero: true,
         dateDebut: true,
-        dateFin: true,
+        dateFin: true, jours: true,
         formation: { select: { titre: true } },
         trainer: { select: { id: true, prenom: true, nom: true } },
         inscriptions: {

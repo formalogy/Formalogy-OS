@@ -26,7 +26,7 @@ export default async function PageEmargements() {
       id: true,
       numero: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       formation: { select: { titre: true } },
       trainer: { select: { prenom: true, nom: true } },
       inscriptions: { where: { learner: { deletedAt: null } }, select: { learnerId: true } },
@@ -78,7 +78,7 @@ export default async function PageEmargements() {
                       <td className="whitespace-nowrap px-4 py-2.5">
                         {(() => {
                           // Jours passés de la session, et feuilles signées arrivées pour eux.
-                          const attendus = joursDeSession(s.dateDebut, s.dateFin).filter((j) => j <= aujourdhui).length;
+                          const attendus = joursDeSession(s.dateDebut, s.dateFin, s.jours).filter((j) => j <= aujourdhui).length;
                           const recues = s.feuillesSignees.length;
                           return recues >= attendus ? (
                             <span className="font-semibold text-succes">

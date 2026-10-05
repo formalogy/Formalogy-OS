@@ -26,7 +26,7 @@ export async function exporterDonneesApprenant(learnerId: string) {
       inscriptions: {
         select: {
           session: {
-            select: { numero: true, dateDebut: true, dateFin: true, formation: { select: { titre: true } } },
+            select: { numero: true, dateDebut: true, dateFin: true, jours: true, formation: { select: { titre: true } } },
           },
         },
       },

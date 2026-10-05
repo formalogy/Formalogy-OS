@@ -35,7 +35,7 @@ export default async function PageMaSession({ params }: { params: Promise<{ id: 
       numero: true,
       formationId: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       horaires: true,
       lieu: true,
       modalite: true,

@@ -37,7 +37,7 @@ export default async function PageFacture({ params }: { params: Promise<{ id: st
   const f = await prisma.facture.findUnique({
     where: { id },
     include: {
-      session: { select: { id: true, numero: true, dateFin: true } },
+      session: { select: { id: true, numero: true, dateFin: true, jours: true } },
       company: { select: { id: true, raisonSociale: true } },
       learner: { select: { id: true, prenom: true, nom: true } },
       document: { select: { id: true, deletedAt: true } },

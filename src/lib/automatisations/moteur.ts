@@ -468,7 +468,7 @@ async function relancerEmargement(p: { cas: Cas; executionId: string; comptes: C
 
   const session = await prisma.trainingSession.findUnique({
     where: { id: cas.sessionId },
-    select: { id: true, modalite: true, dateDebut: true, dateFin: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
+    select: { id: true, modalite: true, dateDebut: true, dateFin: true, jours: true, trainer: { select: { id: true, email: true, deletedAt: true } } },
   });
   // E-learning : pas d'émargement, rien à relancer.
   if (!session || session.modalite === "E_LEARNING") return;
@@ -720,7 +720,7 @@ async function envoyerSyntheses(p: { executionId: string; comptes: Comptes }) {
       select: {
         numero: true,
         dateDebut: true,
-        dateFin: true,
+        dateFin: true, jours: true,
         horaires: true,
         lieu: true,
         formation: { select: { titre: true } },
@@ -1565,7 +1565,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     for (const session of sessions) {
       // Seulement les vrais jours de formation : un samedi ou un dimanche au
       // milieu de la session n'a ni feuille ni relance.
-      if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) continue;
+      if (!joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === aujourdhui.getTime())) continue;
       compter(
         await traiterCas(automation, {
           cle: `${automation.id}:session:${session.id}:jour:${aujourdhui.toISOString().slice(0, 10)}`,
@@ -1594,7 +1594,7 @@ export async function executerPlanifiees(): Promise<{ traites: number; dejaTrait
     });
     const maintenant = minutesDeParis();
     for (const session of sessions) {
-      if (!joursDeSession(session.dateDebut, session.dateFin).some((j) => j.getTime() === aujourdhui.getTime())) continue;
+      if (!joursDeSession(session.dateDebut, session.dateFin, session.jours).some((j) => j.getTime() === aujourdhui.getTime())) continue;
       const bornes = bornesDemiJournees(session.horaires);
       for (const creneau of CRENEAUX) {
         if (maintenant < bornes[creneau].fin) continue;

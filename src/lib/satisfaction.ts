@@ -46,7 +46,7 @@ export async function questionnaireParJeton(jeton: string) {
     where: { jetonEmpreinte: empreinteJeton(jeton) },
     include: {
       learner: { select: { prenom: true, deletedAt: true } },
-      session: { select: { dateDebut: true, dateFin: true, deletedAt: true, formation: { select: { titre: true } } } },
+      session: { select: { dateDebut: true, dateFin: true, jours: true, deletedAt: true, formation: { select: { titre: true } } } },
     },
   });
   if (!q || q.learner.deletedAt || q.session.deletedAt) return null;

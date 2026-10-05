@@ -22,7 +22,7 @@ type Props = {
 /// Écran d'émargement commun à l'équipe et aux formateurs.
 export async function ContenuEmargement({ session, lienRetour, lienDepot }: Props) {
   const aujourdhui = aujourdhuiUTC();
-  const jours = joursDeSession(session.dateDebut, session.dateFin);
+  const jours = joursDeSession(session.dateDebut, session.dateFin, session.jours);
   const presences = Object.fromEntries(session.presences.map((p) => [clePresence(p.learnerId, p.jour, p.creneau), p.statut]));
   const absences = nombreAbsences(session.presences);
   const commencee = session.dateDebut <= aujourdhui;

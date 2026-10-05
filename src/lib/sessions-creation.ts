@@ -21,16 +21,12 @@ export const schemaSession = z
   .object({
     formationId: z.string().min(1, "Choisissez une formation."),
     companyId: texteFacultatif,
-    dateDebut: z.string().transform((v, ctx) => {
-      const d = jourDepuisSaisie(v);
-      if (!d) ctx.addIssue({ code: "custom", message: "La date de début est obligatoire." });
-      return d as Date;
-    }),
-    dateFin: z.string().transform((v, ctx) => {
-      const d = jourDepuisSaisie(v);
-      if (!d) ctx.addIssue({ code: "custom", message: "La date de fin est obligatoire." });
-      return d as Date;
-    }),
+    /// Période : saisie pour une session en ligne ; déduite des jours cochés
+    /// sinon (premier et dernier).
+    dateDebut: z.string().optional(),
+    dateFin: z.string().optional(),
+    /// Jours cochés sur le calendrier (« AAAA-MM-JJ » séparés par des virgules)
+    jours: z.string().optional(),
     horaires: texteFacultatif,
     lieu: texteFacultatif,
     modalite: z.enum(["PRESENTIEL", "DISTANCIEL", "E_LEARNING", "HYBRIDE"]),
@@ -50,6 +46,24 @@ export const schemaSession = z
       "Le nombre de places doit être un entier positif.",
     ),
     notes: texteFacultatif,
+  })
+  .transform((d, ctx) => {
+    const choisis = [...new Set((d.jours ?? "").split(",").map((x) => x.trim()).filter(Boolean))]
+      .map((x) => jourDepuisSaisie(x))
+      .filter((x): x is Date => Boolean(x))
+      .sort((a, b) => a.getTime() - b.getTime());
+    const periode = enLigne(d.modalite) || choisis.length === 0;
+    const dateDebut = periode ? jourDepuisSaisie(d.dateDebut ?? "") : choisis[0];
+    const dateFin = periode ? jourDepuisSaisie(d.dateFin ?? "") : choisis[choisis.length - 1];
+    if (!dateDebut || !dateFin) {
+      ctx.addIssue({
+        code: "custom",
+        message: enLigne(d.modalite) ? "Indiquez la période de formation (début et fin)." : "Cochez les jours de formation sur le calendrier.",
+      });
+      return z.NEVER;
+    }
+    // En ligne, pas de jours de présence : la période suffit.
+    return { ...d, dateDebut, dateFin, jours: enLigne(d.modalite) ? [] : choisis };
   })
   .refine((d) => !d.dateDebut || !d.dateFin || d.dateFin >= d.dateDebut, {
     message: "La date de fin ne peut pas précéder la date de début.",
@@ -157,6 +171,7 @@ export async function creerSessionBrouillon(
         companyId: d.companyId ?? null,
         dateDebut: d.dateDebut,
         dateFin: d.dateFin,
+        jours: d.jours,
         horaires: d.horaires,
         lieu,
         modalite: d.modalite,

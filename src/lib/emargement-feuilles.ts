@@ -177,10 +177,10 @@ export async function enregistrerFeuilleSignee(p: {
 
 /// Jours de session passés (jusqu'à `jusqua` inclus) dont la feuille signée
 /// n'est pas encore arrivée.
-export async function joursSansFeuille(session: { id: string; dateDebut: Date; dateFin: Date }, jusqua: Date): Promise<Date[]> {
+export async function joursSansFeuille(session: { id: string; dateDebut: Date; dateFin: Date; jours?: Date[] }, jusqua: Date): Promise<Date[]> {
   const recues = await prisma.feuilleEmargementSignee.findMany({ where: { sessionId: session.id }, select: { jour: true } });
   const faits = new Set(recues.map((f) => f.jour.getTime()));
-  return joursDeSession(session.dateDebut, session.dateFin).filter((j) => j <= jusqua && !faits.has(j.getTime()));
+  return joursDeSession(session.dateDebut, session.dateFin, session.jours).filter((j) => j <= jusqua && !faits.has(j.getTime()));
 }
 
 export const libelleJour = (jour: Date) => dateLongue.format(jour);

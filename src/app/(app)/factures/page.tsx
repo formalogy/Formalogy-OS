@@ -50,7 +50,7 @@ export default async function PageFactures({ searchParams }: { searchParams: Pro
       },
       orderBy: { dateFin: "asc" },
       take: 50,
-      select: { id: true, numero: true, dateDebut: true, dateFin: true, prixHT: true, formation: { select: { titre: true } }, company: { select: { raisonSociale: true } } },
+      select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true, prixHT: true, formation: { select: { titre: true } }, company: { select: { raisonSociale: true } } },
     }),
   ]);
 

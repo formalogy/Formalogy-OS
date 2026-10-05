@@ -27,7 +27,7 @@ export async function chargerFinDeFormation(sessionId: string) {
       numero: true,
       statut: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       lieu: true,
       modalite: true,
       formation: { select: { titre: true, objectifs: true, dureeHeures: true } },
@@ -80,7 +80,7 @@ export type EtatApprenant = {
 /// se passe bien. L'évaluation des acquis, elle, vient du formateur en fin
 /// de parcours et reste indispensable.
 export function bilanFinDeFormation(session: Session, manquesOrga: string[]) {
-  const jours = joursDeSession(session.dateDebut, session.dateFin);
+  const jours = joursDeSession(session.dateDebut, session.dateFin, session.jours);
   const total = jours.length * CRENEAUX.length;
   const presences = new Map(session.presences.map((p) => [clePresence(p.learnerId, p.jour, p.creneau), p.statut]));
   const heuresPrevues = session.formation.dureeHeures ? Number(session.formation.dureeHeures) : null;

@@ -131,6 +131,7 @@ export async function modifierSession(
       companyId: d.companyId ?? null,
       dateDebut: d.dateDebut,
       dateFin: d.dateFin,
+      jours: d.jours,
       horaires: d.horaires ?? null,
       lieu: await lieuParDefaut(d.lieu, d.trainerId, d.companyId, d.modalite),
       modalite: d.modalite,

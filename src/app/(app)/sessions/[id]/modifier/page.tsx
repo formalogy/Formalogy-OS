@@ -44,6 +44,7 @@ export default async function PageModifierSession({ params }: { params: Promise<
     companyId: session.companyId ?? "",
     dateDebut: jourVersSaisie(session.dateDebut),
     dateFin: jourVersSaisie(session.dateFin),
+    jours: session.jours.map(jourVersSaisie).join(","),
     horaires: session.horaires ?? "",
     lieu: session.lieu ?? "",
     modalite: session.modalite,
@@ -52,7 +53,6 @@ export default async function PageModifierSession({ params }: { params: Promise<
     statut: session.statut,
     trainerId: session.trainerId ?? "",
     programmeId: session.programmeId ?? "",
-    placesMax: session.placesMax?.toString() ?? "",
     notes: session.notes ?? "",
   };
 

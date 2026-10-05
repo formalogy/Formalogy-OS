@@ -60,7 +60,7 @@ export async function genererFeuillesEmargement(
   const apprenants = session.inscriptions.map((i) => i.learner);
   const formateur = session.trainer ? `${session.trainer.prenom} ${session.trainer.nom}` : "non renseigné";
   const horaires = horairesDemiJournees(session.horaires);
-  const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui).filter(
+  const demiJournees = demiJourneesJusqua(session.dateDebut, session.dateFin, aujourdhui, session.jours).filter(
     ({ jour }) =>
       (!options.seulementCeJour || jour.getTime() === aujourdhui.getTime()) &&
       (!options.jours || options.jours.some((j) => j.getTime() === jour.getTime())),

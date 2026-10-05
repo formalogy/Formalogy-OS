@@ -161,7 +161,7 @@ export async function rangerBilanSession(questionnaireId: string): Promise<strin
     where: { id: questionnaireId },
     include: {
       trainer: { select: { prenom: true, nom: true } },
-      session: { select: { id: true, numero: true, dateDebut: true, dateFin: true, lieu: true, formation: { select: { titre: true } } } },
+      session: { select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true, lieu: true, formation: { select: { titre: true } } } },
     },
   });
   if (!q || q.type !== "CHAUD_FORMATEUR" || !q.reponduAt || !q.session) return null;

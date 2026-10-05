@@ -26,9 +26,12 @@ export const TON_PRESENCE: Record<StatutPresence, string> = {
 /// Au-delà, une « session » est sans doute une erreur de saisie de dates.
 const JOURS_MAX = 90;
 
-/// Jours d'une session. Samedis et dimanches sont écartés, sauf s'ils sont le
-/// premier ou le dernier jour (session organisée un week-end).
-export function joursDeSession(debut: Date, fin: Date): Date[] {
+/// Jours d'une session : ceux cochés sur le calendrier (`sessions.jours`,
+/// samedi compris si besoin). Sans jours cochés (sessions en ligne, sessions
+/// d'avant le calendrier) : la période, samedis et dimanches écartés sauf
+/// s'ils sont le premier ou le dernier jour.
+export function joursDeSession(debut: Date, fin: Date, choisis?: Date[] | null): Date[] {
+  if (choisis && choisis.length > 0) return [...choisis].sort((a, b) => a.getTime() - b.getTime());
   const jours: Date[] = [];
   for (let jour = debut; jour <= fin && jours.length < JOURS_MAX; jour = ajouterJours(jour, 1)) {
     const weekEnd = jour.getUTCDay() === 0 || jour.getUTCDay() === 6;
@@ -63,8 +66,8 @@ export function horairesDemiJournees(horaires: string | null): Record<Creneau, s
 /// Demi-journées d'une session déjà commencées à la date donnée. La feuille
 /// d'émargement se fait signer le jour même : aucune raison d'en produire une
 /// pour une demi-journée à venir, et un risque de la faire signer à l'avance.
-export function demiJourneesJusqua(debut: Date, fin: Date, aujourdhui: Date): { jour: Date; creneau: Creneau }[] {
-  return joursDeSession(debut, fin)
+export function demiJourneesJusqua(debut: Date, fin: Date, aujourdhui: Date, choisis?: Date[]): { jour: Date; creneau: Creneau }[] {
+  return joursDeSession(debut, fin, choisis)
     .filter((jour) => jour <= aujourdhui)
     .flatMap((jour) => CRENEAUX.map((creneau) => ({ jour, creneau })));
 }

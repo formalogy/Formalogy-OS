@@ -62,7 +62,7 @@ export async function calculerStatistiques(annee: number) {
         id: true,
         placesMax: true,
         dateDebut: true,
-        dateFin: true,
+        dateFin: true, jours: true,
         formation: { select: { dureeHeures: true } },
         inscriptions: { select: { learnerId: true } },
       },
@@ -160,12 +160,12 @@ function activite(sessions: SessionCalcul[]) {
 /// présence, sauf absence signalée. Les demi-journées attendues se déduisent
 /// donc du calendrier des sessions et de leurs inscrits, pas des saisies.
 function assiduite(
-  sessions: { dateDebut: Date; dateFin: Date; inscriptions: unknown[] }[],
+  sessions: { dateDebut: Date; dateFin: Date; jours?: Date[]; inscriptions: unknown[] }[],
   lignes: { statut: StatutPresence; _count: { _all: number } }[],
 ) {
   const aujourdhui = aujourdhuiUTC();
   const attendues = sessions.reduce(
-    (t, s) => t + joursDeSession(s.dateDebut, s.dateFin).filter((j) => j <= aujourdhui).length * CRENEAUX.length * s.inscriptions.length,
+    (t, s) => t + joursDeSession(s.dateDebut, s.dateFin, s.jours).filter((j) => j <= aujourdhui).length * CRENEAUX.length * s.inscriptions.length,
     0,
   );
   const parStatut = { PRESENT: 0, ABSENT_JUSTIFIE: 0, ABSENT: 0 } satisfies Record<StatutPresence, number>;

@@ -27,6 +27,8 @@ import {
   TON_STATUT_SESSION,
 } from "@/lib/sessions-libelles";
 
+const jourCourtSession = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
 export const dynamic = "force-dynamic";
 
 function Ligne({ libelle, valeur }: { libelle: string; valeur?: React.ReactNode }) {
@@ -92,7 +94,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
           dateFin: { gte: session.dateDebut },
         },
         orderBy: { dateDebut: "asc" },
-        select: { id: true, numero: true, dateDebut: true, dateFin: true },
+        select: { id: true, numero: true, dateDebut: true, dateFin: true, jours: true },
       })
     : [];
 
@@ -124,7 +126,7 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
     // Chaque jour passé de la session a sa feuille signée.
     feuilleEmargementDeposee:
       session.dateDebut <= aujourdhuiUTC() &&
-      joursDeSession(session.dateDebut, session.dateFin)
+      joursDeSession(session.dateDebut, session.dateFin, session.jours)
         .filter((j) => j <= aujourdhuiUTC())
         .every((j) => session.feuillesSignees.some((f) => f.jour.getTime() === j.getTime())),
     factureEmise: session.factures.some((f) => f.statut === "EMISE" || f.statut === "PAYEE"),
@@ -247,6 +249,12 @@ export default async function PageSession({ params }: { params: Promise<{ id: st
                   )
                 }
               />
+              {session.jours.length > 0 && (
+                <Ligne
+                  libelle={`Jours (${session.jours.length})`}
+                  valeur={session.jours.map((j) => jourCourtSession.format(j)).join(", ")}
+                />
+              )}
               <Ligne libelle="Horaires" valeur={session.horaires} />
               <Ligne libelle="Lieu" valeur={session.lieu} />
               <Ligne libelle="Modalité" valeur={LIBELLE_MODALITE[session.modalite]} />

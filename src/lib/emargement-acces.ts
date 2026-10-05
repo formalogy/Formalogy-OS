@@ -11,7 +11,7 @@ const SELECTION_EMARGEMENT = {
   id: true,
   numero: true,
   dateDebut: true,
-  dateFin: true,
+  dateFin: true, jours: true,
   horaires: true,
   lieu: true,
   statut: true,

@@ -38,7 +38,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
       numero: true,
       statut: true,
       modalite: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       deroulementSuspenduAt: true,
       dateDebut: true,
       feuillesSignees: { select: { jour: true } },
@@ -100,7 +100,7 @@ export async function alertesDeroulement(): Promise<AlerteDeroulement[]> {
     // monde a signé). Le formateur est relancé chaque soir ; passé le
     // lendemain de la fin, c'est à régler (preuve de présence exigée par
     // Qualiopi et les financeurs) : absence à signaler ou feuille papier.
-    const manquantes = (s.modalite === "E_LEARNING" ? [] : joursDeSession(s.dateDebut, s.dateFin)).filter(
+    const manquantes = (s.modalite === "E_LEARNING" ? [] : joursDeSession(s.dateDebut, s.dateFin, s.jours)).filter(
       (j) => j < aujourdhui && !s.feuillesSignees.some((f) => f.jour.getTime() === j.getTime()),
     );
     if (manquantes.length > 0) {

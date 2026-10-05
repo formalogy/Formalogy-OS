@@ -41,6 +41,8 @@ export type DonneesConvocation = {
     horaires: string | null;
     lieu: string | null;
     modaliteLibelle: string;
+    /// Jours cochés sur le calendrier (vide : la période)
+    jours?: Date[];
   };
   formateur: { nom: string; email: string | null; telephone: string | null } | null;
   /// Date d'établissement, fixe pour qu'une convocation régénérée à
@@ -68,7 +70,7 @@ export async function genererConvocation(d: DonneesConvocation): Promise<Uint8Ar
   r.paragraphe(`Vous êtes inscrit(e) à la session de formation suivante :`);
   r.paragraphe(d.formation.titre, { police: grasse, taille: 12 });
 
-  const jours = joursDeSession(d.session.dateDebut, d.session.dateFin);
+  const jours = joursDeSession(d.session.dateDebut, d.session.dateFin, d.session.jours);
   const heures = d.formation.dureeHeures ? `, soit ${Number(d.formation.dureeHeures)} heures` : "";
   r.paragraphe(
     `Elle se déroulera sur ${jours.length} jour${jours.length > 1 ? "s" : ""}${heures}. Le détail des séances est précisé ci-dessous :`,

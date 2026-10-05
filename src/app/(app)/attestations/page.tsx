@@ -23,7 +23,7 @@ export default async function PageAttestations() {
       id: true,
       numero: true,
       dateDebut: true,
-      dateFin: true,
+      dateFin: true, jours: true,
       formation: { select: { titre: true } },
       trainer: { select: { prenom: true, nom: true } },
       _count: {
