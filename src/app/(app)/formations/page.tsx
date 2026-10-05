@@ -1,7 +1,6 @@
 import type { StatutFormation } from "@prisma/client";
 import Link from "next/link";
 
-import { formaterEuros } from "@/lib/crm-libelles";
 import {
   formaterDuree,
   LIBELLE_MODALITE,
@@ -123,7 +122,7 @@ export default async function PageFormations({
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Catégorie</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Modalité</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Durée</th>
-                  <th className="whitespace-nowrap px-4 py-2.5 text-right font-semibold">Prix HT</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Certification</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold">Statut</th>
                 </tr>
               </thead>
@@ -153,8 +152,8 @@ export default async function PageFormations({
                     <td className="whitespace-nowrap px-4 py-2.5 font-mono tabular-nums text-texte-doux">
                       {formaterDuree(formation.dureeHeures, formation.dureeJours)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono tabular-nums">
-                      {formaterEuros(formation.prixHT)}
+                    <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">
+                      {formation.typeCertification === "RS" ? "RS" : formation.typeCertification === "RNCP" ? "RNCP" : "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <span

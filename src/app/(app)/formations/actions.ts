@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { assainirChampsRiches, referenceDejaPrise, schemaFormation } from "@/lib/formations-creation";
+import { assainirChampsRiches, formateursCoches, referenceDejaPrise, schemaFormation } from "@/lib/formations-creation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -49,7 +49,12 @@ export async function creerFormation(
 
   const { categoryId, ...reste } = assainirChampsRiches(resultat.data);
   const formation = await prisma.formation.create({
-    data: { ...reste, categoryId: categoryId ?? null, createdById: utilisateur.id },
+    data: {
+      ...reste,
+      categoryId: categoryId ?? null,
+      createdById: utilisateur.id,
+      formateurs: { connect: formateursCoches(donnees).map((id) => ({ id })) },
+    },
   });
 
   await journaliser({
@@ -92,10 +97,12 @@ export async function modifierFormation(
     };
   }
 
-  const { categoryId, ...reste } = assainirChampsRiches(resultat.data);
+  // Le prix n'est plus saisi sur la formation : celui déjà enregistré reste.
+  const { categoryId, prixHT: _prix, ...reste } = assainirChampsRiches(resultat.data);
+  void _prix;
   const formation = await prisma.formation.update({
     where: { id },
-    data: { ...reste, categoryId: categoryId ?? null },
+    data: { ...reste, categoryId: categoryId ?? null, formateurs: { set: formateursCoches(donnees).map((idF) => ({ id: idF })) } },
   });
 
   // Le prix est l'information la plus sensible du catalogue : on garde la

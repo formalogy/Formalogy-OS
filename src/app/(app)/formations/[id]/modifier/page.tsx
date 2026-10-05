@@ -21,12 +21,13 @@ export default async function PageModifierFormation({
   await exigerRole("ADMIN", "GESTIONNAIRE");
 
   const { id } = await params;
-  const [formation, categories] = await Promise.all([
-    prisma.formation.findFirst({ where: { id, deletedAt: null } }),
+  const [formation, categories, formateurs] = await Promise.all([
+    prisma.formation.findFirst({ where: { id, deletedAt: null }, include: { formateurs: { select: { id: true } } } }),
     prisma.formationCategory.findMany({
       orderBy: { ordre: "asc" },
       select: { id: true, nom: true },
     }),
+    prisma.trainer.findMany({ where: { deletedAt: null }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, actif: true } }),
   ]);
 
   if (!formation) notFound();
@@ -40,7 +41,6 @@ export default async function PageModifierFormation({
     statut: formation.statut,
     dureeHeures: texte(formation.dureeHeures),
     dureeJours: texte(formation.dureeJours),
-    prixHT: texte(formation.prixHT),
     certification: formation.certification ?? "",
     description: formation.description ?? "",
     objectifs: formation.objectifs ?? "",
@@ -48,6 +48,15 @@ export default async function PageModifierFormation({
     competences: formation.competences ?? "",
     prerequis: formation.prerequis ?? "",
     publicVise: formation.publicVise ?? "",
+    typeCertification: formation.typeCertification && formation.typeCertification !== "AUCUNE" ? formation.typeCertification : "",
+    niveauCertification: formation.niveauCertification ?? "",
+    methodes: formation.methodes ?? "",
+    evaluation: formation.evaluation ?? "",
+    accessibilite: formation.accessibilite ?? "",
+    horaires: formation.horaires ?? "",
+    plateforme: formation.plateforme && formation.plateforme !== "FORMATEUR" ? formation.plateforme : "",
+    dureeAccesMois: formation.dureeAccesMois?.toString() ?? "",
+    formateurs: formation.formateurs.map((f) => f.id).join(","),
   };
 
   return (
@@ -62,7 +71,11 @@ export default async function PageModifierFormation({
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Modifier la formation</h1>
       </header>
 
-      <FormulaireFormation categories={categories} initiales={initiales} />
+      <FormulaireFormation
+        categories={categories}
+        formateurs={formateurs
+          .filter((f) => f.actif || formation.formateurs.some((x) => x.id === f.id))
+          .map((f) => ({ id: f.id, libelle: `${f.nom} ${f.prenom}` }))} initiales={initiales} />
     </>
   );
 }

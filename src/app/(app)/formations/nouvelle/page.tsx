@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 export default async function PageNouvelleFormation() {
   await exigerRole("ADMIN", "GESTIONNAIRE");
 
-  const categories = await prisma.formationCategory.findMany({
-    orderBy: { ordre: "asc" },
-    select: { id: true, nom: true },
-  });
+  const [categories, formateurs] = await Promise.all([
+    prisma.formationCategory.findMany({ orderBy: { ordre: "asc" }, select: { id: true, nom: true } }),
+    prisma.trainer.findMany({ where: { deletedAt: null, actif: true }, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
+  ]);
 
   return (
     <>
@@ -26,7 +26,7 @@ export default async function PageNouvelleFormation() {
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Nouvelle formation</h1>
       </header>
 
-      <FormulaireFormation categories={categories} />
+      <FormulaireFormation categories={categories} formateurs={formateurs.map((f) => ({ id: f.id, libelle: `${f.nom} ${f.prenom}` }))} />
     </>
   );
 }

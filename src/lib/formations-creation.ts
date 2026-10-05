@@ -38,7 +38,8 @@ export const schemaFormation = z.object({
   statut: z.enum(["BROUILLON", "ACTIVE", "ARCHIVEE"]),
   dureeHeures: nombreFacultatif("La durée en heures doit être un nombre positif."),
   dureeJours: nombreFacultatif("La durée en jours doit être un nombre positif."),
-  prixHT: nombreFacultatif("Le prix doit être un nombre positif."),
+  /// Plus saisi (client, 05/10/2026) : le tarif se donne par stagiaire.
+  prixHT: nombreFacultatif("Le prix doit être un nombre positif.").optional(),
   description: texteFacultatif,
   objectifs: texteFacultatif,
   programme: texteFacultatif,
@@ -46,11 +47,32 @@ export const schemaFormation = z.object({
   publicVise: texteFacultatif,
   competences: texteFacultatif,
   certification: texteFacultatif,
+  typeCertification: z
+    .enum(["AUCUNE", "RS", "RNCP", ""])
+    .optional()
+    .transform((v) => v || null),
+  niveauCertification: texteFacultatif,
+  methodes: texteFacultatif,
+  evaluation: texteFacultatif,
+  accessibilite: texteFacultatif,
+  horaires: texteFacultatif,
+  plateforme: z
+    .enum(["EFORMA", "MON_PARCOURS_EN_LIGNE", ""])
+    .optional()
+    .transform((v) => v || null),
+  dureeAccesMois: texteFacultatif
+    .refine((v) => v === undefined || /^\d{1,2}$/.test(v), "La durée d'accès se donne en mois (ex. 3).")
+    .transform((v) => (v === undefined ? null : Number(v))),
 });
+
+/// Formateurs habituels cochés sur la fiche formation.
+export function formateursCoches(donnees: FormData): string[] {
+  return [...new Set(donnees.getAll("formateurs").map(String).filter(Boolean))];
+}
 
 /// Champs saisis via l'éditeur enrichi : leur HTML est nettoyé avant d'être
 /// enregistré, jamais fait confiance tel quel.
-const CHAMPS_RICHES = ["description", "objectifs", "programme", "prerequis", "publicVise", "competences"] as const;
+const CHAMPS_RICHES = ["description", "objectifs", "programme", "prerequis", "publicVise", "competences", "methodes", "evaluation", "accessibilite"] as const;
 
 export function assainirChampsRiches<T extends Record<string, unknown>>(donnees: T): T {
   const copie: Record<string, unknown> = { ...donnees };

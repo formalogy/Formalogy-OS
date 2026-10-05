@@ -513,6 +513,24 @@ model Formation {
   competences  String?
   /// Certification visée (RS, RNCP, TOSA…), le cas échéant
   certification String?
+  /// Catalogue enrichi (client, 05/10/2026) : une session se crée prête à
+  /// partir de sa formation.
+  typeCertification TypeCertification?
+  /// Niveau (RNCP) de la certification
+  niveauCertification String?
+  /// Méthodes et moyens pédagogiques (repris dans la convention)
+  methodes String?
+  /// Modalités d'évaluation des acquis
+  evaluation String?
+  /// Accessibilité aux personnes en situation de handicap, délai d'accès
+  accessibilite String?
+  /// Horaires habituels en présentiel (« 9h00–12h30 / 13h30–17h00 »)
+  horaires String?
+  /// E-learning : plateforme et durée d'accès en mois (3 par défaut)
+  plateforme PlateformeElearning?
+  dureeAccesMois Int?
+  /// Formateurs habituels de la formation (chacun avec son programme)
+  formateurs Trainer[] @relation("FormateursHabituels")
 
   dureeHeures Decimal? @db.Decimal(6, 2)
   dureeJours  Decimal? @db.Decimal(4, 1)
@@ -688,6 +706,13 @@ model SessionLearner {
 
 /// Catégories de la bibliothèque documentaire (cahier des charges, section 15).
 /// Plateforme en ligne d'une formation e-learning (client, 01/10/2026).
+/// Type de certification visée par une formation (catalogue, BPF).
+enum TypeCertification {
+  AUCUNE
+  RS
+  RNCP
+}
+
 enum PlateformeElearning {
   EFORMA
   MON_PARCOURS_EN_LIGNE
@@ -1099,6 +1124,7 @@ model Trainer {
   createdById String?
   createdBy   User?   @relation("TrainerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  formationsHabituelles Formation[] @relation("FormateursHabituels")
   sessions  TrainingSession[]
   documents Document[]
   questionnaires Questionnaire[]

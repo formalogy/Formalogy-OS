@@ -90,7 +90,7 @@ export async function calculerBpf(annee: number) {
             modalite: true,
             dateDebut: true,
             dateFin: true, jours: true,
-            formation: { select: { id: true, titre: true, dureeHeures: true, certification: true, category: { select: { nom: true } } } },
+            formation: { select: { id: true, titre: true, dureeHeures: true, certification: true, typeCertification: true, category: { select: { nom: true } } } },
             presences: { select: { learnerId: true, statut: true } },
           },
         },
@@ -153,7 +153,14 @@ export async function calculerBpf(annee: number) {
   const stagiaires: LigneBpf[] = TYPES_STAGIAIRE.map((t) => ({ code: t.code, libelle: t.libelle, ...(parType.get(t.code) ?? { nombre: 0, heures: 0 }) }));
   const totalStagiaires = { nombre: inscriptions.length, heures: stagiaires.reduce((t, l) => t + (l.heures ?? 0), 0) };
 
-  const parObjectif = cumuler((i) => OBJECTIFS.find((o) => o.motif?.test(i.session.formation.certification ?? ""))?.code ?? "d");
+  // Le type saisi au catalogue fait foi ; à défaut, le texte de la certification.
+  const parObjectif = cumuler((i) => {
+    const t = i.session.formation.typeCertification;
+    if (t === "RNCP") return "a";
+    if (t === "RS") return "b";
+    if (t === "AUCUNE") return "d";
+    return OBJECTIFS.find((o) => o.motif?.test(i.session.formation.certification ?? ""))?.code ?? "d";
+  });
   const objectifs: LigneBpf[] = OBJECTIFS.map((o) => ({ code: o.code, libelle: o.libelle, ...(parObjectif.get(o.code) ?? { nombre: 0, heures: 0 }) }));
 
   const parSpecialite = cumuler((i) => i.session.formation.category?.nom ?? "Sans catégorie");

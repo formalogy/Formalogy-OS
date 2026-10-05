@@ -10,6 +10,7 @@ import { genererConvocation } from "@/lib/convocation-pdf";
 import { docxVersPdf } from "@/lib/docx-vers-pdf";
 import { lireLogoOrganisme, lireSignatureOrganisme } from "@/lib/organisme-signature";
 import { formaterMontant } from "@/lib/factures";
+import { texteFormationVersBrut } from "@/lib/formations-assainir";
 import { LIBELLE_MODALITE, modaliteEnLigne } from "@/lib/formations-libelles";
 import { lireOrganisme } from "@/lib/organisme";
 import { prisma } from "@/lib/prisma";
@@ -146,7 +147,10 @@ export function valeursConvention(d: DonneesConvention): Record<string, string |
     ENGAGEMENT_PARTICIPANTS: enLigne
       ? "Le bénéficiaire s'engage à ce que les participants désignés ci-dessus suivent l'intégralité du parcours de formation en ligne sur la période prévue."
       : "Le bénéficiaire s'engage à assurer la présence des participants désignés ci-dessus aux dates, lieux et heures prévus ci-dessus.",
-    MOYENS_PEDAGOGIQUES: enLigne
+    // Méthodes saisies au catalogue, à défaut un texte selon la modalité.
+    MOYENS_PEDAGOGIQUES: session.formation.methodes?.trim()
+      ? texteFormationVersBrut(session.formation.methodes)
+      : enLigne
       ? `Parcours de formation sur la plateforme en ligne${plateforme ? ` ${plateforme}` : ""}, accessible à tout moment : modules interactifs, vidéos, exercices et tests d'évaluation ; accompagnement à distance par le formateur.`
       : "Formation animée par le formateur : supports de présentation, exercices pratiques et mises en situation, suivi individualisé des stagiaires.",
     MOYENS_SUIVI: enLigne

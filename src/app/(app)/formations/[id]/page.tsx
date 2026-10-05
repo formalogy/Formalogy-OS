@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
-import { formaterEuros } from "@/lib/crm-libelles";
 import {
   formaterDuree,
   LIBELLE_MODALITE,
@@ -58,6 +57,7 @@ export default async function PageFormation({
         include: { company: { select: { raisonSociale: true } }, trainer: { select: { id: true, prenom: true, nom: true } } },
       },
       documents: SELECTION_DOCUMENT_RESUME,
+      formateurs: { where: { deletedAt: null }, orderBy: { nom: "asc" }, select: { id: true, prenom: true, nom: true } },
     },
   });
 
@@ -95,8 +95,11 @@ export default async function PageFormation({
 
       <section className="mb-4 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ["Prix HT", formaterEuros(formation.prixHT)],
           ["Durée", formaterDuree(formation.dureeHeures, formation.dureeJours)],
+          [
+            "Certification",
+            formation.typeCertification === "RS" ? "RS" : formation.typeCertification === "RNCP" ? `RNCP${formation.niveauCertification ? ` niv. ${formation.niveauCertification}` : ""}` : "Aucune",
+          ],
           ["Modalité", LIBELLE_MODALITE[formation.modalite]],
           ["Catégorie", formation.category?.nom ?? "—"],
         ].map(([libelle, valeur]) => (
@@ -122,6 +125,9 @@ export default async function PageFormation({
             <Bloc titre="Prérequis" texte={formation.prerequis} riche />
             <Bloc titre="Public visé" texte={formation.publicVise} riche />
             <Bloc titre="Certification" texte={formation.certification} />
+            <Bloc titre="Méthodes et moyens pédagogiques" texte={formation.methodes} riche />
+            <Bloc titre="Modalités d'évaluation" texte={formation.evaluation} riche />
+            <Bloc titre="Accessibilité et délai d'accès" texte={formation.accessibilite} riche />
           </section>
 
           <ListeSessions
@@ -146,24 +152,20 @@ export default async function PageFormation({
           <ListeDocuments documents={formation.documents} lienAjout={`formation=${formation.id}`} />
 
           <section className="rounded-xl border border-bordure bg-surface p-5 shadow-sm">
-            <h2 className="mb-2 text-[14.5px] font-bold">Formateurs</h2>
-            {(() => {
-              // Formateurs ayant animé ou animant une session de cette formation.
-              const formateurs = [...new Map(formation.sessions.filter((s) => s.trainer).map((s) => [s.trainer!.id, s.trainer!])).values()];
-              return formateurs.length === 0 ? (
-                <p className="text-[12.8px] text-texte-doux">Aucun formateur affecté aux sessions de cette formation.</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {formateurs.map((f) => (
-                    <li key={f.id}>
-                      <Link href={`/formateurs/${f.id}`} className="text-[13px] font-semibold hover:text-accent-fort">
-                        {f.prenom} {f.nom}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              );
-            })()}
+            <h2 className="mb-2 text-[14.5px] font-bold">Formateurs habituels</h2>
+            {formation.formateurs.length === 0 ? (
+              <p className="text-[12.8px] text-texte-doux">Aucun : cochez-les dans « Modifier ». Ils seront proposés d&apos;office sur les sessions.</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {formation.formateurs.map((f) => (
+                  <li key={f.id}>
+                    <Link href={`/formateurs/${f.id}`} className="text-[13px] font-semibold hover:text-accent-fort">
+                      {f.prenom} {f.nom}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       </div>
