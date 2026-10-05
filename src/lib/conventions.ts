@@ -85,7 +85,15 @@ export function valeursConvention(d: DonneesConvention): Record<string, string |
 
   const heures = nombre(session.formation.dureeHeures);
   const jours = nombre(session.formation.dureeJours) ?? String(session.jours?.length || joursDeSession(session.dateDebut, session.dateFin));
-  const prixHT = session.prixHT ?? session.formation.prixHT;
+  // Tarif du stagiaire (saisi à son inscription) ; convention entreprise :
+  // somme des tarifs de ses salariés inscrits. Le prix de session ou de
+  // formation ne sert plus qu'à défaut.
+  const salaries = entreprise ? session.inscriptions.filter((i) => (i.learner.companyId ?? session.companyId) === entreprise.id) : [];
+  const prixHT = entreprise
+    ? salaries.some((i) => i.prixHT !== null)
+      ? salaries.reduce((t, i) => t + Number(i.prixHT ?? 0), 0)
+      : (session.prixHT ?? session.formation.prixHT)
+    : (inscription.prixHT ?? session.prixHT ?? session.formation.prixHT);
   // TVA 0 % (article 261-4-4° du CGI) : le TTC est égal au HT.
   const prix = prixHT === null ? undefined : formaterMontant(prixHT);
   const prixJour =

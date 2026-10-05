@@ -566,6 +566,19 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   convocation, frise, attestation, BPF. Horaires en listes (matin et
   après-midi, début et fin) ; durée par jour et totale affichées, comparées
   à la durée de la formation. Le nombre de places n'est plus saisi (client).
+- **Créer une session = choisir dans le catalogue** (05/10/2026,
+  `/sessions/nouvelle`, recherche titre/référence/catégorie/formateur) : la
+  session naît en brouillon, pré-remplie (`creerSessionDepuisFormation`) —
+  modalité, horaires de la formation (à défaut 9h00–12h30 / 13h30–17h00),
+  plateforme et attribution Formalogy (e-learning), formateur s'il n'y a
+  qu'un formateur habituel, son programme, son lieu. En ligne : période
+  J+14 → + durée d'accès (3 mois). Présentiel : date provisoire, aucun jour
+  coché (`seancesAPlanifier`) ; le lancement est refusé tant que les
+  séances ne sont pas cochées ou que le formateur manque. Pas de prix de
+  session : le tarif se donne par stagiaire (la convention prend celui de
+  l'inscription ; entreprise : somme de ses salariés). L'ancien formulaire
+  complet reste en « Formulaire détaillé » (`/sessions/nouvelle/detaillee`,
+  aussi utilisé pour créer une session depuis un stagiaire).
 - Une session se crée en brouillon, sans choix de statut. Le bouton « Lancer
   le déroulement automatique » la met en route ; ensuite le calendrier la
   fait passer seul « En cours » puis « Terminée » (voir « Déroulement sans

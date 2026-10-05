@@ -9,7 +9,7 @@ import { z } from "zod";
 import { declencher, executerPlanifiees } from "@/lib/automatisations/moteur";
 import { genererConvention } from "@/lib/conventions";
 import { lireMontant } from "@/lib/factures";
-import { creerSessionBrouillon, formateurValide, lieuParDefaut, programmeInvalide, schemaSession } from "@/lib/sessions-creation";
+import { creerSessionBrouillon, creerSessionDepuisFormation, seancesAPlanifier, formateurValide, lieuParDefaut, programmeInvalide, schemaSession } from "@/lib/sessions-creation";
 import { decrirePayeur, estFinanceurTiers, PAYEURS_INSCRIPTION } from "@/lib/inscriptions-facturation";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -455,6 +455,9 @@ export async function lancerDeroulementSession(
   });
   if (!session) return { erreur: "Session introuvable." };
   if (session.statut === "ANNULEE") return { erreur: "Cette session est annulée." };
+  // Session née du catalogue : ce qui manque se complète avant de lancer.
+  if (seancesAPlanifier(session)) return { erreur: "Planifiez d'abord les séances : cochez les jours de formation (Modifier la session)." };
+  if (!session.trainerId) return { erreur: "Choisissez d'abord le formateur (Modifier la session)." };
 
   if (session.statut === "BROUILLON") {
     await prisma.trainingSession.update({ where: { id }, data: { statut: "A_PREPARER" } });
@@ -663,4 +666,22 @@ export async function validerFinParcours(_precedent: EtatFinParcours, donnees: F
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath(`/apprenants/${learnerId}`);
   return { succes: `Parcours de ${nom} validé.${suite}` };
+}
+
+/// « Créer une session » depuis le catalogue : la session naît pré-remplie
+/// d'après la formation choisie, puis se complète depuis sa fiche.
+export async function creerSessionCatalogue(donnees: FormData): Promise<void> {
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
+  const formationId = String(donnees.get("formationId") ?? "");
+  const r = await creerSessionDepuisFormation(
+    {
+      formationId,
+      trainerId: String(donnees.get("formateur") ?? "") || undefined,
+      companyId: String(donnees.get("entreprise") ?? "") || undefined,
+    },
+    utilisateur.id,
+  );
+  if ("erreur" in r) redirect(`/sessions/nouvelle?erreur=${encodeURIComponent(r.erreur)}`);
+  revalidatePath("/sessions");
+  redirect(`/sessions/${r.session.id}`);
 }

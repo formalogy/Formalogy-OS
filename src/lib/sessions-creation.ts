@@ -4,9 +4,10 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { adresseEntreprise } from "@/lib/entreprises-adresse";
+import { joursDeSession } from "@/lib/emargement";
 import { journaliser } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
-import { formaterPeriode, jourDepuisSaisie, STATUTS_SESSION } from "@/lib/sessions-libelles";
+import { ajouterJours, aujourdhuiUTC, formaterPeriode, jourDepuisSaisie, STATUTS_SESSION } from "@/lib/sessions-libelles";
 
 /// Création d'une session, partagée entre le formulaire et l'assistant IA
 /// (une proposition validée par l'utilisateur).
@@ -62,8 +63,10 @@ export const schemaSession = z
       });
       return z.NEVER;
     }
-    // En ligne, pas de jours de présence : la période suffit.
-    return { ...d, dateDebut, dateFin, jours: enLigne(d.modalite) ? [] : choisis };
+    // En ligne, pas de jours de présence : la période suffit. Une période
+    // saisie sans calendrier (assistant IA) donne ses jours ouvrés.
+    const jours = enLigne(d.modalite) ? [] : choisis.length ? choisis : joursDeSession(dateDebut, dateFin);
+    return { ...d, dateDebut, dateFin, jours };
   })
   .refine((d) => !d.dateDebut || !d.dateFin || d.dateFin >= d.dateDebut, {
     message: "La date de fin ne peut pas précéder la date de début.",
@@ -198,3 +201,81 @@ export async function creerSessionBrouillon(
 
   return { session };
 }
+
+/// Horaires proposés quand la formation n'en indique pas.
+export const HORAIRES_PAR_DEFAUT = "9h00–12h30 / 13h30–17h00";
+
+/// Session créée depuis le catalogue (client, 05/10/2026) : tout ce que la
+/// formation sait est recopié — modalité, horaires, plateforme, formateur et
+/// son programme s'il n'y en a qu'un. Elle naît en brouillon ; ce qui manque
+/// (séances, formateur, participants) se complète depuis sa fiche.
+/// En ligne : début dans deux semaines, durée d'accès de la formation (3 mois
+/// par défaut). En présentiel : séances à planifier sur le calendrier (date
+/// provisoire dans deux semaines, aucun jour coché).
+export async function creerSessionDepuisFormation(
+  p: { formationId: string; trainerId?: string; companyId?: string },
+  userId: string,
+): Promise<{ erreur: string } | { session: { id: string; numero: string } }> {
+  const formation = await prisma.formation.findFirst({
+    where: { id: p.formationId, deletedAt: null, statut: "ACTIVE" },
+    include: { formateurs: { where: { deletedAt: null, actif: true }, select: { id: true } } },
+  });
+  if (!formation) return { erreur: "Cette formation n'est pas active dans le catalogue." };
+
+  const habituels = formation.formateurs.map((f) => f.id);
+  const trainerId =
+    p.trainerId && (await formateurValide(p.trainerId)) ? p.trainerId : habituels.length === 1 ? habituels[0] : null;
+  const companyId = p.companyId && (await prisma.company.findFirst({ where: { id: p.companyId, deletedAt: null } })) ? p.companyId : null;
+
+  // Son programme pour cette formation, à défaut son unique programme.
+  let programmeId: string | null = null;
+  if (trainerId) {
+    const programmes = await prisma.document.findMany({
+      where: { trainerId, deletedAt: null, type: { code: "PROGRAMME" } },
+      select: { id: true, formationId: true },
+    });
+    const pourFormation = programmes.filter((d) => d.formationId === formation.id);
+    programmeId = pourFormation.length === 1 ? pourFormation[0].id : programmes.length === 1 ? programmes[0].id : null;
+  }
+
+  const ligne = enLigne(formation.modalite);
+  const debut = ajouterJours(aujourdhuiUTC(), 14);
+  const fin = new Date(debut);
+  if (ligne) fin.setUTCMonth(fin.getUTCMonth() + (formation.dureeAccesMois ?? 3));
+  const plateforme = ligne && formation.plateforme && formation.plateforme !== "FORMATEUR" ? formation.plateforme : null;
+  const lieu = trainerId ? await lieuParDefaut(undefined, trainerId, companyId ?? undefined, formation.modalite) : null;
+
+  const session = await creerAvecNumero(debut.getUTCFullYear(), (numero) =>
+    prisma.trainingSession.create({
+      data: {
+        numero,
+        formationId: formation.id,
+        companyId,
+        dateDebut: debut,
+        dateFin: fin,
+        jours: [],
+        horaires: ligne ? null : (formation.horaires ?? HORAIRES_PAR_DEFAUT),
+        lieu,
+        modalite: formation.modalite,
+        interne: Boolean(plateforme),
+        plateforme,
+        statut: "BROUILLON",
+        trainerId,
+        programmeId,
+        createdById: userId,
+      },
+    }),
+  );
+
+  await journaliser({
+    action: "session.created",
+    summary: `Session ${session.numero} créée depuis le catalogue : ${formation.titre}`,
+    entityType: "TrainingSession",
+    entityId: session.id,
+    userId,
+  });
+  return { session };
+}
+
+/// Session en présentiel dont les séances ne sont pas encore cochées.
+export const seancesAPlanifier = (s: { modalite: string; jours: Date[] }) => !enLigne(s.modalite) && s.jours.length === 0;
