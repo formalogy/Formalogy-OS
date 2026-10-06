@@ -3,12 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
-import {
-  formaterDuree,
-  LIBELLE_MODALITE,
-  LIBELLE_STATUT_FORMATION,
-  TON_STATUT_FORMATION,
-} from "@/lib/formations-libelles";
+import { formaterDuree, LIBELLE_MODALITE, LIBELLE_STATUT_FORMATION, libelleCertification, TON_STATUT_FORMATION } from "@/lib/formations-libelles";
 import { texteFormationVersHtml } from "@/lib/formations-texte";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -98,7 +93,7 @@ export default async function PageFormation({
           ["Durée", formaterDuree(formation.dureeHeures, formation.dureeJours)],
           [
             "Certification",
-            formation.typeCertification === "RS" ? "RS" : formation.typeCertification === "RNCP" ? `RNCP${formation.niveauCertification ? ` niv. ${formation.niveauCertification}` : ""}` : "Aucune",
+            libelleCertification(formation) ?? "Aucune",
           ],
           ["Modalité", LIBELLE_MODALITE[formation.modalite]],
           ["Catégorie", formation.category?.nom ?? "—"],

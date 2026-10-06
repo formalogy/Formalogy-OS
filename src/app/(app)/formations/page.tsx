@@ -1,13 +1,7 @@
 import type { StatutFormation } from "@prisma/client";
 import Link from "next/link";
 
-import {
-  formaterDuree,
-  LIBELLE_MODALITE,
-  LIBELLE_STATUT_FORMATION,
-  STATUTS_FORMATION,
-  TON_STATUT_FORMATION,
-} from "@/lib/formations-libelles";
+import { formaterDuree, LIBELLE_MODALITE, LIBELLE_STATUT_FORMATION, libelleCertification, STATUTS_FORMATION, TON_STATUT_FORMATION } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 
@@ -153,7 +147,7 @@ export default async function PageFormations({
                       {formaterDuree(formation.dureeHeures, formation.dureeJours)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-texte-doux">
-                      {formation.typeCertification === "RS" ? "RS" : formation.typeCertification === "RNCP" ? "RNCP" : "—"}
+                      {libelleCertification(formation) ?? "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <span

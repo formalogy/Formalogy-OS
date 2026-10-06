@@ -16,7 +16,7 @@ import { joursDeSession } from "@/lib/emargement";
 import { financeursConnus } from "@/lib/financeurs-connus";
 import { decrirePayeur, type PayeurInscription } from "@/lib/inscriptions-facturation";
 import { paiementAttendu, textePaiementAttendu } from "@/lib/paiements-attendus";
-import { formaterDuree, LIBELLE_MODALITE, modaliteEnLigne } from "@/lib/formations-libelles";
+import { formaterDuree, LIBELLE_MODALITE, libelleCertification, modaliteEnLigne } from "@/lib/formations-libelles";
 import { LIBELLE_TYPE_QUESTIONNAIRE } from "@/lib/questionnaires-questions";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
@@ -333,7 +333,7 @@ export default async function PageSession({
           </BlocInfo>
           <BlocInfo
             titre="Spécificités de la session"
-            badge={session.formation.typeCertification === "RNCP" ? `RNCP${session.formation.niveauCertification ? ` – Niveau ${session.formation.niveauCertification}` : ""}` : session.formation.typeCertification === "RS" ? "RS" : "Non certifiante"}
+            badge={libelleCertification(session.formation) ?? "Non certifiante"}
           >
             <dl>
               <Ligne libelle="Certification" valeur={session.formation.certification} />

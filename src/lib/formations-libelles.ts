@@ -54,3 +54,14 @@ export const MODALITES_EN_LIGNE = ["E_LEARNING", "HYBRIDE"] as const;
 export function modaliteEnLigne(modalite: string): boolean {
   return (MODALITES_EN_LIGNE as readonly string[]).includes(modalite);
 }
+
+/// Certification telle qu'on l'affiche (catalogue, sessions) : son type et
+/// son numéro, tiré du code saisi (« TOSA RS 7256 » → « RS 7256 ») ;
+/// RNCP : niveau en plus. Null si la formation n'est pas certifiante.
+export function libelleCertification(f: { typeCertification: string | null; certification?: string | null; niveauCertification?: string | null }): string | null {
+  if (f.typeCertification !== "RS" && f.typeCertification !== "RNCP") return null;
+  const texte = f.certification ?? "";
+  const numero = texte.match(/(?:RS|RNCP)\s*-?\s*(\d{3,6})/i)?.[1] ?? texte.match(/\b(\d{3,6})\b/)?.[1];
+  const base = numero ? `${f.typeCertification} ${numero}` : f.typeCertification;
+  return f.typeCertification === "RNCP" && f.niveauCertification ? `${base} – niveau ${f.niveauCertification}` : base;
+}

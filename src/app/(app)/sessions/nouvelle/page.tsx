@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { CatalogueSessions } from "@/app/(app)/sessions/nouvelle/catalogue";
-import { formaterDuree, LIBELLE_MODALITE } from "@/lib/formations-libelles";
+import { formaterDuree, LIBELLE_MODALITE, libelleCertification } from "@/lib/formations-libelles";
 import { prisma } from "@/lib/prisma";
 import { exigerRole } from "@/lib/session";
 
@@ -32,6 +32,8 @@ export default async function PageNouvelleSession({
       dureeHeures: true,
       dureeJours: true,
       typeCertification: true,
+      certification: true,
+      niveauCertification: true,
       category: { select: { nom: true } },
       formateurs: { where: { deletedAt: null, actif: true }, select: { prenom: true, nom: true } },
     },
@@ -73,7 +75,7 @@ export default async function PageNouvelleSession({
           categorie: f.category?.nom ?? null,
           modalite: LIBELLE_MODALITE[f.modalite],
           duree: formaterDuree(f.dureeHeures, f.dureeJours),
-          certification: f.typeCertification === "RS" ? "RS" : f.typeCertification === "RNCP" ? "RNCP" : null,
+          certification: libelleCertification(f),
           formateurs: f.formateurs.map((t) => `${t.prenom} ${t.nom}`),
         }))}
       />
