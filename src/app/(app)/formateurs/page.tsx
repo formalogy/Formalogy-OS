@@ -1,3 +1,4 @@
+import { IconLock } from "@tabler/icons-react";
 import Link from "next/link";
 
 import { LIBELLE_STATUT_FORMATEUR } from "@/lib/formateurs";
@@ -95,6 +96,9 @@ export default async function PageFormateurs({
                       <Link href={`/formateurs/${f.id}`} className="font-semibold hover:text-accent-fort">
                         {f.prenom} {f.nom}
                       </Link>
+                      {f.verrouille && (
+                        <IconLock className="ml-1.5 inline size-3.5 align-[-2px] text-alerte" stroke={2.2} aria-label="Profil verrouillé" />
+                      )}
                       {!f.actif && (
                         <span className="ml-2 rounded-full bg-surface-creuse px-2 py-0.5 text-[10.5px] font-semibold text-texte-tenu">
                           Inactif

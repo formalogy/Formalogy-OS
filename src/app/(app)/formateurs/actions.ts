@@ -38,8 +38,10 @@ export async function creerFormateur(_precedent: EtatFormulaire, donnees: FormDa
   const r = schemaFormateur.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide.", valeurs: saisie(donnees) };
 
+  // Verrouillé dès la création si l'administrateur l'a coché.
+  const verrouille = utilisateur.role === "ADMIN" && donnees.get("verrouille") === "on";
   const formateur = await prisma.trainer.create({
-    data: { ...donneesFormateur(r.data), createdById: utilisateur.id },
+    data: { ...donneesFormateur(r.data), createdById: utilisateur.id, verrouille, verrouilleLe: verrouille ? new Date() : null },
   });
 
   await journaliser({
@@ -60,6 +62,9 @@ export async function modifierFormateur(_precedent: EtatFormulaire, donnees: For
   const id = String(donnees.get("id") ?? "");
   const existant = await prisma.trainer.findFirst({ where: { id, deletedAt: null } });
   if (!existant) return { erreur: "Formateur introuvable.", valeurs: saisie(donnees) };
+  if (existant.verrouille) {
+    return { erreur: "Profil verrouillé : un administrateur doit d'abord le déverrouiller.", valeurs: saisie(donnees) };
+  }
 
   const r = schemaFormateur.safeParse(Object.fromEntries(donnees));
   if (!r.success) return { erreur: r.error.issues[0]?.message ?? "Saisie invalide.", valeurs: saisie(donnees) };
@@ -96,6 +101,8 @@ export async function basculerActifFormateur(donnees: FormData): Promise<void> {
   const formateur = await prisma.trainer.findFirst({ where: { id, deletedAt: null }, include: { user: { select: { isActive: true } } } });
   if (!formateur) return;
 
+  // Profil verrouillé : rien ne change tant qu'il n'est pas déverrouillé.
+  if (formateur.verrouille) return;
   const actif = !formateur.actif;
   // Seul un administrateur peut toucher à un compte : un gestionnaire ne peut
   // pas désactiver un formateur qui a un accès ouvert.
@@ -117,6 +124,27 @@ export async function basculerActifFormateur(donnees: FormData): Promise<void> {
     userId: utilisateur.id,
   });
 
+  revalidatePath(`/formateurs/${id}`);
+  revalidatePath("/formateurs");
+}
+
+/// Verrou du profil (client, 06/10/2026) : réservé aux administrateurs.
+/// Verrouillé, le profil ne se modifie plus — ni ses informations, ni son
+/// activation, ni ses documents — jusqu'au déverrouillage.
+export async function basculerVerrouFormateur(donnees: FormData): Promise<void> {
+  const admin = await exigerRole("ADMIN");
+  const id = String(donnees.get("id") ?? "");
+  const formateur = await prisma.trainer.findFirst({ where: { id, deletedAt: null } });
+  if (!formateur) return;
+  const verrouille = !formateur.verrouille;
+  await prisma.trainer.update({ where: { id }, data: { verrouille, verrouilleLe: verrouille ? new Date() : null } });
+  await journaliser({
+    action: verrouille ? "trainer.locked" : "trainer.unlocked",
+    summary: `Profil formateur ${verrouille ? "verrouillé" : "déverrouillé"} : ${formateur.prenom} ${formateur.nom}`,
+    entityType: "Trainer",
+    entityId: id,
+    userId: admin.id,
+  });
   revalidatePath(`/formateurs/${id}`);
   revalidatePath("/formateurs");
 }

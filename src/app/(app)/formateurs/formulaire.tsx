@@ -22,9 +22,11 @@ type Props = {
   initiales?: Record<string, string> & { id: string };
   /// L'email sert d'identifiant quand un accès est ouvert
   emailVerrouille?: boolean;
+  /// Création par un administrateur : proposer de verrouiller le profil
+  proposerVerrou?: boolean;
 };
 
-export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
+export function FormulaireFormateur({ initiales, emailVerrouille, proposerVerrou }: Props) {
   const modification = Boolean(initiales);
   const [etat, envoyer] = useActionState<EtatFormulaire, FormData>(
     modification ? modifierFormateur : creerFormateur,
@@ -116,6 +118,12 @@ export function FormulaireFormateur({ initiales, emailVerrouille }: Props) {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
+        {proposerVerrou && (
+          <label className="flex w-full items-center gap-2 text-[12.5px] font-semibold">
+            <input type="checkbox" name="verrouille" />
+            Verrouiller le profil après création (plus aucune modification sans déverrouillage par un administrateur)
+          </label>
+        )}
         <BoutonEnvoyer libelle={modification ? "Enregistrer les modifications" : "Créer le formateur"} />
         <MessageErreur message={etat.erreur} />
       </div>

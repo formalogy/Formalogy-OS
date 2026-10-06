@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { FormulaireFormateur } from "@/app/(app)/formateurs/formulaire";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +13,8 @@ export default async function PageModifierFormateur({ params }: { params: Promis
 
   const f = await prisma.trainer.findFirst({ where: { id, deletedAt: null } });
   if (!f) notFound();
+  // Profil verrouillé : pas de formulaire, retour à la fiche.
+  if (f.verrouille) redirect(`/formateurs/${f.id}`);
 
   const initiales = {
     id: f.id,

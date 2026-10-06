@@ -226,6 +226,15 @@ n'intervient qu'en cas de problème (absence, report, annulation…).
   (`TYPES_VISIBLES_FORMATEUR` dans `lib/formateurs.ts`), rattachés à ses
   sessions ou aux formations qu'il anime. La même règle filtre la route de
   téléchargement.
+- **Verrou du profil** (06/10/2026, `trainers.verrouille`) : un
+  administrateur verrouille un profil (cadenas sur la fiche et dans la
+  liste ; case à la création). Verrouillé : pas de modification
+  (`modifierFormateur` refuse, page Modifier redirigée), pas d'activation /
+  désactivation, documents du formateur intouchables (nouvelle version,
+  statut, suppression) ; l'ajout d'un document reste possible. Seul un
+  administrateur déverrouille (`basculerVerrouFormateur`, journalisé). Le
+  formateur n'a de toute façon aucune modification de sa fiche (seulement
+  son mot de passe).
 - Fermer l'accès ou désactiver la fiche désactive le compte et coupe ses
   connexions ; un compte désactivé ne peut plus se connecter (hook better-auth).
 

@@ -139,6 +139,13 @@ export async function deposerDocument(_precedent: EtatFormulaire, donnees: FormD
   redirect(`/documents/${documentId}`);
 }
 
+/// Document d'un formateur au profil verrouillé : intouchable (client,
+/// 06/10/2026) jusqu'au déverrouillage par un administrateur.
+async function documentVerrouille(documentId: string): Promise<boolean> {
+  const d = await prisma.document.findUnique({ where: { id: documentId }, select: { trainer: { select: { verrouille: true } } } });
+  return Boolean(d?.trainer?.verrouille);
+}
+
 export async function deposerNouvelleVersion(_precedent: EtatFormulaire, donnees: FormData): Promise<EtatFormulaire> {
   const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
 
@@ -150,6 +157,7 @@ export async function deposerNouvelleVersion(_precedent: EtatFormulaire, donnees
     include: { versions: { orderBy: { numero: "desc" }, take: 1 } },
   });
   if (!document) return { erreur: "Document introuvable." };
+  if (await documentVerrouille(document.id)) return { erreur: "Le profil de ce formateur est verrouillé : un administrateur doit d'abord le déverrouiller." };
 
   const fichier = await verifierFichier(donnees.get("fichier"));
   if (typeof fichier === "string") return { erreur: fichier };
@@ -211,6 +219,7 @@ export async function changerStatutDocument(donnees: FormData): Promise<void> {
     .object({ id: z.string().min(1), statut: z.enum(STATUTS_DOCUMENT as [string, ...string[]]) })
     .safeParse(Object.fromEntries(donnees));
   if (!r.success) return;
+  if (await documentVerrouille(r.data.id)) return;
 
   const document = await prisma.document.update({
     where: { id: r.data.id },
@@ -236,7 +245,7 @@ export async function supprimerDocument(donnees: FormData): Promise<void> {
   const id = String(donnees.get("id") ?? "");
 
   const document = await prisma.document.findFirst({ where: { id, deletedAt: null } });
-  if (!document) return;
+  if (!document || (await documentVerrouille(id))) return;
 
   await prisma.document.update({ where: { id }, data: { deletedAt: new Date() } });
 

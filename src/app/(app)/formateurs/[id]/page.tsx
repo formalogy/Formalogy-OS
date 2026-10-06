@@ -1,10 +1,11 @@
+import { IconLock, IconLockOpen } from "@tabler/icons-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ListeDocuments, SELECTION_DOCUMENT_RESUME } from "@/app/(app)/_composants/liste-documents";
 import { ReponsesQuestionnaires, SELECTION_REPONSES } from "@/app/(app)/_composants/reponses-questionnaires";
 import { ListeSessions } from "@/app/(app)/_composants/liste-sessions";
-import { basculerActifFormateur } from "@/app/(app)/formateurs/actions";
+import { basculerActifFormateur, basculerVerrouFormateur } from "@/app/(app)/formateurs/actions";
 import { AccesFormateur } from "@/app/(app)/formateurs/[id]/acces";
 import { LIBELLE_STATUT_FORMATEUR } from "@/lib/formateurs";
 import { prisma } from "@/lib/prisma";
@@ -69,10 +70,38 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
                 Inactif
               </span>
             )}
+            {f.verrouille && (
+              <span
+                title="Profil verrouillé : aucune modification possible tant qu'un administrateur ne l'a pas déverrouillé."
+                className="ml-3 inline-flex items-center gap-1 rounded-full bg-alerte/12 px-2.5 py-1 align-middle text-[11.5px] font-semibold text-alerte"
+              >
+                <IconLock className="size-3.5" stroke={2.2} aria-hidden="true" /> Verrouillé
+              </span>
+            )}
           </h1>
+          {f.verrouille && (
+            <p className="mt-1 text-[12px] text-texte-tenu">
+              Profil verrouillé{f.verrouilleLe ? ` depuis le ${f.verrouilleLe.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}` : ""} : informations,
+              activation et documents ne se modifient plus.{utilisateur.role !== "ADMIN" && " Seul un administrateur peut le déverrouiller."}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {(!f.actif || !f.user?.isActive || utilisateur.role === "ADMIN") && (
+          {utilisateur.role === "ADMIN" && (
+            <form action={basculerVerrouFormateur}>
+              <input type="hidden" name="id" value={f.id} />
+              <button
+                type="submit"
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold ${
+                  f.verrouille ? "border-alerte bg-alerte/10 text-alerte" : "border-bordure bg-surface text-texte-doux"
+                }`}
+              >
+                {f.verrouille ? <IconLockOpen className="size-4" aria-hidden="true" /> : <IconLock className="size-4" aria-hidden="true" />}
+                {f.verrouille ? "Déverrouiller" : "Verrouiller le profil"}
+              </button>
+            </form>
+          )}
+          {!f.verrouille && (!f.actif || !f.user?.isActive || utilisateur.role === "ADMIN") && (
             <form action={basculerActifFormateur}>
               <input type="hidden" name="id" value={f.id} />
               <button type="submit" className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold text-texte-doux">
@@ -80,9 +109,11 @@ export default async function PageFormateur({ params }: { params: Promise<{ id: 
               </button>
             </form>
           )}
-          <Link href={`/formateurs/${f.id}/modifier`} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold">
-            Modifier
-          </Link>
+          {!f.verrouille && (
+            <Link href={`/formateurs/${f.id}/modifier`} className="rounded-lg border border-bordure bg-surface px-3 py-2 text-[13px] font-semibold">
+              Modifier
+            </Link>
+          )}
         </div>
       </header>
 

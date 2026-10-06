@@ -1113,6 +1113,11 @@ model Trainer {
 
   notes String?
   actif Boolean @default(true)
+  /// Profil verrouillé (client, 06/10/2026) : plus aucune modification —
+  /// ni par l'équipe, ni par le formateur — tant qu'un administrateur ne
+  /// l'a pas déverrouillé.
+  verrouille   Boolean   @default(false)
+  verrouilleLe DateTime?
 
   userId String? @unique
   user   User?   @relation("TrainerUser", fields: [userId], references: [id], onDelete: SetNull)

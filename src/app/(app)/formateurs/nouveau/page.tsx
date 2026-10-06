@@ -4,7 +4,7 @@ import { FormulaireFormateur } from "@/app/(app)/formateurs/formulaire";
 import { exigerRole } from "@/lib/session";
 
 export default async function PageNouveauFormateur() {
-  await exigerRole("ADMIN", "GESTIONNAIRE");
+  const utilisateur = await exigerRole("ADMIN", "GESTIONNAIRE");
 
   return (
     <>
@@ -15,7 +15,7 @@ export default async function PageNouveauFormateur() {
         <h1 className="mt-2 text-[22px] font-extrabold tracking-tight">Nouveau formateur</h1>
       </header>
 
-      <FormulaireFormateur />
+      <FormulaireFormateur proposerVerrou={utilisateur.role === "ADMIN"} />
     </>
   );
 }
